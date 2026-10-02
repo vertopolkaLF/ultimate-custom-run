@@ -87,6 +87,7 @@ internal static class Program
             TestDill();
             TestHeadstart();
             TestMysteryEvents();
+            TestDoubleTrouble();
         }
         finally
         {
@@ -122,7 +123,11 @@ internal static class Program
             typeof(Insanity), typeof(AllStar), typeof(Flight), typeof(Vintage), typeof(CharacterCards), typeof(NeowStarterChoice),
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
-            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart), typeof(MysteryEvents),
+            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart), typeof(MysteryEvents), typeof(DoubleTrouble),
+            typeof(MegaCrit.Sts2.Core.Models.Acts.Overgrowth),
+            typeof(MegaCrit.Sts2.Core.Models.Encounters.VantomBoss),
+            typeof(MegaCrit.Sts2.Core.Models.Encounters.CeremonialBeastBoss),
+            typeof(MegaCrit.Sts2.Core.Models.Encounters.TheKinBoss),
             typeof(UltimateStrike), typeof(UltimateDefend),
             typeof(StrikeIronclad), typeof(DefendIronclad), typeof(Bash),
             typeof(StrikeSilent), typeof(DefendSilent), typeof(Neutralize), typeof(Survivor),
@@ -879,6 +884,113 @@ internal static class Program
             typeof(Dill).GetMethod(nameof(AbstractModel.AfterCombatVictory))!.DeclaringType == typeof(Dill) &&
             typeof(Dill).GetMethod(nameof(AbstractModel.BeforeCombatStart))!.DeclaringType != typeof(Dill),
             "Dill starts at exact HP only on new runs and grows after victories rather than before fights");
+    }
+
+    private static void TestDoubleTrouble()
+    {
+        var canonical = ModelDb.Modifier<DoubleTrouble>();
+        Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.Modifiers &&
+            ModifierListPatch.IsCustomOnly(canonical) &&
+            ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<DoubleTrouble>().Count() == 1,
+            "Double Trouble appears once in Modifiers and stays out of Daily pools");
+        Check(ModifierModel.FromSerializable(canonical.ToMutable().ToSerializable()) is DoubleTrouble,
+            "Double Trouble survives native modifier save serialization");
+        var bosses = new EncounterModel[] {
+            ModelDb.Encounter<MegaCrit.Sts2.Core.Models.Encounters.VantomBoss>(),
+            ModelDb.Encounter<MegaCrit.Sts2.Core.Models.Encounters.CeremonialBeastBoss>(),
+            ModelDb.Encounter<MegaCrit.Sts2.Core.Models.Encounters.TheKinBoss>() };
+        MegaCrit.Sts2.Core.Models.Acts.Overgrowth NewAct(int boss)
+        {
+            var act = (MegaCrit.Sts2.Core.Models.Acts.Overgrowth)ModelDb.Act<MegaCrit.Sts2.Core.Models.Acts.Overgrowth>().ToMutable();
+            AccessTools.Field(typeof(ActModel), "_allBossEncounters").SetValue(act, bosses);
+            AccessTools.Field(typeof(ActModel), "_rooms").SetValue(act,
+                new MegaCrit.Sts2.Core.Rooms.RoomSet { Boss = bosses[boss], Ancient = ModelDb.Event<Neow>() });
+            return act;
+        }
+        for (var seed = 0; seed < 12; seed++)
+        {
+            var acts = new ActModel[] { NewAct(0), NewAct(1), NewAct(2) };
+            acts[2].SetSecondBossEncounter(bosses[0]);
+            DoubleTrouble.AddSecondBosses(acts, new MegaCrit.Sts2.Core.Random.Rng((uint)seed));
+            Check(acts.All(act => act.HasSecondBoss && act.BossEncounter.Id != act.SecondBossEncounter!.Id) &&
+                acts[2].SecondBossEncounter!.Id == bosses[0].Id,
+                "Every act has distinct bosses and the A10 second boss is preserved: " + seed);
+            var firstRoll = acts.Select(act => act.SecondBossEncounter!.Id).ToArray();
+            DoubleTrouble.AddSecondBosses(acts, new MegaCrit.Sts2.Core.Random.Rng(999u));
+            Check(acts.Select(act => act.SecondBossEncounter!.Id).SequenceEqual(firstRoll),
+                "Repeated setup preserves exactly two bosses without rerolls");
+            foreach (var act in acts)
+            {
+                var saved = act.ToSave();
+                var restored = ActModel.FromSave(saved);
+                Check(restored.BossEncounter.Id == act.BossEncounter.Id &&
+                    restored.SecondBossEncounter!.Id == act.SecondBossEncounter!.Id,
+                    "Both distinct boss identities survive native act saves");
+                Check(act.PullNextEncounter(MegaCrit.Sts2.Core.Rooms.RoomType.Boss).Id == act.BossEncounter.Id,
+                    "Native boss progression starts with the first boss");
+                act.MarkRoomVisited(MegaCrit.Sts2.Core.Rooms.RoomType.Boss);
+                Check(act.PullNextEncounter(MegaCrit.Sts2.Core.Rooms.RoomType.Boss).Id == act.SecondBossEncounter!.Id,
+                    "Native boss progression advances to the distinct second boss");
+            }
+        }
+        var mapAct = NewAct(0);
+        DoubleTrouble.AddSecondBosses([mapAct], new MegaCrit.Sts2.Core.Random.Rng(42u));
+        var map = new MegaCrit.Sts2.Core.Map.StandardActMap(new MegaCrit.Sts2.Core.Random.Rng(42u),
+            mapAct, false, false, hasSecondBoss: mapAct.HasSecondBoss);
+        Check(map.SecondBossMapPoint != null && map.BossMapPoint.Children.Contains(map.SecondBossMapPoint) &&
+            map.SecondBossMapPoint.PointType == MegaCrit.Sts2.Core.Map.MapPointType.Boss,
+            "Native A10 map generation places a separate second boss after the first");
+        var savedMap = MegaCrit.Sts2.Core.Saves.Runs.SerializableActMap.FromActMap(map);
+        var restoredMap = new MegaCrit.Sts2.Core.Map.SavedActMap(savedMap);
+        Check(restoredMap.SecondBossMapPoint != null &&
+            restoredMap.BossMapPoint.Children.Contains(restoredMap.SecondBossMapPoint),
+            "Both boss nodes and their connection survive native map saves");
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        AccessTools.Field(typeof(RunState), "_currentActIndex").SetValue(run, 2);
+        AccessTools.Field(typeof(RunState), "<Acts>k__BackingField").SetValue(run, new ActModel[] { NewAct(0), NewAct(1), mapAct });
+        var player = (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player));
+        AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
+        var fixtureHarmony = new Harmony("UltimateCustomRun.Smoke.DoubleTrouble");
+        fixtureHarmony.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Rewards.RewardsSet), "TryGenerateTutorialRewards"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(NoTutorialRewards)));
+        fixtureHarmony.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Rewards.RewardsSet), "GenerateRewardsFor"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(TrackBossRewardGeneration)));
+        try
+        {
+            MegaCrit.Sts2.Core.Rewards.RewardsSet Rewards()
+            {
+                var set = (MegaCrit.Sts2.Core.Rewards.RewardsSet)RuntimeHelpers.GetUninitializedObject(typeof(MegaCrit.Sts2.Core.Rewards.RewardsSet));
+                AccessTools.Field(set.GetType(), "<Player>k__BackingField").SetValue(set, player);
+                AccessTools.Field(set.GetType(), "<Rewards>k__BackingField").SetValue(set, new List<MegaCrit.Sts2.Core.Rewards.Reward>());
+                return set;
+            }
+            var room = (MegaCrit.Sts2.Core.Rooms.CombatRoom)RuntimeHelpers.GetUninitializedObject(typeof(MegaCrit.Sts2.Core.Rooms.CombatRoom));
+            var combat = (MegaCrit.Sts2.Core.Combat.CombatState)RuntimeHelpers.GetUninitializedObject(typeof(MegaCrit.Sts2.Core.Combat.CombatState));
+            AccessTools.Field(room.GetType(), "<CombatState>k__BackingField").SetValue(room, combat);
+            AccessTools.Field(combat.GetType(), "_encounter").SetValue(combat, bosses[0]);
+            AccessTools.Field(room.GetType(), "_extraRewards").SetValue(room, new Dictionary<Player, List<MegaCrit.Sts2.Core.Rewards.Reward>>());
+            AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, Array.Empty<ModifierModel>());
+            _bossRewardGenerations = 0;
+            Rewards().WithRewardsFromRoom(room);
+            Check(_bossRewardGenerations == 0 && DoubleTrouble.RewardActIndex(run) == 2,
+                "Vanilla final-act reward suppression remains unchanged without Double Trouble");
+            AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { canonical.ToMutable() });
+            Rewards().WithRewardsFromRoom(room);
+            AccessTools.Field(combat.GetType(), "_encounter").SetValue(combat, bosses[1]);
+            Rewards().WithRewardsFromRoom(room);
+            Check(_bossRewardGenerations == 2 && run.CurrentActIndex == 2,
+                "Both final-act bosses independently invoke native reward generation without changing act progression");
+        }
+        finally { fixtureHarmony.UnpatchAll(fixtureHarmony.Id); }
+    }
+
+    private static int _bossRewardGenerations;
+    private static bool NoTutorialRewards(ref bool __result) { __result = false; return false; }
+    private static bool TrackBossRewardGeneration(ref List<MegaCrit.Sts2.Core.Rewards.Reward> __result)
+    {
+        _bossRewardGenerations++;
+        __result = [];
+        return false;
     }
 
     private static void TestMysteryEvents()
