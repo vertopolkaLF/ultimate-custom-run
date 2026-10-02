@@ -1,126 +1,121 @@
 # Ultimate Custom Run
 
-Локальная версия 1.7.0. Один мод для кастомизации пользовательского забега Slay the Spire 2.
-Внутренний ID, namespace, сборка, папка и DLL: UltimateCustomRun. Это новая идентичность мода в дорелизной версии.
+Customize **Slay the Spire 2** custom runs with native value sliders, new modifier variants, extra rewards, and an organized selection menu.
 
-## Как пользоваться
+[Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3811713944) · [Report a bug](https://github.com/vertopolkaLF/ultimate-custom-run/issues/new/choose) · [Contributing](CONTRIBUTING.md) · [GPL-3.0 license](LICENSE)
 
-1. Включить Ultimate Custom Run в Settings → Mod Settings.
-2. Начать пользовательский забег и выбрать нужные модификаторы.
-3. Получить выбранные стартовые эффекты у Неоу.
+**Version 1.7.0 · Pre-release · Built against game v0.111.0.** The Workshop item is currently friends-only. Source builds are available independently of Workshop access.
 
-### Количество и множители
+![Ultimate Custom Run artwork](image.png)
 
-Под включённым модификатором появляется штатный игровой ползунок. Число рядом с ним и описание обновляются при изменении; стрелки влево/вправо меняют значение на один шаг.
+## Features
 
-| Модификатор | Диапазон | Шаг | По умолчанию |
+- Collapsible modifier groups: **Improved Start**, **Modifiers**, **Card Pool**, and **Negatives**. Options unavailable in singleplayer appear under **Disabled**.
+- Native sliders with live value labels and descriptions. Use the mouse or focus a slider and press left/right to change it by one step.
+- Linked mutually exclusive choices. Specialized, All Star, and Friendship keep their variants together under one checkbox.
+- Values persist in saves and synchronize from the co-op host.
+- Custom-only modifiers stay out of the Daily Challenge pool. Vanilla Daily values are preserved.
+- No BaseLib dependency or additional PCK file.
+
+## Adjustable values
+
+Enable a modifier to reveal its slider. Original values remain the defaults.
+
+| Modifier | Range | Step | Default |
 | --- | --- | --- | --- |
-| Specialized, All Star, Friendship | 1–10 карт/копий | 1 | 5 |
-| Draft, Sealed Deck | 5–20 карт | 5 | 10 |
-| Insanity | 5–60 карт | 5 | 30 |
-| Hoarder | 1–5 дополнительных копий | 1 | 2 |
-| Midas | 150–300% обычной награды золотом | 5% | 200% |
+| Specialized, All Star, Friendship | 1–10 cards or copies | 1 | 5 |
+| Draft, Sealed Deck | 5–20 cards | 5 | 10 |
+| Insanity | 5–60 cards | 5 | 30 |
+| Hoarder | 1–5 additional copies | 1 | 2 |
+| Midas | 150–300% of normal gold rewards | 5% | 200% |
 
-У Normal, Draft и Pick Any одного семейства общее значение. У Sealed Deck выбирается указанное число из штатных 30 предложений. Hoarder задаёт дополнительные копии сверх полученной карты; запрет удаления карт сохраняется. Midas задаёт процент от обычного золота с округлением вниз; запрет кузницы сохраняется.
-Значения сохраняются с забегом и передаются через штатные сетевые свойства. В кооперативе ползунки меняет только хост; Friendship доступен только в кооперативе. Daily сохраняет штатные значения. Указанные ниже количества 5 относятся к настройкам по умолчанию.
+Normal, Draft, and Pick Any share the same value within a modifier family. Sealed Deck still offers a pool of 30 cards. Hoarder counts copies **in addition to** the original card and still blocks Merchant card removal. Midas uses a percentage of the normal gold reward, rounded down: 200% means twice the gold. It still blocks Smithing at Rest Sites.
 
-### Specialized
+## New options
 
-Обычный игровой Specialized сохраняет штатный выбор случайной карты; количество копий задаётся ползунком (по умолчанию пять).
-Под галочкой Specialized появляется один ряд вариантов: Normal, Draft и Pick Any. Ряд виден, пока Specialized включён; при первом включении выбран Normal. Draft показывает подсказку «Card reward instead of random», а Pick Any — «You can pick any card».
+| Option | Effect |
+| --- | --- |
+| **Neow!!** | Restores the usual starter relic choice after the other starting effects. |
+| **Specialized — Normal** | Adds the selected number of copies of a random eligible card. |
+| **Specialized — Draft** | Choose one Card Reward, then add the selected number of copies. Skipping adds no cards. |
+| **Specialized — Pick Any** | Choose an eligible common, uncommon, or rare card from your character's pool, then add the selected number of copies. |
+| **All Star — Draft** | Choose Colorless card rewards instead of receiving random Colorless cards. Each accepted reward adds one card. |
+| **Friendship — Normal** | Adds the selected number of copies of a random Co-Op card from your character's pool. Co-op only. |
+| **Friendship — Draft** | Choose the selected number of Co-Op card rewards. Each accepted reward adds one card. Co-op only. |
+| **Colorless Cards** | Allows Colorless cards in card rewards through the native Dingy Rug relic. An existing copy is not granted again. |
+| **Rich Loot** | Treasure chests contain one extra relic to choose from. Empty chests remain empty. |
+| **Card Swarm** | Card rewards contain one extra offer, including standard Draft rewards and the mod's starting drafts. Fixed tutorial rewards are unchanged. |
 
-### Specialized - Pick Any
+Variants within each family are mutually exclusive. All Star and Friendship draft rewards can be skipped. Standard reward-generation hooks remain active, so other effects can modify offers.
 
-Вариант Pick Any в строке Specialized. По кнопке у Неоу открывается сетка доступных обычных, необычных и редких карт персонажа. Выбранная карта добавляется пять раз.
+## Install and play
 
-### Specialized - Draft
+### Steam Workshop
 
-Вариант Draft в строке Specialized. По кнопке у Неоу открывается настоящий Card Reward с тремя случайными предложениями из пула персонажа. Любая обычная, необычная или редкая карта может попасть в награду. Выбранная карта добавляется пять раз, без дополнительной шестой копии. При закрытии/пропуске награды карты не выдаются.
+Subscribe to [Ultimate Custom Run](https://steamcommunity.com/sharedfiles/filedetails/?id=3811713944) if you have access to the friends-only item, then let Steam download it.
 
-Обычный Specialized, Pick Any и Specialized - Draft взаимоисключающие. Draft сохраняет штатные хуки генерации наград, поэтому другие эффекты могут изменять предложения. Для совместной игры используется синхронизация выбора через игровой PlayerChoiceSynchronizer.
+### Local package
 
-### Neow!!
+Copy these two files from `content/UltimateCustomRun/` into `<game-folder>/mods/UltimateCustomRun/`:
 
-Описание: Brings back starter Neow relic choice.
-После остальных стартовых эффектов возвращает обычные три предложения реликвий Неоу. Если других опций Неоу нет, предложения появляются сразу. Модификаторы забега остаются включены.
+```text
+UltimateCustomRun.dll
+UltimateCustomRun.json
+```
 
-## Группы
+The repository includes the packaged DLL; you can also build it yourself using the instructions below. Do not copy the entire build output or the game's dependencies into `mods`.
 
-Порядок: Improved Start, Modifiers, Card Pool, Negatives.
-Improved Start содержит стартовые эффекты, варианты Specialized, All Star и Friendship. Родители с подвариантами помечены оранжевой `*`; ряд выбора появляется под включённым модификатором. Card Pool содержит Character Cards. Negatives содержит штатные отрицательные модификаторы. Остальные — Modifiers.
-Заголовки сворачивают разделы; чекбоксы сохраняют выбор и выровнены по центру стрелок. Стрелка вправо — закрыто, вниз — открыто. Красным выделен только заголовок Negatives; сами строки используют штатные цвета.
+### In the game
 
-## Сборка и установка
+1. Fully restart the game after installing or updating the mod.
+2. Enable **Ultimate Custom Run** in **Settings → Mod Settings**.
+3. Start a **Custom Run**, select modifiers, and adjust their values.
+4. Resolve the selected starting effects at Neow.
 
-Нужны .NET SDK 9+ и Windows-версия игры. Внешних NuGet-зависимостей, BaseLib и PCK нет.
+Every co-op player needs the same mod version. Only the host can change slider values. Keep one active installation: do not enable the old **SpecializedChoice** mod alongside Ultimate Custom Run, or duplicate models may conflict at startup.
+
+## Build from source
+
+Requirements: Windows, **.NET SDK 9 or later**, and an installed Windows copy of Slay the Spire 2. The project references `sts2.dll`, `GodotSharp.dll`, and `0Harmony.dll` from the game's `data_sts2_windows_x86_64` directory. These dependencies are not included in this repository.
+
+Run PowerShell from the repository root:
 
 ```powershell
+# Build the Release DLL, refresh the package, and create a ZIP.
 .\build.ps1
+
+# Build and install locally using the default Steam library.
 .\build.ps1 -Install
+
+# Use a different Steam library.
 .\build.ps1 -GamePath 'E:\SteamLibrary\steamapps\common\Slay the Spire 2' -Install
 ```
 
-Результат: content/UltimateCustomRun/ и artifacts/UltimateCustomRun-1.7.0.zip.
-Перед обычной установкой DLL закройте игру; новая сборка подхватывается после полного перезапуска.
+The default game path is `C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2`. Outputs are `content/UltimateCustomRun/` and `artifacts/UltimateCustomRun-1.7.0.zip`.
 
-## Проверки
+An open game can lock the installed DLL. Close the game before a manual update, or use the staged replacement procedure in [AGENTS.md](AGENTS.md). Updating files is not hot reload: a full restart is required to load the new code.
+
+## Testing and compatibility
 
 ```powershell
 dotnet run --project tests/Smoke -c Release
+
+# Both the build references and the runtime resolver need the custom path.
+dotnet run --project tests/Smoke -c Release '-p:Sts2Path=E:\SteamLibrary\steamapps\common\Slay the Spire 2' -- 'E:\SteamLibrary\steamapps\common\Slay the Spire 2'
 ```
 
-Проверяются реальные Harmony-патчи против установленной игры, штатная регистрация моделей при старте, сериализация, сохранение обычного Specialized, callbacks обоих вариантов, распределение групп и взаимоисключение. Все допустимые значения ползунков проходят сохранение, сетевую упаковку свойств и клонирование; проверяются границы, шаг, штатные алгоритмы количества и процент золота Midas. Для Draft проверяются генерация любой редкости и разрешение индекса выбранной награды, включая пропуск и неверные индексы. Переход Неоу проверяется с тестовой генерацией предложений.
-Выбор в игровых экранах, фактическая выдача пяти копий и кооператив требуют отдельного игрового тестирования. Указанная минимальная версия не гарантирует совместимость со всеми будущими обновлениями игры.
+The smoke suite patches the installed game assembly and checks registration, save and network-property serialization, cloning, slider ranges, native count patches, Midas gold rewards, draft selection, modifier grouping, and exclusivity. It also compares modifier selection for 100 Daily seeds with and without the mod's patches.
 
-## Workshop
+**These are managed integration checks, not an in-game playtest.** UI layout, input, actual deck acquisition, and live co-op behavior still need testing in the game. Compatibility with later game versions is not guaranteed; changed patch targets can require a mod update.
 
-Версия 1.7.0 опубликована 2 октября 2026 года отдельным Workshop item: [Ultimate Custom Run](https://steamcommunity.com/sharedfiles/filedetails/?id=3811713944). Видимость — friends_only, доступ для друзей. Новый ID записан в mod_id.txt для последующих обновлений; старая страница SpecializedChoice не используется.
-build.ps1 только собирает и устанавливает локальный пакет. Загрузка в Workshop выполняется отдельно через ModUploader и только по явному запросу.
+## Development and publishing
 
-Родители с вариантами помечены оранжевой `*`: Specialized, All Star и Friendship. Нажатие на вариант не создаёт второй выбранный модификатор.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, validation, and pull requests, and [AGENTS.md](AGENTS.md) for repository automation rules.
 
-## All Star - Draft
+`build.ps1` only builds, packages, and optionally installs locally. Workshop publishing is a separate maintainer action using ModUploader. The current item ID is stored in `mod_id.txt`. Its description and visibility are maintained in `workshop.json`; uploading with a non-null description replaces edits made directly in Steam.
 
-Описание: Start with 5 Colorless card rewards.
-Под галочкой All Star в Improved Start выбирается Normal или Draft. По кнопке у Неоу последовательно открываются пять штатных Card Reward с бесцветными картами; каждый выбор добавляет одну карту в колоду. Награду можно пропустить. All Star и All Star - Draft взаимоисключающие.
+## License
 
-## Friendship
+Original project code and documentation are licensed under **GNU GPL version 3 only** (`GPL-3.0-only`); see [LICENSE](LICENSE). Copyright © 2026 vertopolkaLF.
 
-Normal и Draft выбираются в одной строке под Friendship; варианты доступны в кооперативном забеге. Friendship выбирает случайную карту с ограничением MultiplayerOnly из пула персонажа и добавляет пять копий в стартовую колоду. Описание модификатора: Start with 5 Co-Op cards.
-
-Friendship - Draft открывает пять штатных Card Reward с кооперативными картами из пула персонажа; каждый выбор добавляет одну карту, награду можно пропустить. Friendship и Friendship - Draft взаимоисключающие.
-
-Описание Specialized - Draft: Choose [blue]1[/blue] card reward. Add 5 copies yo your starting deck.
-Разделитель названия и описания остаётся штатным двоеточием. Дефис используется только внутри названий вариантов.
-## Изоляция Daily Challenge
-
-Наши модификаторы добавляются прямо в место создания строк NCustomRunModifiersList._Ready, а их взаимоисключение — только при переключении чекбоксов пользовательского забега.
-Глобальные ModelDb.GoodModifiers, BadModifiers и MutuallyExclusiveModifiers не изменяются. Обычные Specialized и All Star сохраняют штатное поведение в Daily.
-Регрессионная проверка сравнивает реальный ModifierModel.Pick2Good1Bad для 100 seed с патчами мода и без них: выбранные модификаторы и параметры Character Cards совпадают.
-После установки перезапустите игру, чтобы старые глобальные патчи были сняты.
-## Цепочки взаимоисключающих модификаторов
-
-Между оставшимися соседними чекбоксами взаимоисключающих модификаторов показаны золотые звенья из штатного ресурса связанных наград reward_chain.png.
-Блок: Draft → Sealed Deck → Insanity. Specialized, All Star и Friendship используют ряды выбора вариантов.
-Цепь обозначает «можно выбрать не более одного». Поведение выбора не меняется, допускается отключить весь блок.
-Цепи не перехватывают ввод и не меняют высоту строк. Позиции пересчитываются после изменения размеров строк; при сворачивании раздела скрываются вместе с его содержимым.
-Внешний вид цепей ещё требует проверки в игровом окне.
-## Colorless Cards
-
-Модификатор в разделе Card Pool. Описание: Colorless cards can appear in card rewards.
-Его стартовая опция выдаёт штатную реликвию Dingy Rug; изменение наград обеспечивает сама игра. Если реликвия уже есть, вторая копия не выдаётся. Стартовая опция выполняется перед модификаторами, открывающими награды карт.
-Отдельного патча доступности реликвий или дублирующего хука пула наград нет. Магазины не меняются. Модификатор доступен только в Custom Run, Daily не затрагивается.
-Specialized - Draft теперь помечает свои предложения как Card Reward, чтобы штатные эффекты наград работали и на этом экране.
-Выдача реликвии в игровом окне ещё не проверена; проверки регистрации, сериализации, отсутствия повторной выдачи и изоляции Daily прошли.
-Оформление текста: все числа в наших описаниях и подсказках выделены штатным [blue], слово Colorless — [gold].
-
-## Rich Loot
-
-Модификатор в разделе Modifiers. Описание: Treasure chests contain 1 extra relic to choose from.
-В сундуке на одну реликвию больше, чем игроков: в одиночной игре выбор из двух, в кооперативе одна лишняя реликвия для голосования. Дополнительная реликвия берётся из того же общего мешка и RNG, что и штатные, поэтому у всех игроков совпадает. Для четырёх игроков создаётся пятый держатель реликвии. Пустой сундук (Silver Crucible) остаётся пустым.
-
-## Card Swarm
-
-Модификатор в разделе Modifiers. Описание: Card rewards contain 1 extra card.
-Все штатные награды картами (бои, события, реликвии, Draft) и наши стартовые драфты получают одну дополнительную карту. Сохранённое количество карт остаётся штатным, поэтому перезагрузка не добавляет карты повторно. Обучающие награды с фиксированными картами не меняются.
-Оба модификатора доступны только в Custom Run, Daily не затрагивается. В игровом окне ещё не проверены.
+Slay the Spire 2 and its game assets and dependencies belong to their respective owners and are not relicensed by this project. This is an unofficial community mod, not affiliated with or endorsed by Mega Crit.

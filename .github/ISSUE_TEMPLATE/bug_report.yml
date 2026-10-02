@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible problem with the mod.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. Include enough detail to reproduce the problem.
+        Remove personal information from logs; do not attach game DLLs or asset packs.
+  - type: input
+    id: versions
+    attributes:
+      label: Mod and game versions
+      placeholder: "Ultimate Custom Run 1.7.0; Slay the Spire 2 v0.111.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and installation method
+      placeholder: "Windows 11; Workshop / local package / source build"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Run mode
+      options:
+        - Singleplayer Custom Run
+        - Co-op Custom Run - host
+        - Co-op Custom Run - client
+        - Daily Challenge
+        - Other / game startup
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Modifiers, values, and other active mods
+      description: Include the character, seed, and number of co-op players if relevant. State whether every player has the same mod version.
+      placeholder: "Specialized - Draft: 5; Hoarder: 3; other mods: none"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start a Custom Run with...
+        2. Select...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, or additional context
+      description: Paste the relevant error or attach a screenshot. Explain whether a full game restart or testing without other mods changes the result.

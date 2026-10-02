@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Setup and contribution guide
+    url: https://github.com/vertopolkaLF/ultimate-custom-run/blob/main/CONTRIBUTING.md
+    about: Read build, testing, and contribution instructions before opening an issue.

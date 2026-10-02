@@ -1,36 +1,39 @@
 # Agent instructions
 
-- After any mod changes, build it and install it locally with `./build.ps1 -Install` before finishing. If a running game locks the installed DLL, stage the new DLL beside it, rename the old DLL to a backup outside the scanned mod folder, move the staged DLL to the canonical filename, and verify its SHA-256. Never stop the game; a restart is only needed to load the updated code. Do not publish it to Workshop unless explicitly requested.
-- Always commit after finishing the task.
+- After mod implementation changes, build and install locally with `./build.ps1 -Install` before finishing. A documentation-only task does not require rebuilding or installing unrelated unfinished mod work.
+- Never stop the user's game. If the running game locks the installed DLL, follow the staged replacement procedure below. A full restart is required to load the new code; installation is not hot reload.
+- Do not publish to Workshop or run ModUploader without an explicit user request.
+- Preserve unrelated uncommitted changes. Do not reset or stash another contributor's work.
+- Always commit after finishing the task, including only the files belonging to the task.
+- Use English for repository documentation and code comments. Preserve intentional in-game localization.
 
-## Локальная установка: точный порядок
+## Local installation
 
-Работать из корня проекта `C:\Dev\sts2_ultimate_custom` в PowerShell. ID, namespace и имя сборки — `UltimateCustomRun`.
+Run PowerShell from the repository root. The mod ID, namespace, assembly name, and installed directory are `UltimateCustomRun`.
 
-### 1. Обычная установка
+### 1. Standard installation
 
 ```powershell
-Set-Location 'C:\Dev\sts2_ultimate_custom'
 $gamePath = 'C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2'
 .\build.ps1 -GamePath $gamePath -Install
 ```
 
-Для другой библиотеки Steam заменить только `$gamePath`, например на `E:\SteamLibrary\steamapps\common\Slay the Spire 2`.
+For another Steam library, change only `$gamePath`, for example to `E:\SteamLibrary\steamapps\common\Slay the Spire 2`.
 
-Скрипт собирает Release, обновляет пакет `content/UltimateCustomRun`, создаёт ZIP в `artifacts` и устанавливает **оба** файла:
+The script builds Release, refreshes `content/UltimateCustomRun`, creates a ZIP in `artifacts`, and installs both files:
 
 ```text
 <gamePath>/mods/UltimateCustomRun/UltimateCustomRun.dll
 <gamePath>/mods/UltimateCustomRun/UltimateCustomRun.json
 ```
 
-Один `dotnet build` или `./build.ps1` без `-Install` не обновляет установленный мод. Не копировать в игру весь `bin`, зависимости игры, исходники, `.deps.json` или `.runtimeconfig.json`. BaseLib и PCK нашему моду не нужны.
+`dotnet build` or `./build.ps1` without `-Install` does not update the installed mod. Do not copy the entire `bin` directory, game dependencies, source files, `.deps.json`, or `.runtimeconfig.json` into the game. This mod requires neither BaseLib nor an additional PCK.
 
-### 2. Если открытая игра заблокировала установленную DLL
+### 2. If the running game locks the installed DLL
 
-Ошибка `The process cannot access the file ... because it is being used by another process` означает блокировку установленной DLL. Не закрывать игру и не убивать процесс пользователя.
+An error stating `The process cannot access the file ... because it is being used by another process` means the installed DLL is locked. Do not close the game or terminate the user's process.
 
-После этой ошибки сборка и пакет обычно уже готовы. Подготовить новую DLL рядом со старой под временным именем, затем **переместить старую за пределы сканируемой папки `mods`** и заменить её новой:
+The build and package are usually already ready after this error. Stage the new DLL beside the installed one, move the old DLL **outside the scanned `mods` directory**, and replace it with the staged file:
 
 ```powershell
 $packagePath = Join-Path (Get-Location).Path 'content\UltimateCustomRun'
@@ -41,29 +44,42 @@ $stagedDll = $installedDll + '.pending-' + $stamp
 $backupPath = Join-Path $gamePath ('mod-backups\UltimateCustomRun\' + $stamp)
 $backupDll = Join-Path $backupPath 'UltimateCustomRun.dll'
 
-# Сначала новая сборка должна быть готова на диске.
+# Inspect these exact absolute paths before moving any file.
+[IO.Path]::GetFullPath($installedDll)
+[IO.Path]::GetFullPath($stagedDll)
+[IO.Path]::GetFullPath($backupDll)
+Get-Item -LiteralPath $installedDll | Select-Object FullName, Length
+
+# The new build must exist on disk before moving the old one.
 Copy-Item -LiteralPath (Join-Path $packagePath 'UltimateCustomRun.dll') -Destination $stagedDll -ErrorAction Stop
 New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
-Get-Item -LiteralPath $installedDll | Select-Object FullName, Length
 if (Test-Path -LiteralPath $backupDll) { throw 'Backup already exists' }
 Move-Item -LiteralPath $installedDll -Destination $backupDll -ErrorAction Stop
-Move-Item -LiteralPath $stagedDll -Destination $installedDll -ErrorAction Stop
+try {
+    Move-Item -LiteralPath $stagedDll -Destination $installedDll -ErrorAction Stop
+}
+catch {
+    if (-not (Test-Path -LiteralPath $installedDll)) {
+        Move-Item -LiteralPath $backupDll -Destination $installedDll -ErrorAction Stop
+    }
+    throw
+}
 
-# Повторить обязательную установку, чтобы скрипт обновил и DLL, и JSON.
+# Repeat installation so the script updates both the DLL and JSON manifest.
 .\build.ps1 -GamePath $gamePath -Install
 ```
 
-Windows часто разрешает переименовать загруженную сборку, хотя запрещает её перезапись. Резервная папка находится на том же диске, рядом с `mods`, чтобы перемещение не превращалось в копирование между дисками.
+Windows often permits renaming a loaded assembly even when overwriting it is forbidden. Keep the backup on the same drive, beside `mods`, so moving it does not become a cross-drive copy.
 
-Перед перемещением проверить конкретные абсолютные пути. Не перемещать каталоги целиком, не использовать маски, не трогать соседние моды. Временный файл имеет суффикс после `.dll`, поэтому не является второй DLL для загрузчика.
+Before moving a file, verify the resolved absolute source and destination paths. Move only the named DLL: never move entire directories, use wildcards, or touch neighboring mods. The staged filename has a suffix after `.dll`, so the loader does not see a second DLL.
 
-Если `Move-Item` тоже запрещён, остановиться и попросить пользователя закрыть игру; самостоятельно процесс не завершать. Если старая DLL уже перемещена, а новая не установилась, вернуть резервную DLL на канонический путь **только если он отсутствует**. Не перезаписывать существующий файл вслепую и не удалять резервные копии.
+If `Move-Item` is also blocked, stop and ask the user to close the game. Do not terminate it yourself. If the old DLL was moved but installation of the new DLL failed, restore the backup **only when the canonical path is absent**. Never overwrite an existing file blindly or delete backups.
 
-Это установка **для следующего запуска**, а не hot reload: открытая игра продолжает исполнять старую сборку.
+This installs the update for the next launch. The currently running game continues executing the old assembly.
 
-### 3. Проверить установленный результат
+### 3. Verify the installed result
 
-После успешного `./build.ps1 -Install` проверить DLL **и** манифест. Использовать тот же `$gamePath`:
+After a successful installation, check both the DLL and manifest using the same `$gamePath`:
 
 ```powershell
 $packagePath = Join-Path (Get-Location).Path 'content\UltimateCustomRun'
@@ -78,13 +94,14 @@ if ($manifest.id -ne 'UltimateCustomRun') { throw 'Wrong mod ID' }
 $manifest | Select-Object id, name, version
 ```
 
-Установка считается законченной, когда скрипт завершился без ошибок, вывел `Installed: ...` и хеши обоих файлов совпали. `Build succeeded` само по себе подтверждает только сборку.
+Installation is complete only when the script finishes without errors, prints `Installed: ...`, and both file hashes match. `Build succeeded` confirms only the build.
 
-В финальном ответе сообщить о локальном обновлении и необходимости **полностью перезапустить игру** для загрузки новой DLL. Не утверждать, что изменение уже применилось к открытой игре или было визуально проверено, если этого не было.
+After implementation changes, the final response must report local installation and the need to **fully restart the game** to load the new DLL. Do not claim the update is active in an open game or visually verified unless that was actually tested. Documentation-only changes do not require a game restart.
 
-### Ограничения
+## Workshop identity and publishing
 
-- Не публиковать в Workshop и не запускать `ModUploader` без явного запроса пользователя. `build.ps1 -Install` ничего не публикует.
-- Не возвращать старый `mod_id.txt` из резервной папки: проект подготовлен к будущей публикации новым Workshop item.
-- Старый ID `SpecializedChoice` отключён. Не воссоздавать его установку и не включать старую Workshop-копию вместе с новой: одинаковые модели могут вызвать конфликт при старте.
-- Сохранять чужие незакоммиченные изменения. Задача только по документации не требует пересборки и установки чужой незавершённой реализации мода.
+- `build.ps1 -Install` does not publish anything.
+- The current Workshop item ID is stored in the repository's `mod_id.txt`. Keep it intact when updating the item. Do not restore an older `mod_id.txt` from an identity backup.
+- The legacy `SpecializedChoice` identity is disabled. Do not recreate its installation or enable its old Workshop copy alongside Ultimate Custom Run; duplicate models can conflict at startup.
+- `workshop.json` is the maintained source for the Workshop description. Uploading with a non-null `description` replaces manual Steam edits. Use `null` only when the user explicitly chooses to maintain the description in Steam instead.
+- Preserve the configured Workshop visibility unless the user explicitly requests a change.

@@ -2,3 +2,15 @@
 **/obj/
 .tools/
 artifacts/
+
+# Local editor state and uploader diagnostics
+.vs/
+.idea/
+*.user
+*.suo
+mod-uploader.log
+
+# Local credentials and environment overrides
+.env
+.env.*
+!.env.example

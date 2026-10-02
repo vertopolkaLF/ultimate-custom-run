@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest a modifier, customization option, or usability improvement.
+title: "[Feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or gameplay use case
+      description: What are you trying to do, and what currently gets in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe how the option should work. Include defaults, limits, and steps if it has a configurable value.
+    validations:
+      required: true
+  - type: textarea
+    id: interactions
+    attributes:
+      label: Modifier combinations and co-op
+      description: How should it interact with existing modifiers, singleplayer restrictions, and co-op choices?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and additional context
+      description: Include examples or mockups if they help explain the idea.
