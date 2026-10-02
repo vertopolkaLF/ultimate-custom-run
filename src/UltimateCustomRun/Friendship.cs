@@ -47,12 +47,12 @@ internal static class FriendshipCardRewards
     internal static async Task ChooseRandomCard(Player player)
     {
         var card = CardFactory.CreateForReward(player, 1, Options(player)).Single().Card;
-        await SpecializedCardChoices.ObtainCopies(player, card);
+        await SpecializedCardChoices.ObtainCopies(player, card, ModifierValues.FriendshipCount(player));
     }
 
     internal static async Task ChooseRewards(Player player)
     {
-        for (var i = 0; i < CardCount; i++)
+        for (var i = 0; i < ModifierValues.FriendshipCount(player); i++)
         {
             var offers = CardFactory.CreateForReward(player, SpecializedDraftReward.OfferCountFor(player), Options(player)).ToList();
             var selected = await SpecializedDraftReward.SelectReward(player, offers);

@@ -14,7 +14,7 @@ public static class ModEntry
     public static void Initialize()
     {
         ApplyPatches();
-        GD.Print("[Ultimate Custom Run] Loaded: modifier groups, Neow!!, Specialized variants, All Star – Draft, Friendship variants, Rich Loot and Card Swarm.");
+        GD.Print("[Ultimate Custom Run] Loaded: modifier groups and value sliders, Neow!!, Specialized variants, All Star – Draft, Friendship variants, Rich Loot and Card Swarm.");
     }
 
     // Game startup discovers ModifierModel subclasses from loaded mod assemblies.

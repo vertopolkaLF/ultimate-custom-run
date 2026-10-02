@@ -35,11 +35,12 @@ internal static class SpecializedCardChoices
 
         var loc = LocManager.Instance;
         var russian = loc.CultureInfo.TwoLetterISOLanguageName == "ru";
+        var copies = ModifierValues.SpecializedCount(player);
         loc.GetTable("modifiers").MergeWith(new Dictionary<string, string>
         {
             [PromptKey] = russian
-                ? "Выберите карту. В колоду будут добавлены [blue]5[/blue] её копий."
-                : "Choose a card. Add [blue]5[/blue] copies of it to your deck."
+                ? $"Выберите карту. В колоду будут добавлены [blue]{copies}[/blue] её копий."
+                : $"Choose a card. Add [blue]{copies}[/blue] copies of it to your deck."
         });
 
         // Preview-only mutable cards are not registered in the run's card scope.
@@ -67,10 +68,11 @@ internal static class SpecializedCardChoices
         await ObtainCopies(player, card);
     }
 
-    internal static async Task ObtainCopies(Player player, CardModel card)
+    internal static async Task ObtainCopies(Player player, CardModel card, int? count = null)
     {
-        var results = new List<CardPileAddResult>(Copies);
-        for (var i = 0; i < Copies; i++)
+        var copies = count ?? ModifierValues.SpecializedCount(player);
+        var results = new List<CardPileAddResult>(copies);
+        for (var i = 0; i < copies; i++)
         {
             var copy = player.RunState.CloneCard(card);
             results.Add(await CardPileCmd.Add(copy, PileType.Deck, CardPilePosition.Bottom));

@@ -25,7 +25,7 @@ public sealed class AllStarDraft : ModifierModel
 
     private static async Task ChooseRewards(Player player)
     {
-        for (var i = 0; i < RewardCount; i++)
+        for (var i = 0; i < ModifierValues.ForPlayer<AllStarDraft>(player); i++)
         {
             var offers = CardFactory.CreateForReward(player, SpecializedDraftReward.OfferCountFor(player),
                 Options(ModelDb.CardPool<ColorlessCardPool>())).ToList();

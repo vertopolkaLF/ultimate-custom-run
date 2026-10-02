@@ -14,6 +14,11 @@ public sealed class SpecializedPickAny : ModifierModel
 
 public sealed class SpecializedDraft : ModifierModel
 {
+    // Registers this name in the game's shared save/network property cache, also
+    // used by the configurable vanilla modifiers without changing their model IDs.
+    [MegaCrit.Sts2.Core.Saves.Runs.SavedProperty]
+    public int CustomValue { get => ModifierValues.Get(this); set => ModifierValues.Set(this, value); }
+
     internal const string DisplayTitle = "Specialized - Draft";
     internal const string DisplayDescription = "Choose [blue]1[/blue] card reward. Add [blue]5[/blue] copies yo your starting deck.";
     protected override string IconPath => ImageHelper.GetImagePath("packed/modifiers/specialized.png");

@@ -127,7 +127,7 @@ internal static class ModifierVariantUi
             ConnectChoice(list, state, choice, (Mode)i);
         }
 
-        ConfigureTooltip(state.Choices[0], NormalLabelKey, parentRow.Modifier!.Description);
+        ConfigureTooltip(state.Choices[0], NormalLabelKey, () => parentRow.Modifier!.Description);
         ConfigureTooltip(state.Choices[1], DraftLabelKey, new LocString("modifiers", DraftDescriptionKey));
         if (state.Choices.Length == 3)
             ConfigureTooltip(state.Choices[2], PickAnyLabelKey, new LocString("modifiers", PickAnyDescriptionKey));
@@ -240,9 +240,11 @@ internal static class ModifierVariantUi
     }
 
     private static void ConfigureTooltip(NRunModifierTickbox choice, string titleKey, LocString description)
+        => ConfigureTooltip(choice, titleKey, () => description);
+
+    private static void ConfigureTooltip(NRunModifierTickbox choice, string titleKey, Func<LocString> description)
     {
-        var tip = new HoverTip(new LocString("modifiers", titleKey), description, null!);
-        choice.MouseEntered += () => ShowTooltip(choice, tip);
+        choice.MouseEntered += () => ShowTooltip(choice, new HoverTip(new LocString("modifiers", titleKey), description(), null!));
         choice.MouseExited += () => NHoverTipSet.Remove(choice);
     }
 
@@ -338,6 +340,7 @@ internal static class ModifierVariantAfterChangedPatch
     {
         ModifierVariantUi.RefreshFromTickboxes(__instance);
         ModifierVariantUi.UpdateInteractionMode(__instance);
+        ModifierValueUi.Refresh(__instance);
     }
 }
 
@@ -349,27 +352,38 @@ internal static class ModifierVariantInitializePatch
     {
         ModifierVariantUi.UpdateInteractionMode(__instance);
         ModifierGroupsUi.ApplyMode(__instance);
+        ModifierValueUi.Refresh(__instance);
     }
 }
 
 [HarmonyPatch(typeof(NCustomRunModifiersList), "SetTickedModifiers")]
 internal static class ModifierVariantSetTickedPatch
 {
+    [HarmonyPrefix]
+    private static void Prefix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0) =>
+        ModifierValueUi.ApplyIncoming(__instance, __0);
+
     [HarmonyPostfix]
     private static void Postfix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0)
     {
         ModifierVariantUi.ApplyIncomingModifiers(__instance, __0);
         ModifierGroupsUi.ApplyMode(__instance);
+        ModifierValueUi.Refresh(__instance);
     }
 }
 
 [HarmonyPatch(typeof(NCustomRunModifiersList), "SyncModifierList")]
 internal static class ModifierVariantSyncPatch
 {
+    [HarmonyPrefix]
+    private static void Prefix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0) =>
+        ModifierValueUi.ApplyIncoming(__instance, __0);
+
     [HarmonyPostfix]
     private static void Postfix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0)
     {
         ModifierVariantUi.ApplyIncomingModifiers(__instance, __0);
         ModifierGroupsUi.ApplyMode(__instance);
+        ModifierValueUi.Refresh(__instance);
     }
 }

@@ -190,6 +190,11 @@ internal static class ModifierGroupsUi
                     childList.AddChild(variantRow.Container);
                     if (singleplayerDisabled) layout.SingleplayerDisabled.Add(variantRow.Container);
                 }
+                if (ModifierValueUi.Create(list, row) is { } valueRow)
+                {
+                    childList.AddChild(valueRow);
+                    if (singleplayerDisabled) layout.SingleplayerDisabled.Add(valueRow);
+                }
             }
             if (variantRows.Count > 0) ModifierVariantUi.InitializeChoices(list);
             LinkedModifierChains.Attach(body, visibleRows);
@@ -213,6 +218,7 @@ internal static class ModifierGroupsUi
         }
         content.MinimumSizeChanged += () => Callable.From(() => ResizeContent(content)).CallDeferred();
         ApplyMode(list, layout);
+        ModifierValueUi.Refresh(list);
         UpdateFocus(layout);
         ResizeContent(content);
         Callable.From(() => ResizeContent(content)).CallDeferred();
@@ -315,8 +321,13 @@ internal static class ModifierGroupsUi
         if (!section.Root.Visible) yield break;
         yield return section.Header;
         if (!section.Expanded || section.Group == ModifierGroup.Disabled) yield break;
-        foreach (var row in section.Rows)
-            if (row.Visible) yield return row;
+        foreach (var child in section.ChildList.GetChildren().OfType<Control>())
+        {
+            if (!child.Visible) continue;
+            if (child is NRunModifierTickbox row && row.FocusMode == Control.FocusModeEnum.All) yield return row;
+            foreach (var slider in child.FindChildren("*", "Range", true, false).OfType<Control>())
+                if (slider.FocusMode == Control.FocusModeEnum.All) yield return slider;
+        }
     }
 }
 

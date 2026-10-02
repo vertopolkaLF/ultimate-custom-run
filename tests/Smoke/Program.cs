@@ -47,9 +47,9 @@ internal static class Program
             var patched = Harmony.GetPatchInfo(target);
             Check(patched == null || !patched.Owners.Contains(ModEntry.HarmonyId),
                 "Original Specialized is not patched");
-            Check(Harmony.GetAllPatchedMethods().Count(m =>
-                Harmony.GetPatchInfo(m)!.Owners.Contains(ModEntry.HarmonyId)) == 15,
-                "Exactly fifteen intended game methods patched");
+            Check(NativeModifierCountPatch.Targets.All(target => Harmony.GetPatchInfo(
+                AccessTools.AsyncMoveNext(AccessTools.Method(target.Type, target.Method)))?.Owners.Contains(ModEntry.HarmonyId) == true),
+                "All six native modifier count state machines are patched");
 
             // Avoid starting a run or constructing native Godot objects.
             var neow = (Neow)RuntimeHelpers.GetUninitializedObject(typeof(Neow));
@@ -72,6 +72,7 @@ internal static class Program
             TestNeowModifier();
             TestGroups();
             TestSpecializedVariants();
+            TestModifierValues();
             TestRadioChains();
             TestColorlessCards();
             TestDailyIsolation();
@@ -86,7 +87,7 @@ internal static class Program
     private static void TestGroups()
     {
         Check(ModifierGroups.Sections.Select(s => s.Title).SequenceEqual(
-            new[] { "Improved Start", "Modifiers", "Card Pool", "Negatives" }), "Group titles and order match the requested layout");
+            new[] { "Improved Start", "Modifiers", "Card Pool", "Negatives", "Disabled" }), "Group titles and order match the requested layout");
         var negatives = new HashSet<Type> { typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents),
             typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal) };
         foreach (var type in new[] { typeof(NeowStarterChoice), typeof(Specialized), typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(Draft),
@@ -109,6 +110,7 @@ internal static class Program
         ModelDb.Init([typeof(Draft), typeof(SealedDeck), typeof(Hoarder), typeof(Specialized),
             typeof(Insanity), typeof(AllStar), typeof(Flight), typeof(Vintage), typeof(CharacterCards), typeof(NeowStarterChoice),
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
+            typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm),
             typeof(MegaCrit.Sts2.Core.Models.Relics.DingyRug),
             typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents), typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Ironclad), typeof(MegaCrit.Sts2.Core.Models.Characters.Silent),
@@ -125,6 +127,10 @@ internal static class Program
         foreach (var id in ids.Select(id => id.Entry).Distinct()) entries[id] = entries.Count;
         entries[ModelDb.GetId(typeof(TestNeow)).Entry] = entries.Count;
         AccessTools.Field(cacheType, "_initialized").SetValue(null, true);
+        foreach (var type in ModelDb.All.Select(model => model.GetType()).Distinct())
+            AccessTools.Method(cacheType, "CachePropertiesForType").Invoke(null, [type, null, null]);
+        AccessTools.Property(cacheType, "PropertyIdBitSize").SetValue(null,
+            (int)Math.Ceiling(Math.Log2(MegaCrit.Sts2.Core.Multiplayer.Serialization.ModelIdSerializationCache.MaxPropertyId + 1)));
         ModelDb.InitIds();
         Check(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers).Count(m => m is NeowStarterChoice) == 1,
             "Neow!! is registered once in the modifier list");
@@ -229,6 +235,83 @@ internal static class Program
         Check(true, "Invalid reward indices are rejected");
     }
 
+    private static void TestModifierValues()
+    {
+        var cases = new (ModifierModel Model, int Min, int Max, int Step, int Default)[]
+        {
+            (ModelDb.Modifier<Specialized>(), 1, 10, 1, 5),
+            (ModelDb.Modifier<SpecializedDraft>(), 1, 10, 1, 5),
+            (ModelDb.Modifier<SpecializedPickAny>(), 1, 10, 1, 5),
+            (ModelDb.Modifier<AllStar>(), 1, 10, 1, 5),
+            (ModelDb.Modifier<AllStarDraft>(), 1, 10, 1, 5),
+            (ModelDb.Modifier<Friendship>(), 1, 10, 1, 5),
+            (ModelDb.Modifier<FriendshipDraft>(), 1, 10, 1, 5),
+            (ModelDb.Modifier<Draft>(), 5, 20, 5, 10),
+            (ModelDb.Modifier<SealedDeck>(), 5, 20, 5, 10),
+            (ModelDb.Modifier<Insanity>(), 5, 60, 5, 30),
+            (ModelDb.Modifier<Hoarder>(), 1, 3, 1, 2),
+            (ModelDb.Modifier<Midas>(), 150, 300, 5, 200)
+        };
+        foreach (var (canonical, min, max, step, defaultValue) in cases)
+        {
+            var spec = ModifierValues.For(canonical)!;
+            Check((spec.Min, spec.Max, spec.Step, spec.Default) == (min, max, step, defaultValue),
+                canonical.GetType().Name + " has the requested range, step and vanilla default");
+            var model = canonical.ToMutable();
+            Check(ModifierValues.Get(model) == defaultValue, "Unconfigured modifier preserves default: " + model.GetType().Name);
+            for (var value = min; value <= max; value += step)
+            {
+                ModifierValues.Set(model, value);
+                var serializable = model.ToSerializable();
+                var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+                serializable.Props!.Serialize(writer);
+                var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+                reader.Reset(writer.Buffer);
+                var props = reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SavedProperties>();
+                var fromNetwork = ModifierModel.FromSerializable(new MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier
+                    { Id = serializable.Id, Props = props });
+                Check(ModifierValues.Get(ModifierModel.FromSerializable(serializable)) == value &&
+                    ModifierValues.Get(fromNetwork) == value &&
+                    ModifierValues.Get((ModifierModel)model.MutableClone()) == value,
+                    $"{model.GetType().Name} value {value} survives save, network properties and clone");
+            }
+            ModifierValues.Set(model, int.MinValue);
+            Check(ModifierValues.Get(model) == min, "Lower bound enforced: " + model.GetType().Name);
+            ModifierValues.Set(model, int.MaxValue);
+            Check(ModifierValues.Get(model) == max, "Upper bound enforced: " + model.GetType().Name);
+            if (step > 1)
+            {
+                ModifierValues.Set(model, min + 3);
+                Check(ModifierValues.Get(model) == min + step, "Off-step values normalized: " + model.GetType().Name);
+            }
+            Check(ModifierValues.Get(canonical) == defaultValue, "Configuration cannot leak to canonical/daily model: " + model.GetType().Name);
+        }
+        var midas = ModelDb.Modifier<Midas>().ToMutable();
+        ModifierValues.Set(midas, 155);
+        Check(ModifierValues.ScaleGold(20, midas) == 31 && ModifierValues.ScaleGold(21, midas) == 32,
+            "Midas uses the selected percent with integer gold rounding");
+        var player = (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player));
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        var insanity = ModelDb.Modifier<Insanity>().ToMutable();
+        ModifierValues.Set(insanity, 60);
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { insanity });
+        AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
+        Check(ModifierValues.ForPlayer<Insanity>(player) == 60, "Native gameplay resolves the run's selected count");
+        var rewards = new List<MegaCrit.Sts2.Core.Rewards.Reward>
+            { new MegaCrit.Sts2.Core.Rewards.GoldReward(20, player), new MegaCrit.Sts2.Core.Rewards.GoldReward(21, player) };
+        ((Midas)midas).TryModifyRewardsLate(player, rewards, null);
+        Check(rewards.Cast<MegaCrit.Sts2.Core.Rewards.GoldReward>().Select(reward => reward.Amount).SequenceEqual(new[] { 31, 32 }),
+            "Patched native Midas reward method applies 155 percent instead of its fixed multiplier");
+        foreach (var target in NativeModifierCountPatch.Targets)
+        {
+            var instructions = PatchProcessor.GetCurrentInstructions(AccessTools.AsyncMoveNext(AccessTools.Method(target.Type, target.Method)));
+            Check(instructions.Count(instruction => instruction.opcode == System.Reflection.Emit.OpCodes.Call &&
+                instruction.operand is MethodInfo method && method.DeclaringType == typeof(ModifierValues) &&
+                method.Name is nameof(ModifierValues.ForPlayer) or nameof(ModifierValues.Get)) == 1,
+                target.Type.Name + " gameplay replaces exactly one count with the configured resolver");
+        }
+    }
+
     private static void TestColorlessCards()
     {
         var modifier = ModelDb.Modifier<ColorlessCards>();
@@ -267,7 +350,7 @@ internal static class Program
         Check(start.Take(3).Select(modifier => modifier.GetType()).SequenceEqual(new[] { typeof(Draft), typeof(SealedDeck), typeof(Insanity) }),
             "Draft, Sealed Deck and Insanity are adjacent for their shared chain");
         var linked = Enumerable.Range(1, start.Length - 1).Where(index => LinkedModifierChains.AreLinked(start[index - 1], start[index])).ToArray();
-        Check(linked.Length == 5, "Only the five adjacent mutually exclusive pairs receive chains");
+        Check(linked.Length == 6, "Only the six adjacent mutually exclusive pairs receive chains, including Friendship");
         Check(LinkedModifierChains.AreLinked(ModelDb.Modifier<Draft>(), ModelDb.Modifier<SealedDeck>()) &&
             LinkedModifierChains.AreLinked(ModelDb.Modifier<SealedDeck>(), ModelDb.Modifier<Insanity>()), "Native deck replacement choices are linked");
         Check(LinkedModifierChains.AreLinked(ModelDb.Modifier<Specialized>(), ModelDb.Modifier<SpecializedDraft>()) &&
