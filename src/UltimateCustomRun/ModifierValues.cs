@@ -37,6 +37,7 @@ internal static class ModifierValues
         Speedrun => new(10, 60, 5, 30, "minutes"),
         Dill => new(1, 20, 1, 1, "initial max HP"),
         Headstart => new(1, 5, 1, 1, "relics"),
+        MysteryEvents => new(1, 10, 1, MysteryEvents.EventCount, "events"),
         _ => null
     };
 
@@ -159,6 +160,15 @@ internal static class ModifierValues
         [HarmonyPostfix]
         private static void Postfix(ModifierModel __instance, ref LocString __result)
         {
+            if (__instance is MysteryEvents)
+            {
+                var count = Get(__instance);
+                var key = __result.LocEntryKey + ".ultimate_mystery_" + count;
+                LocManager.Instance.GetTable(__result.LocTable).MergeWith(new Dictionary<string, string>
+                    { [key] = MysteryEvents.DescriptionText(count) });
+                __result = new LocString(__result.LocTable, key);
+                return;
+            }
             if (__instance is Headstart)
             {
                 var count = Get(__instance);

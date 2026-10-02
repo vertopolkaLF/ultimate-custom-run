@@ -27,16 +27,19 @@ public sealed class MysteryEvents : ModifierModel
     internal const string DisplayTitle = "???";
     internal const string DisplayDescription = "Encounter [blue]3[/blue] additional Events after Neow.";
     internal const int EventCount = 3;
+    internal int EventLimit => ModifierValues.Get(this);
+    internal static string DescriptionText(int count) =>
+        $"Encounter [blue]{count}[/blue] additional {(count == 1 ? "Event" : "Events")} after Neow.";
     private int _stage;
     private HashSet<ulong> _ready = [];
     private bool _requested;
 
-    // 0 = Neow, 1..3 = extra event, 4 = the normal map is available.
+    // 0 = Neow, 1..EventLimit = extra event, EventLimit + 1 = main map.
     [SavedProperty]
     public int MysteryStage
     {
         get => _stage;
-        set { AssertMutable(); _stage = Math.Clamp(value, 0, EventCount + 1); }
+        set { AssertMutable(); _stage = Math.Clamp(value, 0, 11); }
     }
 
     protected override string IconPath => ImageHelper.GetImagePath("atlases/ui_atlas.sprites/map/icons/map_unknown.tres");
@@ -67,12 +70,12 @@ public sealed class MysteryEvents : ModifierModel
     internal static bool BeforeMainMap(IRunState state) => state.CurrentActIndex == 0 &&
         state.CurrentMapCoord == state.Map.StartingMapPoint.coord;
     internal bool IsExtraRoom(IRunState state) => MysteryStage > 0 && BeforeMainMap(state);
-    internal bool NeedsEvents(IRunState state) => MysteryStage <= EventCount && BeforeMainMap(state);
+    internal bool NeedsEvents(IRunState state) => MysteryStage <= EventLimit && BeforeMainMap(state);
     public override bool ShouldProceedToNextMapPoint() => !NeedsEvents(RunState);
 
     internal bool RecordReady(ulong playerId, int stage, IEnumerable<ulong> playerIds)
     {
-        if (stage != MysteryStage || stage > EventCount || !_ready.Add(playerId)) return false;
+        if (stage != MysteryStage || stage > EventLimit || !_ready.Add(playerId)) return false;
         return playerIds.All(id => _ready.Contains(id));
     }
 
@@ -94,7 +97,7 @@ public sealed class MysteryEvents : ModifierModel
 
         MysteryStage++;
         ResetTransientState();
-        if (MysteryStage <= EventCount)
+        if (MysteryStage <= EventLimit)
         {
             // Keep the actual map coordinate and ActFloor at Neow. The native room
             // transition adds a separate Unknown history entry (and TotalFloor).
@@ -112,7 +115,7 @@ public sealed class MysteryEvents : ModifierModel
 
     // History includes the extra floors, while map coordinates never change.
     internal static int HistoryIndex(IRunState state, int actIndex, int row) => row +
-        (actIndex == 0 && row > 0 && For(state) is { } modifier ? Math.Min(modifier.MysteryStage, EventCount) : 0);
+        (actIndex == 0 && row > 0 && For(state) is { } modifier ? Math.Min(modifier.MysteryStage, modifier.EventLimit) : 0);
 }
 
 [HarmonyPatch(typeof(RoomSet), nameof(RoomSet.EnsureNextEventIsValid))]

@@ -161,7 +161,7 @@ internal static class ModifierValueUi
                 var unit = russian ? row.Spec.Unit switch
                 {
                     "cards" => "карт", "offers" => "карт в пуле", "extra copies" => "доп. копий", "minutes" => "мин.",
-                    "initial max HP" => "начальных макс. HP", "max HP per fight" => "макс. HP за бой", "relics" => "реликвий", _ => "% золота"
+                    "initial max HP" => "начальных макс. HP", "max HP per fight" => "макс. HP за бой", "events" => "событий", "relics" => "реликвий", _ => "% золота"
                 } : row.Spec.Unit;
                 if (row.Kind == ValueKind.Primary && row.Parent.Modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
                     unit = russian ? "карт в колоду" : "cards to choose";

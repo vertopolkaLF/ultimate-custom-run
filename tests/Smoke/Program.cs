@@ -137,6 +137,7 @@ internal static class Program
             typeof(MegaCrit.Sts2.Core.Models.Relics.DingyRug),
             typeof(MegaCrit.Sts2.Core.Models.Relics.Mango), typeof(MegaCrit.Sts2.Core.Models.Relics.JewelryBox),
             typeof(MegaCrit.Sts2.Core.Models.Relics.BurningBlood), typeof(MegaCrit.Sts2.Core.Models.Relics.Circlet),
+            typeof(MegaCrit.Sts2.Core.Models.Relics.DeprecatedRelic),
             typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents), typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Ironclad), typeof(MegaCrit.Sts2.Core.Models.Characters.Silent),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Regent), typeof(MegaCrit.Sts2.Core.Models.Characters.Necrobinder), typeof(MegaCrit.Sts2.Core.Models.Characters.Defect),
@@ -1033,6 +1034,10 @@ internal static class Program
         Check(emptyRejected, "A pool with no unconditional events fails explicitly instead of selecting a conditional event");
 
         var canonical = ModelDb.Modifier<MysteryEvents>();
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 10, 1, 3, "events") &&
+            MysteryEvents.DescriptionText(1) == "Encounter [blue]1[/blue] additional Event after Neow." &&
+            MysteryEvents.DescriptionText(3) == MysteryEvents.DisplayDescription,
+            "??? slider spans 1..10 events, defaults to three, and uses singular/plural descriptions");
         Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
             ModifierListPatch.IsCustomOnly(canonical) &&
             ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<MysteryEvents>().Count() == 1,
@@ -1064,6 +1069,40 @@ internal static class Program
         var manager = (RunManager)RuntimeHelpers.GetUninitializedObject(typeof(RunManager));
         AccessTools.PropertySetter(typeof(RunManager), "State").Invoke(manager, [run]);
         modifier.OnRunLoaded(run);
+        for (var count = 1; count <= 10; count++)
+        {
+            var adjustable = (MysteryEvents)canonical.ToMutable();
+            ModifierValues.Set(adjustable, count);
+            adjustable.MysteryStage = count;
+            var saved = adjustable.ToSerializable();
+            var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+            saved.Serialize(writer);
+            var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+            reader.Reset(writer.Buffer);
+            foreach (var restored in new[] { ModifierModel.FromSerializable(saved),
+                ModifierModel.FromSerializable(reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>()),
+                (ModifierModel)adjustable.MutableClone() })
+                Check(restored is MysteryEvents mystery && mystery.EventLimit == count && mystery.MysteryStage == count,
+                    "??? count and active floor survive save, network and clone: " + count);
+            AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { adjustable });
+            adjustable.OnRunLoaded(run);
+            Check(adjustable.NeedsEvents(run) && !adjustable.ShouldProceedToNextMapPoint(),
+                "??? keeps travel blocked through the configured last event: " + count);
+            adjustable.MysteryStage++;
+            Check(!adjustable.NeedsEvents(run) && adjustable.ShouldProceedToNextMapPoint() &&
+                MysteryEvents.HistoryIndex(run, 0, 1) == count + 1,
+                "??? unlocks the main map and offsets history after exactly the configured count: " + count);
+            Check(ModifierModel.FromSerializable(adjustable.ToSerializable()) is MysteryEvents finished &&
+                finished.MysteryStage == count + 1 && finished.EventLimit == count,
+                "??? completed stage survives saving at count " + count);
+        }
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { modifier });
+        var clamped = (MysteryEvents)canonical.ToMutable();
+        ModifierValues.Set(clamped, int.MinValue);
+        Check(clamped.EventLimit == 1, "??? slider clamps its lower bound to one event");
+        ModifierValues.Set(clamped, int.MaxValue);
+        Check(clamped.EventLimit == 10 && ModifierValues.Get(canonical) == 3,
+            "??? slider clamps its upper bound to ten without changing canonical defaults");
         for (var stage = 1; stage <= 3; stage++)
         {
             modifier.MysteryStage = stage;
@@ -1173,19 +1212,23 @@ internal static class Program
             ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.DingyRug>(),
             ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.Mango>(),
             ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.JewelryBox>(),
-            ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.BurningBlood>(),
-            ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.Circlet>()
+            ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.BurningBlood>()
         ];
         var all = Headstart.FilterCandidates(relics.Concat(relics), new HashSet<ModelId>(), [], _ => true);
         Check(all.Count == relics.Length && relics.All(all.Contains),
             "Headstart includes unlocked Starter and Ancient relics without rarity exclusions or duplicates");
+        Check(Headstart.FilterCandidates(relics.Concat(new RelicModel[] {
+            ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.Circlet>(),
+            ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.DeprecatedRelic>() }),
+            new HashSet<ModelId>(), [], _ => true).Select(relic => relic.Id).SequenceEqual(all.Select(relic => relic.Id)),
+            "Headstart excludes Circlet and Deprecated Relic even when unlocked and allowed at Neow");
         Check(all.Select(relic => relic.Id).SequenceEqual(Headstart.FilterCandidates(
             relics.Reverse(), new HashSet<ModelId>(), [], _ => true).Select(relic => relic.Id)),
             "Relic candidates have stable co-op indexes independent of source enumeration order");
         var filtered = Headstart.FilterCandidates(relics, new HashSet<ModelId> { relics[1].Id },
-            [relics[0], relics[4]], relic => relic.Id != relics[2].Id);
-        Check(filtered.Select(relic => relic.Id).ToHashSet().SetEquals(new[] { relics[3].Id, relics[4].Id }),
-            "Headstart excludes other-character, already-owned non-stackable and disallowed relics, retaining stackable relics");
+            [relics[0]], relic => relic.Id != relics[2].Id);
+        Check(filtered.Select(relic => relic.Id).ToHashSet().SetEquals(new[] { relics[3].Id }),
+            "Headstart excludes other-character, already-owned non-stackable and disallowed relics");
         Check(Headstart.DescriptionText(1) == Headstart.DisplayDescription &&
             Headstart.DescriptionText(5) == "Choose [blue]5[/blue] relics to start with.",
             "Headstart description handles singular and plural relic counts");

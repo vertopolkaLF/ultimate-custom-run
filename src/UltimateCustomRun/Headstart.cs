@@ -6,6 +6,7 @@ using MegaCrit.Sts2.Core.GameActions;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Relics;
 using MegaCrit.Sts2.Core.Runs;
 
 namespace UltimateCustomRun;
@@ -34,7 +35,8 @@ public sealed class Headstart : ModifierModel
         IReadOnlySet<ModelId> otherCharacterIds, IEnumerable<RelicModel> owned, Func<RelicModel, bool> allowed)
     {
         var ownedIds = owned.Select(relic => relic.Id).ToHashSet();
-        return unlocked.Where(relic => !otherCharacterIds.Contains(relic.Id))
+        return unlocked.Where(relic => relic is not Circlet and not DeprecatedRelic)
+            .Where(relic => !otherCharacterIds.Contains(relic.Id))
             .Where(relic => relic.IsStackable || !ownedIds.Contains(relic.Id))
             .Where(allowed).DistinctBy(relic => relic.Id)
             // Use stable model IDs, not localized titles, for synchronized choice indexes.
