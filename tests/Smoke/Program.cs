@@ -702,6 +702,11 @@ internal static class Program
         Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.GodotExtensions.NDropdown), "OpenDropdown"))
             ?.Owners.Contains(ModEntry.HarmonyId) == true,
             "Preset remove-button focus is restored after native dropdown navigation setup");
+        var removeReady = typeof(ModifierPresetRemoveButton).GetMethod("_Ready", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+        Check(removeReady != null, "Preset remove button overrides the native Ready method that rejects subclasses");
+        var readyCalls = PatchProcessor.GetCurrentInstructions(removeReady!).Select(instruction => instruction.operand).OfType<MethodInfo>().ToArray();
+        Check(readyCalls.Any(method => method.Name == "ConnectSignals") && !readyCalls.Any(method => method.Name == "_Ready"),
+            "Preset remove button initializes hover, mouse and controller signals without calling native Ready");
     }
 
     private static void TestUltimateStarter()

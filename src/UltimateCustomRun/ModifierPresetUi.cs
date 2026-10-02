@@ -20,6 +20,9 @@ internal static class ModifierPresetUi
     private const string DropdownItemScene = "res://scenes/ui/dropdown_item.tscn";
     private const string PopupScene = "res://scenes/ui/generic_popup.tscn";
     private const string DeleteIconPath = "res://images/packed/main_menu/delete_button.png";
+    private const float HorizontalPadding = 16;
+    private const float RemoveButtonWidth = 44;
+    private const float RemoveButtonGap = 8;
 
     private sealed class DropdownState
     {
@@ -157,6 +160,15 @@ internal static class ModifierPresetUi
 
     private static void ApplySettingsDropdownAppearance(NActDropdown dropdown)
     {
+        var label = dropdown.GetNode<MegaLabel>("CurrentOption/Label");
+        label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        label.OffsetLeft = HorizontalPadding;
+        label.OffsetRight = -(HorizontalPadding + RemoveButtonWidth);
+        label.HorizontalAlignment = HorizontalAlignment.Center;
+        label.VerticalAlignment = VerticalAlignment.Center;
+        label.ClipText = true;
+        label.MouseFilter = Control.MouseFilterEnum.Ignore;
+
         var currentOption = dropdown.GetNode<Panel>("CurrentOption/Highlight");
         currentOption.Modulate = Colors.White;
         currentOption.AddThemeStyleboxOverride("panel", new StyleBoxFlat
@@ -213,9 +225,11 @@ internal static class ModifierPresetUi
         items.AddChild(item);
         item.Text = text;
         var label = item.GetNode<MegaLabel>("Label");
-        label.OffsetLeft = 8;
-        label.OffsetRight = -8;
-        label.HorizontalAlignment = HorizontalAlignment.Left;
+        label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        label.OffsetLeft = HorizontalPadding;
+        label.OffsetRight = -HorizontalPadding;
+        label.HorizontalAlignment = HorizontalAlignment.Center;
+        label.VerticalAlignment = VerticalAlignment.Center;
         label.ClipText = true;
         label.MouseFilter = Control.MouseFilterEnum.Ignore;
         if (removable) AddRemoveButton(item, preset, dropdown, state);
@@ -224,22 +238,20 @@ internal static class ModifierPresetUi
     private static void AddRemoveButton(NDropdownItem item, ModifierPreset preset, NActDropdown dropdown, DropdownState state)
     {
         var label = item.GetNode<MegaLabel>("Label");
-        label.OffsetLeft = 8;
-        label.OffsetRight = -52;
-        label.HorizontalAlignment = HorizontalAlignment.Left;
+        label.OffsetRight = -(HorizontalPadding + RemoveButtonWidth + RemoveButtonGap);
         label.ClipText = true;
         label.MouseFilter = Control.MouseFilterEnum.Ignore;
 
         var button = new ModifierPresetRemoveButton
         {
-            Name = "RemovePresetButton", CustomMinimumSize = new Vector2(44, 44),
+            Name = "RemovePresetButton", CustomMinimumSize = new Vector2(RemoveButtonWidth, 44),
             FocusMode = Control.FocusModeEnum.All, MouseFilter = Control.MouseFilterEnum.Stop,
             TooltipText = IsRussian() ? $"Удалить набор «{preset.Name}»" : $"Delete loadout: {preset.Name}"
         };
         item.AddChild(button);
         button.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.RightWide);
-        button.OffsetLeft = -48;
-        button.OffsetRight = -4;
+        button.OffsetLeft = -(HorizontalPadding + RemoveButtonWidth);
+        button.OffsetRight = -HorizontalPadding;
         var highlight = new ColorRect
         {
             Color = new Color(0.7f, 0.15f, 0.12f, 0.5f), Visible = false,
@@ -407,6 +419,9 @@ internal static class ModifierPresetUi
 
 internal sealed class ModifierPresetRemoveButton : NButton
 {
+    // NButton._Ready rejects derived types before connecting their input signals.
+    public override void _Ready() => ConnectSignals();
+
     public override void _GuiInput(InputEvent input)
     {
         base._GuiInput(input);
