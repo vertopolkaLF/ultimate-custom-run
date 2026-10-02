@@ -11,7 +11,7 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 ## Features
 
 - Collapsible modifier groups: **Improved Start**, **Run Parameters**, **Modifiers**, **Card Pool**, **Ascension**, and **Negatives**. Options unavailable in singleplayer appear under **Disabled**.
-- **Run Parameters** can set bosses per act (vanilla, 1, or 2), floors per act (vanilla or 8–30), base hand size (vanilla or 0–15), base energy (vanilla or 0–10), and enemy HP, enemy damage, and player HP multipliers (25–500%, step 25%).
+- **Run Parameters** can set bosses per act (vanilla, 1, or 2), floors per act (vanilla or 8–30), base hand size (vanilla or 0–10, capped by the engine's 10-card hand limit), base energy (vanilla or 0–10), and enemy HP, enemy damage, and player HP multipliers (25–500%, step 25%).
 - Named modifier presets: save the current selection and slider values as a loadout, then restore it from the dropdown. **Empty** clears the selected modifiers. Delete saved loadouts with the game's remove icon beside each dropdown item; deleting a loadout preserves the current run settings. Presets are stored locally, and the built-in Empty preset cannot be overwritten or removed.
 - **Ascension** contains all ten Ascension effects as independent options, using the game's localized titles and descriptions. For example, enable Double Boss without any other Ascension penalties. Enabling an effect sets Ascension to 0; changing Ascension disables every independent Ascension option while preserving other modifiers.
 - Native sliders with live value labels and descriptions. Use the mouse or focus a slider and press left/right to change it by one step.

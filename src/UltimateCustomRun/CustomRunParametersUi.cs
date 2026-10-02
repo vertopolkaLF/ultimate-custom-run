@@ -28,7 +28,7 @@ internal static class CustomRunParametersUi
     [
         (CustomRunParameter.BossesPerAct, "Bosses per act", "Боссов за акт", 2),
         (CustomRunParameter.FloorsPerAct, "Floors per act", "Этажей за акт", 23),
-        (CustomRunParameter.BaseHandSize, "Base hand size", "Размер базовой руки", 16),
+        (CustomRunParameter.BaseHandSize, "Base hand size", "Размер базовой руки", 11),
         (CustomRunParameter.BaseEnergy, "Base energy", "Базовая энергия", 11),
         (CustomRunParameter.EnemyHpPercent, "Enemy HP", "Здоровье врагов", 19),
         (CustomRunParameter.EnemyDamagePercent, "Enemy damage", "Урон врагов", 19),

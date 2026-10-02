@@ -88,6 +88,7 @@ internal static class Program
             TestHeadstart();
             TestMysteryEvents();
             TestDoubleTrouble();
+            TestCustomRunParameters();
         }
         finally
         {
@@ -886,6 +887,60 @@ internal static class Program
             typeof(Dill).GetMethod(nameof(AbstractModel.AfterCombatVictory))!.DeclaringType == typeof(Dill) &&
             typeof(Dill).GetMethod(nameof(AbstractModel.BeforeCombatStart))!.DeclaringType != typeof(Dill),
             "Dill starts at exact HP only on new runs and grows after victories rather than before fights");
+    }
+
+    private static void TestCustomRunParameters()
+    {
+        var canonical = ModelDb.Modifier<CustomRunParameters>();
+        foreach (var parameter in Enum.GetValues<CustomRunParameter>())
+            Check(typeof(CustomRunParameters).GetProperty(parameter.ToString())?.GetCustomAttribute<
+                MegaCrit.Sts2.Core.Saves.Runs.SavedPropertyAttribute>() != null &&
+                MegaCrit.Sts2.Core.Multiplayer.Serialization.ModelIdSerializationCache.GetNetIdForPropertyName(parameter.ToString()) >= 0,
+                "Native startup discovers a replay/network ID for Custom Run parameter " + parameter);
+
+        foreach (var handSize in new[] { -1, 0, 5, 10, 15 })
+        {
+            var modifier = (CustomRunParameters)canonical.ToMutable();
+            modifier.BossesPerAct = 2;
+            modifier.FloorsPerAct = 20;
+            modifier.BaseHandSize = handSize;
+            modifier.BaseEnergy = 6;
+            modifier.EnemyHpPercent = 150;
+            modifier.EnemyDamagePercent = 200;
+            modifier.PlayerHpPercent = 75;
+            var expected = CustomRunParameterValuesStore.Get(modifier);
+            Check(expected.BaseHandSize == Math.Clamp(handSize, -1, 10),
+                "Base hand size preserves vanilla/zero and clamps to the engine's ten-card limit: " + handSize);
+            var saved = modifier.ToSerializable();
+            Check(saved.Props?.ints?.All(property => !property.name.StartsWith("CustomRunParameters.")) == true,
+                "Custom Run serialization writes only registered property names");
+            var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+            // Same native modifier-list serialization used by SerializableRun in replays.
+            writer.WriteList(new List<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier> { saved });
+            var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+            reader.Reset(writer.Buffer);
+            var packet = reader.ReadList<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>().Single();
+            foreach (var restored in new[] { ModifierModel.FromSerializable(saved), ModifierModel.FromSerializable(packet),
+                (ModifierModel)modifier.MutableClone() })
+                Check(restored is CustomRunParameters parameters && CustomRunParameterValuesStore.Get(parameters) == expected,
+                    "All seven Custom Run parameters survive save, replay/network packet and clone: hand " + handSize);
+        }
+        var legacy = new MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier
+        {
+            Id = canonical.Id,
+            Props = new MegaCrit.Sts2.Core.Saves.Runs.SavedProperties { ints = [
+                new("CustomRunParameters.BossesPerAct", 2),
+                new("CustomRunParameters.FloorsPerAct", 24),
+                new("CustomRunParameters.BaseHandSize", 15),
+                new("CustomRunParameters.EnemyDamagePercent", 175)] }
+        };
+        var migrated = (CustomRunParameters)ModifierModel.FromSerializable(legacy);
+        Check(migrated.BossesPerAct == 2 && migrated.FloorsPerAct == 24 && migrated.BaseHandSize == 10 &&
+            migrated.EnemyDamagePercent == 175 && migrated.BaseEnergy == -1,
+            "Legacy dotted-key saves retain their parameters, clamp oversized hands and preserve missing defaults");
+        var migrationWriter = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+        migrated.ToSerializable().Serialize(migrationWriter);
+        Check(migrationWriter.Buffer.Length > 0, "Migrated Custom Run saves can be serialized into replay packets");
     }
 
     private static void TestDoubleTrouble()

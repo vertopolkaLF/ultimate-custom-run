@@ -12,6 +12,25 @@ public sealed class CustomRunParameters : ModifierModel
     internal const string DisplayDescription = "Adjust map length, boss count, starting combat resources, and health multipliers.";
 
     protected override string IconPath => ImageHelper.GetImagePath("packed/modifiers/specialized.png");
+
+    // Real saved properties are discovered by the game's replay/network ID cache.
+    [SavedProperty]
+    public int BossesPerAct { get => Values.BossesPerAct; set => Set(CustomRunParameter.BossesPerAct, value); }
+    [SavedProperty]
+    public int FloorsPerAct { get => Values.FloorsPerAct; set => Set(CustomRunParameter.FloorsPerAct, value); }
+    [SavedProperty]
+    public int BaseHandSize { get => Values.BaseHandSize; set => Set(CustomRunParameter.BaseHandSize, value); }
+    [SavedProperty]
+    public int BaseEnergy { get => Values.BaseEnergy; set => Set(CustomRunParameter.BaseEnergy, value); }
+    [SavedProperty]
+    public int EnemyHpPercent { get => Values.EnemyHpPercent; set => Set(CustomRunParameter.EnemyHpPercent, value); }
+    [SavedProperty]
+    public int EnemyDamagePercent { get => Values.EnemyDamagePercent; set => Set(CustomRunParameter.EnemyDamagePercent, value); }
+    [SavedProperty]
+    public int PlayerHpPercent { get => Values.PlayerHpPercent; set => Set(CustomRunParameter.PlayerHpPercent, value); }
+
+    private CustomRunParameterValues Values => CustomRunParameterValuesStore.Get(this);
+    private void Set(CustomRunParameter parameter, int value) => CustomRunParameterValuesStore.Set(this, parameter, value);
 }
 
 internal enum CustomRunParameter
@@ -93,7 +112,7 @@ internal static class CustomRunParameterValuesStore
     {
         CustomRunParameter.BossesPerAct => value < 0 ? -1 : Math.Clamp(value, 1, 2),
         CustomRunParameter.FloorsPerAct => value < 0 ? -1 : Math.Clamp(value, 8, 30),
-        CustomRunParameter.BaseHandSize => value < 0 ? -1 : Math.Clamp(value, 0, 15),
+        CustomRunParameter.BaseHandSize => value < 0 ? -1 : Math.Clamp(value, 0, 10),
         CustomRunParameter.BaseEnergy => value < 0 ? -1 : Math.Clamp(value, 0, 10),
         _ => Math.Clamp((int)Math.Round(Math.Clamp(value, 25, 500) / 25d, MidpointRounding.AwayFromZero) * 25, 25, 500)
     };
@@ -101,24 +120,7 @@ internal static class CustomRunParameterValuesStore
     private static string SaveKey(CustomRunParameter parameter) =>
         nameof(CustomRunParameters) + "." + parameter;
 
-    [HarmonyPatch(typeof(ModifierModel), nameof(ModifierModel.ToSerializable))]
-    private static class SavePatch
-    {
-        [HarmonyPostfix]
-        private static void Postfix(ModifierModel __instance, SerializableModifier __result)
-        {
-            if (__instance is not CustomRunParameters modifier) return;
-            __result.Props ??= new SavedProperties();
-            __result.Props.ints ??= [];
-            foreach (var parameter in Enum.GetValues<CustomRunParameter>())
-            {
-                var key = SaveKey(parameter);
-                __result.Props.ints.RemoveAll(value => value.name == key);
-                __result.Props.ints.Add(new(key, Get(modifier).Get(parameter)));
-            }
-        }
-    }
-
+    // Read legacy JSON saves, but never write their unregistered dotted keys.
     [HarmonyPatch(typeof(ModifierModel), nameof(ModifierModel.FromSerializable))]
     private static class LoadPatch
     {
