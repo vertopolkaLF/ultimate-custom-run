@@ -19,11 +19,13 @@ internal static class ModifierPresetUi
     private const string DropdownScene = "res://scenes/screens/char_select/char_select_act_dropdown.tscn";
     private const string DropdownItemScene = "res://scenes/ui/dropdown_item.tscn";
     private const string PopupScene = "res://scenes/ui/generic_popup.tscn";
+    private const string DeleteIconPath = "res://images/packed/main_menu/delete_button.png";
 
     private sealed class DropdownState
     {
         internal required NCustomRunModifiersList ModifierList;
         internal List<ModifierPreset> Presets = [];
+        internal string? SelectedName;
     }
 
     private sealed class ScreenState
@@ -182,30 +184,123 @@ internal static class ModifierPresetUi
             oldItem.QueueFree();
         }
 
-        if (state.Presets.Count == 0)
-            AddDropdownItem(items, IsRussian() ? "Нет сохранённых наборов" : "No saved loadouts", null, dropdown, state);
-        else
-            foreach (var preset in state.Presets)
-                AddDropdownItem(items, preset.Name, preset, dropdown, state);
+        AddDropdownItem(items, ModifierPresetStore.EmptyName, ModifierPresetStore.Empty, dropdown, state, false);
+        foreach (var preset in state.Presets)
+            AddDropdownItem(items, ModifierPresetStore.IsReservedName(preset.Name)
+                ? preset.Name + (IsRussian() ? " (сохранённый)" : " (saved)") : preset.Name, preset, dropdown, state);
 
         items.GetParent<NDropdownContainer>().RefreshLayout();
+        Callable.From(() =>
+        {
+            if (GodotObject.IsInstanceValid(items)) items.GetParent<NDropdownContainer>().RefreshLayout();
+        }).CallDeferred();
         var label = dropdown.GetNode<MegaLabel>("CurrentOption/Label");
+        state.SelectedName = selectedName;
         label.SetTextAutoSize(selectedName ?? (IsRussian() ? "Выбрать набор" : "Select loadout"));
     }
 
     private static void AddDropdownItem(
-        VBoxContainer items, string text, ModifierPreset? preset, NActDropdown dropdown, DropdownState state)
+        VBoxContainer items, string text, ModifierPreset preset, NActDropdown dropdown, DropdownState state, bool removable = true)
     {
         var item = ResourceLoader.Load<PackedScene>(DropdownItemScene).Instantiate<NDropdownItem>();
         item.Selected += _ =>
         {
             AccessTools.Method(typeof(NDropdown), "CloseDropdown")!.Invoke(dropdown, null);
-            if (preset == null) return;
+            state.SelectedName = preset.Name;
             dropdown.GetNode<MegaLabel>("CurrentOption/Label").SetTextAutoSize(preset.Name);
             ApplyPreset(state.ModifierList, preset);
         };
         items.AddChild(item);
         item.Text = text;
+        var label = item.GetNode<MegaLabel>("Label");
+        label.OffsetLeft = 8;
+        label.OffsetRight = -8;
+        label.HorizontalAlignment = HorizontalAlignment.Left;
+        label.ClipText = true;
+        label.MouseFilter = Control.MouseFilterEnum.Ignore;
+        if (removable) AddRemoveButton(item, preset, dropdown, state);
+    }
+
+    private static void AddRemoveButton(NDropdownItem item, ModifierPreset preset, NActDropdown dropdown, DropdownState state)
+    {
+        var label = item.GetNode<MegaLabel>("Label");
+        label.OffsetLeft = 8;
+        label.OffsetRight = -52;
+        label.HorizontalAlignment = HorizontalAlignment.Left;
+        label.ClipText = true;
+        label.MouseFilter = Control.MouseFilterEnum.Ignore;
+
+        var button = new ModifierPresetRemoveButton
+        {
+            Name = "RemovePresetButton", CustomMinimumSize = new Vector2(44, 44),
+            FocusMode = Control.FocusModeEnum.All, MouseFilter = Control.MouseFilterEnum.Stop,
+            TooltipText = IsRussian() ? $"Удалить набор «{preset.Name}»" : $"Delete loadout: {preset.Name}"
+        };
+        item.AddChild(button);
+        button.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.RightWide);
+        button.OffsetLeft = -48;
+        button.OffsetRight = -4;
+        var highlight = new ColorRect
+        {
+            Color = new Color(0.7f, 0.15f, 0.12f, 0.5f), Visible = false,
+            MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+        button.AddChild(highlight);
+        highlight.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        var icon = new TextureRect
+        {
+            Texture = ResourceLoader.Load<Texture2D>(DeleteIconPath),
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+        button.AddChild(icon);
+        icon.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        icon.OffsetLeft = icon.OffsetTop = 8;
+        icon.OffsetRight = icon.OffsetBottom = -8;
+        button.Connect(NClickableControl.SignalName.Focused, Callable.From<NClickableControl>(_ => highlight.Visible = true));
+        button.Connect(NClickableControl.SignalName.Unfocused, Callable.From<NClickableControl>(_ => highlight.Visible = false));
+        button.Connect(NClickableControl.SignalName.Released, Callable.From<NClickableControl>(_ =>
+            Callable.From(() => DeletePreset(dropdown, state, preset.Name)).CallDeferred()));
+    }
+
+    private static void DeletePreset(NActDropdown dropdown, DropdownState state, string name)
+    {
+        if (!GodotObject.IsInstanceValid(dropdown)) return;
+        try
+        {
+            ModifierPresetStore.Delete(name);
+            // Rebuild after the release signal returns; removing a row never applies a preset.
+            var selected = string.Equals(state.SelectedName, name, StringComparison.OrdinalIgnoreCase) ? null : state.SelectedName;
+            AccessTools.Method(typeof(NDropdown), "CloseDropdown")!.Invoke(dropdown, null);
+            RebuildOptions(dropdown, selected);
+        }
+        catch (Exception ex) { GD.PushError($"[Ultimate Custom Run] Could not delete modifier preset: {ex}"); }
+    }
+
+    internal static void RefreshDropdownFocus(NActDropdown dropdown)
+    {
+        if (!Dropdowns.TryGetValue(dropdown, out _)) return;
+        var items = dropdown.GetNode<VBoxContainer>("DropdownContainer/VBoxContainer").GetChildren().OfType<NDropdownItem>().ToArray();
+        for (var index = 0; index < items.Length; index++)
+        {
+            var item = items[index];
+            var previous = items[Math.Max(0, index - 1)];
+            var next = items[Math.Min(items.Length - 1, index + 1)];
+            var remove = item.GetNodeOrNull<NButton>("RemovePresetButton");
+            item.FocusPrevious = item.GetPathTo(previous.GetNodeOrNull<NButton>("RemovePresetButton") ?? (Control)previous);
+            item.FocusNext = item.GetPathTo(remove ?? (Control)next);
+            if (remove == null) continue;
+            // Native OpenDropdown rewrites row focus neighbors on each opening.
+            item.FocusNeighborRight = item.GetPathTo(remove);
+            item.FocusNext = item.GetPathTo(remove);
+            remove.FocusNeighborLeft = remove.GetPathTo(item);
+            remove.FocusPrevious = remove.GetPathTo(item);
+            remove.FocusNeighborRight = remove.GetPath();
+            remove.FocusNeighborTop = remove.GetPathTo(previous.GetNodeOrNull<NButton>("RemovePresetButton") ?? (Control)previous);
+            remove.FocusNeighborBottom = remove.GetPathTo(next.GetNodeOrNull<NButton>("RemovePresetButton") ?? (Control)next);
+            remove.FocusNext = remove.FocusNeighborBottom;
+        }
     }
 
     private static void ApplyPreset(NCustomRunModifiersList list, ModifierPreset preset)
@@ -235,7 +330,7 @@ internal static class ModifierPresetUi
         var modals = NModalContainer.Instance;
         if (modals == null || modals.OpenModal != null) return;
 
-        var validationError = false;
+        string? validationError = null;
         while (true)
         {
             var popup = ResourceLoader.Load<PackedScene>(PopupScene).Instantiate<NGenericPopup>();
@@ -258,9 +353,7 @@ internal static class ModifierPresetUi
             var input = new LineEdit
             {
                 Name = "LoadoutNameInput",
-                PlaceholderText = validationError
-                    ? (russian ? "Введите название набора" : "Enter a loadout name")
-                    : (russian ? "Название набора" : "Loadout name"),
+                PlaceholderText = validationError ?? (russian ? "Название набора" : "Loadout name"),
                 CustomMinimumSize = new Vector2(400, 64),
                 Size = new Vector2(400, 64),
                 FocusMode = Control.FocusModeEnum.All,
@@ -287,9 +380,11 @@ internal static class ModifierPresetUi
             modals.Clear();
 
             if (!confirmed) return;
-            if (name.Length == 0)
+            if (name.Length == 0 || ModifierPresetStore.IsReservedName(name))
             {
-                validationError = true;
+                validationError = name.Length == 0
+                    ? (russian ? "Введите название набора" : "Enter a loadout name")
+                    : (russian ? "Имя Empty зарезервировано" : "Empty is reserved. Choose another name");
                 continue;
             }
 
@@ -307,6 +402,26 @@ internal static class ModifierPresetUi
     }
 
     private static bool IsRussian() => LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
+}
+
+internal sealed class ModifierPresetRemoveButton : NButton
+{
+    public override void _GuiInput(InputEvent input)
+    {
+        base._GuiInput(input);
+        // Keyboard/controller selection must not bubble up and also apply this row.
+        if (input is InputEventMouseButton || input.IsAction(MegaCrit.Sts2.Core.ControllerInput.MegaInput.select)) AcceptEvent();
+    }
+}
+
+[HarmonyPatch(typeof(NDropdown), "OpenDropdown")]
+internal static class ModifierPresetDropdownFocusPatch
+{
+    [HarmonyPostfix]
+    private static void Postfix(NDropdown __instance)
+    {
+        if (__instance is NActDropdown dropdown) ModifierPresetUi.RefreshDropdownFocus(dropdown);
+    }
 }
 
 [HarmonyPatch(typeof(NCustomRunScreen), nameof(NCustomRunScreen._Ready))]

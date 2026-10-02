@@ -80,6 +80,7 @@ internal static class Program
             TestSuperModifiers();
             TestSealedSliders();
             TestSpeedrun();
+            TestPresetManagement();
         }
         finally
         {
@@ -644,6 +645,41 @@ internal static class Program
             "Pending penalties stop as soon as the run ends");
         Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.TopBar.NRunTimer), "OnTimerTimeout"))
             ?.Owners.Contains(ModEntry.HarmonyId) == true, "Native one-second run timer is patched");
+    }
+
+    private static void TestPresetManagement()
+    {
+        var empty = ModifierPresetStore.Empty;
+        Check(empty.Name == "Empty" && empty.Modifiers.Count == 0,
+            "Built-in Empty preset selects no modifiers");
+        empty.Modifiers.Add(new ModifierPresetEntry { Id = "MODIFIER.SPEEDRUN", Value = 30 });
+        Check(ModifierPresetStore.Empty.Modifiers.Count == 0,
+            "Empty preset is recreated without inheriting modified entries");
+        Check(ModifierPresetStore.IsReservedName(" eMpTy ") && !ModifierPresetStore.IsReservedName("Empty deck"),
+            "Built-in Empty name is reserved without blocking other preset names");
+        var keep = new ModifierPreset
+        {
+            Name = "Keep", Modifiers = [new ModifierPresetEntry { Id = "MODIFIER.SEALED_DECK", Value = 10, SealedPoolSize = 30 }]
+        };
+        var presets = new List<ModifierPreset>
+        {
+            new() { Name = "Remove" }, keep, new() { Name = "Remove another" }
+        };
+        Check(ModifierPresetStore.Remove(presets, "rEmOvE") && presets.Count == 2 && ReferenceEquals(presets[0], keep),
+            "Deleting matches the complete name case-insensitively and preserves other presets");
+        var restored = System.Text.Json.JsonSerializer.Deserialize<List<ModifierPreset>>(
+            System.Text.Json.JsonSerializer.Serialize(presets))!;
+        Check(restored.Select(preset => preset.Name).SequenceEqual(new[] { "Keep", "Remove another" }) &&
+            restored[0].Modifiers.Single() is { Value: 10, SealedPoolSize: 30 },
+            "Deleted preset stays absent from serialized storage while other slider values survive");
+        Check(!ModifierPresetStore.Remove(presets, "missing") && presets.Count == 2,
+            "Deleting a missing preset leaves the list intact");
+        var legacy = new List<ModifierPreset> { new() { Name = "Empty" } };
+        Check(ModifierPresetStore.Remove(legacy, "Empty") && ModifierPresetStore.Empty.Modifiers.Count == 0,
+            "Removing a legacy saved Empty does not affect the built-in preset");
+        Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.GodotExtensions.NDropdown), "OpenDropdown"))
+            ?.Owners.Contains(ModEntry.HarmonyId) == true,
+            "Preset remove-button focus is restored after native dropdown navigation setup");
     }
 
     private static void Check(bool condition, string message)
