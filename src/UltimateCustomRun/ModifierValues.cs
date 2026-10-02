@@ -161,6 +161,16 @@ internal static class ModifierValues
         [HarmonyPostfix]
         private static void Postfix(ModifierModel __instance, ref LocString __result)
         {
+            if (__instance is CustomRunParameters parameters)
+            {
+                var values = CustomRunParameterValuesStore.Get(parameters);
+                var russian = LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
+                var key = __result.LocEntryKey + $".ultimate_parameters_{values.FloorsPerAct}_{values.BaseHandSize}_{values.BaseEnergy}_{values.EnemyHpPercent}_{values.EnemyDamagePercent}_{values.PlayerHpPercent}";
+                LocManager.Instance.GetTable(__result.LocTable).MergeWith(new Dictionary<string, string>
+                    { [key] = CustomRunParametersUi.DescriptionText(values, russian) });
+                __result = new LocString(__result.LocTable, key);
+                return;
+            }
             if (__instance is MysteryEvents)
             {
                 var count = Get(__instance);

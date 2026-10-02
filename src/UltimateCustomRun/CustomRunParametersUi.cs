@@ -146,6 +146,14 @@ internal static class CustomRunParametersUi
     private static string Title((CustomRunParameter Parameter, string English, string Russian, int MaxIndex) spec) =>
         LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru" ? spec.Russian : spec.English;
 
+    internal static string DescriptionText(CustomRunParameterValues values, bool russian)
+    {
+        var lines = Specs.Where(spec => values.Get(spec.Parameter) != CustomRunParameterValues.Default.Get(spec.Parameter))
+            .Select(spec => $"{(russian ? spec.Russian : spec.English)}: [gold]{ValueText(spec.Parameter, values.Get(spec.Parameter), russian)}[/gold]");
+        var text = string.Join("\n", lines);
+        return text.Length > 0 ? text : russian ? "Параметры по умолчанию." : "All parameters use vanilla values.";
+    }
+
     private static string ValueText(CustomRunParameter parameter, int value, bool russian)
     {
         if (value < 0) return russian ? "По умолчанию" : "Vanilla";
