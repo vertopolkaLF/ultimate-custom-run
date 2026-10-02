@@ -947,6 +947,21 @@ internal static class Program
 
     private static void TestDoubleTrouble()
     {
+        foreach (var rowDistance in new[] { 70f, 116.25f, 149.4643f, 232.5f })
+        foreach (var halfHeights in new[] { new[] { 91.8f, 91.8f, 91.8f }, new[] { 91.8f, 46f, 91.8f, 46f, 91.8f } })
+        {
+            var center = 0f;
+            var previousHalfHeight = 46f;
+            foreach (var halfHeight in halfHeights)
+            {
+                var next = BossChainMapUiPatch.NextCenterY(center, previousHalfHeight, halfHeight, rowDistance);
+                var visibleGap = (center - previousHalfHeight) - (next + halfHeight);
+                Check(Math.Abs(visibleGap - Math.Max(0f, rowDistance - 92f)) < 0.001f,
+                    "Every boss/rest gap matches ordinary map icon spacing without overlap: " + rowDistance);
+                center = next;
+                previousHalfHeight = halfHeight;
+            }
+        }
         foreach (var viewport in new[] { new Godot.Vector2(1280, 720), new Godot.Vector2(1920, 1080), new Godot.Vector2(2560, 1440) })
         foreach (var offset in new[] { new Godot.Vector2(-200, -1782), new Godot.Vector2(-80, -1900), new Godot.Vector2(-200, -2052) })
         {

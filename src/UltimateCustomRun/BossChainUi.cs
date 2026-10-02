@@ -16,6 +16,9 @@ internal static class BossChainMapUiPatch
     internal static Vector2 PositionForAnchor(Vector2 offset, Vector2 parentSize, Vector2 anchor) =>
         offset + parentSize * anchor;
 
+    internal static float NextCenterY(float previousCenter, float previousHalfHeight, float halfHeight, float rowDistance) =>
+        previousCenter - previousHalfHeight - halfHeight - Math.Max(0f, rowDistance - 92f);
+
     internal static IEnumerable<MapPoint> NormalPoints(ActMap map) =>
         map.GetAllMapPoints().Where(point => point.PointType != MapPointType.Boss);
 
@@ -33,21 +36,25 @@ internal static class BossChainMapUiPatch
             nodes.Add(point.coord, node);
             points.AddChildSafely(node);
         }
-        // Fit the entire chain in the native boss area above the ordinary map.
+        // Match the ordinary 92px map icons' visible gap, allowing for larger bosses.
         var lastNormalRow = run.Map.BossMapPoint.coord.row - 1;
         var distY = (float)AccessTools.Field(typeof(NMapScreen), "_distY").GetValue(screen)!;
-        var firstY = 740f - (lastNormalRow + 1) * distY;
-        var finalY = -2052f;
+        var previousCenter = 740f - lastNormalRow * distY + 28f;
+        var previousHalfHeight = 46f;
         for (var i = 0; i < chain.Count; i++)
         {
             var node = nodes[chain[i].coord];
-            var y = firstY + (finalY - firstY) * i / (chain.Count - 1);
+            if (node is NBossMapPoint) node.Scale = new Vector2(0.6f, 0.6f);
+            var halfHeight = node is NBossMapPoint ? node.Size.Y * node.Scale.Y * 0.5f : 46f;
+            var center = NextCenterY(previousCenter, previousHalfHeight, halfHeight, distY);
+            var y = center - node.PivotOffset.Y;
             // Vanilla sets these offsets before parenting. Once attached, Position
             // also includes the scene's centered anchors; preserve that origin.
             var offset = new Vector2(chain[i].PointType == MapPointType.Boss ? -200f : -80f, y);
             var parentSize = node.GetParent() is Control parent ? parent.Size : Vector2.Zero;
             node.Position = PositionForAnchor(offset, parentSize, new Vector2(node.AnchorLeft, node.AnchorTop));
-            if (node is NBossMapPoint) node.Scale = new Vector2(0.6f, 0.6f);
+            previousCenter = center;
+            previousHalfHeight = halfHeight;
         }
     }
 
