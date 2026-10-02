@@ -10,7 +10,6 @@ using MegaCrit.Sts2.Core.Nodes.Multiplayer;
 using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
-using MegaCrit.Sts2.Core.Nodes.Screens.Overlays;
 using MegaCrit.Sts2.Core.Models;
 
 namespace UltimateCustomRun;
@@ -202,27 +201,15 @@ internal static class ModifierPresetUi
     private static async Task OpenSaveDialog(NCustomRunScreen screen, NActDropdown dropdown)
     {
         if (!Screens.TryGetValue(screen, out var state) || !GodotObject.IsInstanceValid(state.ModifierList)) return;
-        var overlays = NOverlayStack.Instance;
-        if (overlays == null) return;
+        var modals = NModalContainer.Instance;
+        if (modals == null || modals.OpenModal != null) return;
 
         var validationError = false;
         while (true)
         {
-            var dimmer = new ColorRect
-            {
-                Name = "ModifierPresetDialogDimmer",
-                Color = new Color(0, 0, 0, 0.72f),
-                MouseFilter = Control.MouseFilterEnum.Stop,
-                FocusMode = Control.FocusModeEnum.None,
-                ZIndex = 100
-            };
-            overlays.AddChild(dimmer);
-            dimmer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-
             var popup = ResourceLoader.Load<PackedScene>(PopupScene).Instantiate<NGenericPopup>();
             popup.Name = "ModifierPresetNamePopup";
-            popup.ZIndex = 101;
-            overlays.AddChild(popup);
+            modals.Add(popup);
 
             var verticalPopup = popup.GetNode<NVerticalPopup>("VerticalPopup");
             var russian = IsRussian();
@@ -266,8 +253,7 @@ internal static class ModifierPresetUi
 
             var confirmed = await confirmation;
             var name = input.Text.Trim();
-            dimmer.QueueFree();
-            popup.QueueFree();
+            modals.Clear();
 
             if (!confirmed) return;
             if (name.Length == 0)
