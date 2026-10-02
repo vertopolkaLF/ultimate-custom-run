@@ -26,11 +26,11 @@ internal static class Program
             var path = Path.Combine(dataPath, name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        Run();
+        Run(args.Contains("--ascension-only"));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Run()
+    private static void Run(bool ascensionOnly)
     {
         var assembly = typeof(ModEntry).Assembly;
         Check(assembly.GetName().Name == "UltimateCustomRun" && typeof(ModEntry).Namespace == "UltimateCustomRun" &&
@@ -72,6 +72,12 @@ internal static class Program
                 "Both new modifiers provide their own Neow buttons");
 
             TestNeowModifier();
+            if (ascensionOnly)
+            {
+                TestAscensionModifiers();
+                Console.WriteLine("PASS: managed ascension integration checks. Top-bar visuals require an in-game playtest.");
+                return;
+            }
             TestGroups();
             TestSpecializedVariants();
             TestModifierValues();
@@ -433,6 +439,21 @@ internal static class Program
             AscensionModifiers.HasLevel(combined, MegaCrit.Sts2.Core.Entities.Ascension.AscensionLevel.TightBelt) &&
             !AscensionModifiers.HasLevel(combined, MegaCrit.Sts2.Core.Entities.Ascension.AscensionLevel.Poverty), "Selected ascension effects combine without enabling intervening levels");
         Check(AscensionModifiers.WithoutAscensions(combined).Single() == combined[2], "Changing ascension removes all independent effects and preserves other modifiers");
+        var original = combined.ToArray();
+        Check(AscensionModifiersUi.Selected(combined).Select(effect => effect.Level).SequenceEqual(new[]
+            { MegaCrit.Sts2.Core.Entities.Ascension.AscensionLevel.TightBelt, MegaCrit.Sts2.Core.Entities.Ascension.AscensionLevel.DoubleBoss }),
+            "Grouped ascension tooltip includes only enabled effects in native level order");
+        Check(combined.SequenceEqual(original), "Grouping the top bar preserves every gameplay modifier and its order");
+        Check(AscensionModifiersUi.Selected([combined[2]]).Length == 0 &&
+            AscensionModifiersUi.Selected([combined[0], combined[0]]).Length == 1 &&
+            AscensionModifiersUi.Selected(effects.Reverse()).Select(effect => effect.Level).SequenceEqual(levels),
+            "Ascension summary handles zero, duplicate and all ten effects");
+        Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.CommonUi.NTopBar), "Initialize"))?
+            .Postfixes.Any(patch => patch.PatchMethod.DeclaringType == typeof(AscensionModifiersUi)) == true,
+            "Top-bar initialization applies the ascension grouping patch");
+        Check(AccessTools.Field(typeof(MegaCrit.sts2.Core.Nodes.TopBar.NTopBarModifier), "_modifier")?.FieldType == typeof(ModifierModel) &&
+            AccessTools.Field(typeof(MegaCrit.sts2.Core.Nodes.TopBar.NTopBarModifier), "_hoverTip")?.FieldType == typeof(MegaCrit.Sts2.Core.HoverTips.HoverTip),
+            "Installed game supports native modifier icons and grouped hover tips");
         var vanilla = new MegaCrit.Sts2.Core.Entities.Ascension.AscensionManager(10);
         Check(levels.All(vanilla.HasLevel), "Unbound vanilla Ascension 10 still enables every level");
         foreach (var target in new[] { "OnModifiersListChanged", "AscensionChanged" })
