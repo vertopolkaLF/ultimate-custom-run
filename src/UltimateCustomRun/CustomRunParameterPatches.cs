@@ -3,9 +3,9 @@ using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
-using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Runs;
@@ -118,8 +118,8 @@ internal static class CustomRunEnemyHealthPatch
 internal static class CustomRunEnemyDamagePatch
 {
     private static MethodBase TargetMethod() =>
-        AccessTools.Method(typeof(CreatureCmd), "ModifyDamage")
-        ?? throw new MissingMethodException(typeof(CreatureCmd).FullName, "ModifyDamage");
+        AccessTools.Method(typeof(Hook), "ModifyDamage")
+        ?? throw new MissingMethodException(typeof(Hook).FullName, "ModifyDamage");
 
     [HarmonyPostfix]
     private static void Postfix(IRunState runState, Creature dealer, Creature target, ref decimal __result)
