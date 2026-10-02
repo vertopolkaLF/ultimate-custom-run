@@ -121,7 +121,7 @@ internal static class ModifierGroupsUi
             };
             label.AddThemeFontOverride("font", font);
             label.AddThemeFontSizeOverride("font_size", 28);
-            label.AddThemeColorOverride("font_color", group == ModifierGroup.Negatives ? NegativeColor : new Color(1, 0.9647059f, 0.8862745f));
+            label.AddThemeColorOverride("font_color", group is ModifierGroup.Ascension or ModifierGroup.Negatives ? NegativeColor : new Color(1, 0.9647059f, 0.8862745f));
             label.AddThemeColorOverride("font_shadow_color", new Color(0, 0, 0, 0.5f));
             label.AddThemeConstantOverride("shadow_offset_x", 3);
             label.AddThemeConstantOverride("shadow_offset_y", 2);
@@ -173,14 +173,14 @@ internal static class ModifierGroupsUi
                     row.FocusMode = Control.FocusModeEnum.None;
                     continue;
                 }
-                // Custom-only positive modifiers are absent from the global daily pool.
+                // Custom-only modifiers are absent from the global daily pool.
                 if (row.Modifier is { } modifier &&
                     (ModifierListPatch.IsCustomOnly(modifier) || ModifierVariantUi.IsParent(modifier)))
                 {
                     var text = new MegaCrit.Sts2.Core.Localization.LocString("main_menu_ui", "CUSTOM_RUN_SCREEN.MODIFIER_LABEL");
                     var modifierTitle = modifier.Title.GetFormattedText();
                     if (ModifierVariantUi.IsParent(modifier)) modifierTitle += " [color=#ff9c3d]*[/color]";
-                    text.Add("color", "green");
+                    text.Add("color", group is ModifierGroup.Ascension or ModifierGroup.Negatives ? "red" : "green");
                     text.Add("modifier_title", modifierTitle);
                     text.Add("modifier_description", modifier.Description.GetFormattedText());
                     row.GetNode<MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel>("HBoxContainer/Description").Text = text.GetFormattedText();
