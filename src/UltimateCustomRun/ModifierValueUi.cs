@@ -13,6 +13,7 @@ namespace UltimateCustomRun;
 
 internal static class ModifierValueUi
 {
+    private enum ValueKind { Primary, SealedPool, DillGrowth }
     private sealed class Row
     {
         internal required NRunModifierTickbox Parent;
@@ -21,7 +22,7 @@ internal static class ModifierValueUi
         internal required NSlider Slider;
         internal required Label Label;
         internal bool Applying;
-        internal bool Pool;
+        internal ValueKind Kind;
     }
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, List<Row>> Rows = new();
     private static List<NRunModifierTickbox> Tickboxes(NCustomRunModifiersList list) =>
@@ -29,22 +30,38 @@ internal static class ModifierValueUi
 
     internal static Control? Create(NCustomRunModifiersList list, NRunModifierTickbox parent)
     {
-        if (parent.Modifier is not MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck) return CreateRow(list, parent);
+        if (parent.Modifier is not MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck and not Dill) return CreateRow(list, parent);
+        var kind = parent.Modifier is Dill ? ValueKind.DillGrowth : ValueKind.SealedPool;
         var root = new VBoxContainer
         {
-            Name = "SealedDeckValues", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, Visible = parent.IsTicked
+            Name = parent.Modifier is Dill ? "DillValues" : "SealedDeckValues",
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, Visible = parent.IsTicked
         };
         root.AddChild(CreateRow(list, parent)!);
-        root.AddChild(CreateRow(list, parent, true)!);
+        root.AddChild(CreateRow(list, parent, kind)!);
         return root;
     }
 
-    private static Control? CreateRow(NCustomRunModifiersList list, NRunModifierTickbox parent, bool pool = false)
+    private static ModifierValues.Spec? SpecFor(ModifierModel? modifier, ValueKind kind) => kind switch
     {
-        if ((pool ? ModifierValues.SealedPoolSpec : ModifierValues.For(parent.Modifier)) is not { } spec) return null;
+        ValueKind.SealedPool => ModifierValues.SealedPoolSpec,
+        ValueKind.DillGrowth => Dill.GrowthSpec,
+        _ => ModifierValues.For(modifier)
+    };
+
+    private static int ValueFor(ModifierModel modifier, ValueKind kind) => kind switch
+    {
+        ValueKind.SealedPool => ModifierValues.GetSealedPool(modifier),
+        ValueKind.DillGrowth => ((Dill)modifier).MaxHpPerFight,
+        _ => ModifierValues.Get(modifier)
+    };
+
+    private static Control? CreateRow(NCustomRunModifiersList list, NRunModifierTickbox parent, ValueKind kind = ValueKind.Primary)
+    {
+        if (SpecFor(parent.Modifier, kind) is not { } spec) return null;
         var root = new HBoxContainer
         {
-            Name = parent.Modifier!.Id.Entry + (pool ? "PoolValue" : "Value"), CustomMinimumSize = new Vector2(0, 64),
+            Name = parent.Modifier!.Id.Entry + kind + "Value", CustomMinimumSize = new Vector2(0, 64),
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, Visible = parent.IsTicked
         };
         root.AddThemeConstantOverride("separation", 16);
@@ -71,14 +88,15 @@ internal static class ModifierValueUi
         foreach (var child in slider.FindChildren("*", "Control", true, false).OfType<Control>())
             child.MouseFilter = Control.MouseFilterEnum.Ignore;
         root.AddChild(slider);
-        var row = new Row { Parent = parent, Spec = spec, Root = root, Slider = slider, Label = label, Pool = pool };
+        var row = new Row { Parent = parent, Spec = spec, Root = root, Slider = slider, Label = label, Kind = kind };
         Rows.GetOrCreateValue(list).Add(row);
         slider.Ready += () => Refresh(list);
         slider.ValueChanged += value =>
         {
             if (row.Applying || !Editable(list)) return;
             var amount = spec.Min + (int)Math.Round(value) * spec.Step;
-            if (pool) ModifierValues.SetSealedPool(parent.Modifier!, amount);
+            if (kind == ValueKind.SealedPool) ModifierValues.SetSealedPool(parent.Modifier!, amount);
+            else if (kind == ValueKind.DillGrowth) ((Dill)parent.Modifier!).MaxHpPerFight = amount;
             else SetFamilyValue(list, parent.Modifier!, amount);
             Refresh(list);
             list.EmitSignal(NCustomRunModifiersList.SignalName.ModifiersChanged);
@@ -110,6 +128,9 @@ internal static class ModifierValueUi
                 foreach (var tickbox in Tickboxes(list))
                     if (tickbox.Modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
                         ModifierValues.SetSealedPool(tickbox.Modifier, ModifierValues.GetSealedPool(modifier));
+            if (modifier is Dill incoming)
+                foreach (var tickbox in Tickboxes(list))
+                    if (tickbox.Modifier is Dill target) target.MaxHpPerFight = incoming.MaxHpPerFight;
             if (ModifierValues.For(modifier) != null) SetFamilyValue(list, modifier, ModifierValues.Get(modifier));
         }
         CustomRunParametersUi.ApplyIncoming(list, modifiers);
@@ -125,23 +146,24 @@ internal static class ModifierValueUi
             try
             {
                 row.Root.Visible = row.Parent.IsTicked;
-                if (row.Root.GetParent() is VBoxContainer group && group.Name == "SealedDeckValues")
+                if (row.Root.GetParent() is VBoxContainer group && (group.Name == "SealedDeckValues" || group.Name == "DillValues"))
                     group.Visible = row.Parent.IsTicked;
                 var editable = Editable(list) && !
                     (ModifierGroupsUi.IsSingleplayer(list) && ModifierGroups.IsSingleplayerDisabled(row.Parent.Modifier));
-                row.Spec = row.Pool ? ModifierValues.SealedPoolSpec : ModifierValues.For(row.Parent.Modifier)!;
+                row.Spec = SpecFor(row.Parent.Modifier, row.Kind)!;
                 editable &= row.Spec.Max > row.Spec.Min;
                 row.Slider.MouseFilter = editable ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
                 row.Slider.FocusMode = editable ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
                 // NSlider divides by MaxValue. A single allowed pick count uses a disabled 0..1 track.
                 row.Slider.MaxValue = Math.Max(1, (row.Spec.Max - row.Spec.Min) / row.Spec.Step);
-                var value = row.Pool ? ModifierValues.GetSealedPool(row.Parent.Modifier!) : ModifierValues.Get(row.Parent.Modifier!);
+                var value = ValueFor(row.Parent.Modifier!, row.Kind);
                 var russian = LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
                 var unit = russian ? row.Spec.Unit switch
                 {
-                    "cards" => "карт", "offers" => "карт в пуле", "extra copies" => "доп. копий", "minutes" => "мин.", _ => "% золота"
+                    "cards" => "карт", "offers" => "карт в пуле", "extra copies" => "доп. копий", "minutes" => "мин.",
+                    "initial max HP" => "начальных макс. HP", "max HP per fight" => "макс. HP за бой", _ => "% золота"
                 } : row.Spec.Unit;
-                if (!row.Pool && row.Parent.Modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
+                if (row.Kind == ValueKind.Primary && row.Parent.Modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
                     unit = russian ? "карт в колоду" : "cards to choose";
                 row.Label.Text = $"{value} {unit}";
                 if (row.Slider.IsNodeReady()) row.Slider.SetValueWithoutAnimation((value - row.Spec.Min) / row.Spec.Step);

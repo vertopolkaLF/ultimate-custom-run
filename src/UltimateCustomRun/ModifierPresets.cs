@@ -16,6 +16,7 @@ internal sealed class ModifierPresetEntry
     public string Id { get; set; } = string.Empty;
     public int? Value { get; set; }
     public int? SealedPoolSize { get; set; }
+    public int? MaxHpPerFight { get; set; }
 }
 
 internal static class ModifierPresetStore
@@ -47,6 +48,7 @@ internal static class ModifierPresetStore
             if (ModifierValues.For(modifier) != null) entry.Value = ModifierValues.Get(modifier);
             if (modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
                 entry.SealedPoolSize = ModifierValues.GetSealedPool(modifier);
+            if (modifier is Dill dill) entry.MaxHpPerFight = dill.MaxHpPerFight;
             preset.Modifiers.Add(entry);
         }
 

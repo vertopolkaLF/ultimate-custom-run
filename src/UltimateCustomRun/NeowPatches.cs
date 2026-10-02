@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter;
+        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter or Dill;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -40,6 +40,7 @@ internal static class ModifierListPatch
             [ModelDb.Modifier<UltimateStarter>().ToMutable(), ModelDb.Modifier<SuperDraft>().ToMutable()]);
         ordered.Add(ModelDb.Modifier<MustHave>().ToMutable());
         ordered.Add(ModelDb.Modifier<Speedrun>().ToMutable());
+        ordered.Add(ModelDb.Modifier<Dill>().ToMutable());
         ordered.Add(ModelDb.Modifier<NeowStarterChoice>().ToMutable());
         ordered.Add(ModelDb.Modifier<CustomRunParameters>().ToMutable());
         ordered.AddRange(AscensionModifiers.Create());
@@ -88,6 +89,8 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<MustHave>().Entry + ".description"] = MustHave.DisplayDescription,
             [ModelDb.GetId<Speedrun>().Entry + ".title"] = Speedrun.DisplayTitle,
             [ModelDb.GetId<Speedrun>().Entry + ".description"] = Speedrun.DisplayDescription,
+            [ModelDb.GetId<Dill>().Entry + ".title"] = Dill.DisplayTitle,
+            [ModelDb.GetId<Dill>().Entry + ".description"] = Dill.DisplayDescription,
             [ModelDb.GetId<CustomRunParameters>().Entry + ".title"] = CustomRunParameters.DisplayTitle,
             [ModelDb.GetId<CustomRunParameters>().Entry + ".description"] = CustomRunParameters.DisplayDescription,
             [ModifierVariantUi.NormalLabelKey] = "Normal",

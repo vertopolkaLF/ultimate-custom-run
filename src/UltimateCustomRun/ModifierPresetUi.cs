@@ -316,6 +316,7 @@ internal static class ModifierPresetUi
             var modifier = (ModifierModel)source.MutableClone();
             if (modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
                 ModifierValues.SetSealedPool(modifier, entry.SealedPoolSize ?? ModifierValues.SealedPoolSpec.Default);
+            if (modifier is Dill dill) dill.MaxHpPerFight = entry.MaxHpPerFight ?? Dill.GrowthSpec.Default;
             if (entry.Value is { } value && ModifierValues.For(modifier) != null)
                 ModifierValues.Set(modifier, value);
             selected.Add(modifier);

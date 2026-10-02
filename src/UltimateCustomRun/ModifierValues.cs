@@ -35,6 +35,7 @@ internal static class ModifierValues
         Hoarder => new(1, 5, 1, 2, "extra copies"),
         Midas => new(150, 300, 5, 200, "% gold"),
         Speedrun => new(10, 60, 5, 30, "minutes"),
+        Dill => new(1, 20, 1, 1, "initial max HP"),
         _ => null
     };
 
@@ -100,6 +101,10 @@ internal static class ModifierValues
         Regex.Replace(original, @"\[blue\](10|30)\[/blue]",
             match => "[blue]" + (match.Groups[1].Value == "10" ? selected : pool) + "[/blue]");
 
+    internal static string DillDescriptionText(string original, int initial, int growth) =>
+        Regex.Replace(original, @"\[blue\](1|2)\[/blue]",
+            match => "[blue]" + (match.Groups[1].Value == "1" ? initial : growth) + "[/blue]");
+
     [HarmonyPatch(typeof(ModifierModel), nameof(ModifierModel.ToSerializable))]
     private static class SavePatch
     {
@@ -153,6 +158,16 @@ internal static class ModifierValues
         [HarmonyPostfix]
         private static void Postfix(ModifierModel __instance, ref LocString __result)
         {
+            if (__instance is Dill dill)
+            {
+                var key = __result.LocEntryKey + $".ultimate_dill_{Get(dill)}_{dill.MaxHpPerFight}";
+                var text = DillDescriptionText(__result.GetRawText(), Get(dill), dill.MaxHpPerFight);
+                LocManager.Instance.GetTable(__result.LocTable).MergeWith(new Dictionary<string, string> { [key] = text });
+                var result = new LocString(__result.LocTable, key);
+                result.AddVariablesFrom(__result);
+                __result = result;
+                return;
+            }
             if (For(__instance) is not { } spec || !Values.TryGetValue(__instance, out var state)) return;
             if (__instance is SealedDeck)
             {

@@ -84,6 +84,7 @@ internal static class Program
             TestSpeedrun();
             TestPresetManagement();
             TestUltimateStarter();
+            TestDill();
         }
         finally
         {
@@ -119,7 +120,7 @@ internal static class Program
             typeof(Insanity), typeof(AllStar), typeof(Flight), typeof(Vintage), typeof(CharacterCards), typeof(NeowStarterChoice),
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
-            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter),
+            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill),
             typeof(UltimateStrike), typeof(UltimateDefend),
             typeof(StrikeIronclad), typeof(DefendIronclad), typeof(Bash),
             typeof(StrikeSilent), typeof(DefendSilent), typeof(Neutralize), typeof(Survivor),
@@ -771,6 +772,109 @@ internal static class Program
             Harmony.GetPatchInfo(AccessTools.Method(typeof(RunState), nameof(RunState.FromSerializable)))
                 ?.Postfixes.Any(patch => patch.PatchMethod.DeclaringType == typeof(UltimateStarterNewRunPatch)) != true,
             "Ultimate Starter patches new-run creation only");
+    }
+
+    private static void TestDill()
+    {
+        var canonical = ModelDb.Modifier<Dill>();
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 20, 1, 1, "initial max HP") &&
+            Dill.GrowthSpec == new ModifierValues.Spec(1, 5, 1, 2, "max HP per fight") &&
+            canonical.MaxHpPerFight == 2,
+            "Dill has independent initial-HP and per-fight sliders with the requested ranges and defaults");
+        Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.Negatives &&
+            ModifierListPatch.IsCustomOnly(canonical) &&
+            ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<Dill>().Count() == 1,
+            "Dill appears once under Negatives without entering Daily pools");
+        for (var initial = 1; initial <= 20; initial++)
+        for (var growth = 1; growth <= 5; growth++)
+        {
+            var modifier = (Dill)canonical.ToMutable();
+            ModifierValues.Set(modifier, initial);
+            modifier.MaxHpPerFight = growth;
+            var saved = modifier.ToSerializable();
+            var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+            saved.Serialize(writer);
+            var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+            reader.Reset(writer.Buffer);
+            foreach (var restored in new[] { ModifierModel.FromSerializable(saved),
+                ModifierModel.FromSerializable(reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>()),
+                (ModifierModel)modifier.MutableClone() })
+                Check(restored is Dill dill && ModifierValues.Get(dill) == initial && dill.MaxHpPerFight == growth,
+                    $"Dill {initial} initial HP and {growth} growth survive save, network and clone");
+            Check(ModifierValues.DillDescriptionText(Dill.DisplayDescription, initial, growth) ==
+                $"Start the game with [blue]{initial}[/blue] max HP. Each fight increases max HP by [blue]{growth}[/blue].",
+                "Dill description updates both independent values without substitution collisions");
+        }
+        var configurable = (Dill)canonical.ToMutable();
+        ModifierValues.Set(configurable, int.MinValue);
+        configurable.MaxHpPerFight = int.MinValue;
+        Check(ModifierValues.Get(configurable) == 1 && configurable.MaxHpPerFight == 1,
+            "Dill sliders clamp at their lower limits");
+        ModifierValues.Set(configurable, int.MaxValue);
+        configurable.MaxHpPerFight = int.MaxValue;
+        Check(ModifierValues.Get(configurable) == 20 && configurable.MaxHpPerFight == 5 &&
+            ModifierValues.Get(canonical) == 1 && canonical.MaxHpPerFight == 2,
+            "Dill sliders clamp at their upper limits without changing canonical defaults");
+        var missingGrowth = configurable.ToSerializable();
+        missingGrowth.Props!.ints!.RemoveAll(property => property.name == nameof(Dill.MaxHpPerFight));
+        Check(ModifierModel.FromSerializable(missingGrowth) is Dill { MaxHpPerFight: 2 },
+            "Dill saves without a growth property retain its default of two");
+        var preset = new ModifierPresetEntry { Id = canonical.Id.ToString(), Value = 17, MaxHpPerFight = 4 };
+        var restoredPreset = System.Text.Json.JsonSerializer.Deserialize<ModifierPresetEntry>(
+            System.Text.Json.JsonSerializer.Serialize(preset))!;
+        Check(restoredPreset is { Value: 17, MaxHpPerFight: 4 }, "Presets preserve both Dill sliders");
+
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        var players = new List<Player>();
+        AccessTools.Field(typeof(RunState), "_players").SetValue(run, players);
+        var setMax = AccessTools.PropertySetter(typeof(MegaCrit.Sts2.Core.Entities.Creatures.Creature), "MaxHp");
+        var setCurrent = AccessTools.PropertySetter(typeof(MegaCrit.Sts2.Core.Entities.Creatures.Creature), "CurrentHp");
+        for (var index = 0; index < 3; index++)
+        {
+            var player = (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player));
+            var creature = (MegaCrit.Sts2.Core.Entities.Creatures.Creature)RuntimeHelpers.GetUninitializedObject(
+                typeof(MegaCrit.Sts2.Core.Entities.Creatures.Creature));
+            AccessTools.Field(typeof(Player), "<Creature>k__BackingField").SetValue(player, creature);
+            AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
+            setMax.Invoke(creature, [80]);
+            setCurrent.Invoke(creature, [60]);
+            players.Add(player);
+        }
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, Array.Empty<ModifierModel>());
+        Dill.InitializeHealth(run);
+        Check(players.All(player => player.Creature.MaxHp == 80 && player.Creature.CurrentHp == 60),
+            "Runs without Dill preserve normal starting HP");
+        foreach (var initial in new[] { 1, 7, 20 })
+        {
+            ModifierValues.Set(configurable, initial);
+            AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { configurable });
+            Dill.InitializeHealth(run);
+            Check(players.All(player => player.Creature.MaxHp == initial && player.Creature.CurrentHp == initial),
+                "Dill sets every co-op player's current and max HP to " + initial);
+        }
+        configurable.OnRunCreated(run);
+        configurable.MaxHpPerFight = 4;
+        setCurrent.Invoke(players[2].Creature, [0]);
+        var gains = new List<(MegaCrit.Sts2.Core.Entities.Creatures.Creature Creature, decimal Amount)>();
+        configurable.GrowAfterVictory((creature, amount) =>
+        {
+            gains.Add((creature, amount));
+            setMax.Invoke(creature, [creature.MaxHp + (int)amount]);
+            return Task.CompletedTask;
+        }).GetAwaiter().GetResult();
+        Check(gains.Count == 2 && gains.All(gain => gain.Amount == 4) &&
+            players.Take(2).All(player => player.Creature.MaxHp == 24) && players[2].Creature.MaxHp == 20,
+            "Each victory grants the configured max HP once to surviving players without reviving dead teammates");
+        configurable.OnRunLoaded(run);
+        Check(players.Take(2).All(player => player.Creature.MaxHp == 24),
+            "Loading Dill does not reset max HP earned from combat");
+        Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(RunManager), "InitializeNewRun"))
+            ?.Postfixes.Any(patch => patch.PatchMethod.DeclaringType == typeof(DillStartingHealthPatch)) == true &&
+            Harmony.GetPatchInfo(AccessTools.Method(typeof(RunManager), "InitializeSavedRun"))
+                ?.Postfixes.Any(patch => patch.PatchMethod.DeclaringType == typeof(DillStartingHealthPatch)) != true &&
+            typeof(Dill).GetMethod(nameof(AbstractModel.AfterCombatVictory))!.DeclaringType == typeof(Dill) &&
+            typeof(Dill).GetMethod(nameof(AbstractModel.BeforeCombatStart))!.DeclaringType != typeof(Dill),
+            "Dill starts at exact HP only on new runs and grows after victories rather than before fights");
     }
 
     private static void Check(bool condition, string message)
