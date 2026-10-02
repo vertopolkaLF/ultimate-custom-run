@@ -85,7 +85,7 @@ internal static class ModifierGroupsUi
             {
                 Name = "SectionHeader", CustomMinimumSize = new Vector2(0, 56),
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, FocusMode = Control.FocusModeEnum.All,
-                MouseFilter = Control.MouseFilterEnum.Stop, TooltipText = title
+                MouseFilter = Control.MouseFilterEnum.Stop
             };
             var highlight = new ColorRect
             {
@@ -199,9 +199,7 @@ internal static class ModifierGroupsUi
             layout.Sections.Add(section);
             header.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => Toggle(content, layout, section)));
             header.MouseEntered += () => highlight.Visible = true;
-            header.MouseExited += () => highlight.Visible = header.HasFocus();
-            header.FocusEntered += () => highlight.Visible = true;
-            header.FocusExited += () => highlight.Visible = false;
+            header.MouseExited += () => highlight.Visible = false;
         }
 
         if (layout.SingleplayerDisabled.Count > 0)
