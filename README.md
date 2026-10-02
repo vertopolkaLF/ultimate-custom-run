@@ -30,7 +30,7 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 **Individual Ascension effects**
 
-![Independent Ascension effects selected at Ascension 0, including Double Boss](previews/ascension-modifiers.png)
+![Independent Ascension effects selected at Ascension 0, including Double Boss](previews/ascension-modifiers.jpg)
 
 ## Adjustable values
 
