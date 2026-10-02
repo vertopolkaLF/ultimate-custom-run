@@ -947,6 +947,15 @@ internal static class Program
 
     private static void TestDoubleTrouble()
     {
+        foreach (var viewport in new[] { new Godot.Vector2(1280, 720), new Godot.Vector2(1920, 1080), new Godot.Vector2(2560, 1440) })
+        foreach (var offset in new[] { new Godot.Vector2(-200, -1782), new Godot.Vector2(-80, -1900), new Godot.Vector2(-200, -2052) })
+        {
+            var anchor = new Godot.Vector2(0.5f, 0.5f);
+            var attachedPosition = BossChainMapUiPatch.PositionForAnchor(offset, viewport, anchor);
+            var preParentPosition = BossChainMapUiPatch.PositionForAnchor(offset, Godot.Vector2.Zero, anchor);
+            Check(attachedPosition - viewport * anchor == offset && preParentPosition + viewport * anchor == attachedPosition,
+                "Boss/rest positions retain the native centered offsets before and after parenting: " + viewport);
+        }
         var canonical = ModelDb.Modifier<DoubleTrouble>();
         Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.Modifiers &&
             ModifierListPatch.IsCustomOnly(canonical) &&

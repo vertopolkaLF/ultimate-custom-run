@@ -13,6 +13,9 @@ namespace UltimateCustomRun;
 [HarmonyPatch(typeof(NMapScreen), nameof(NMapScreen.SetMap))]
 internal static class BossChainMapUiPatch
 {
+    internal static Vector2 PositionForAnchor(Vector2 offset, Vector2 parentSize, Vector2 anchor) =>
+        offset + parentSize * anchor;
+
     internal static IEnumerable<MapPoint> NormalPoints(ActMap map) =>
         map.GetAllMapPoints().Where(point => point.PointType != MapPointType.Boss);
 
@@ -39,7 +42,11 @@ internal static class BossChainMapUiPatch
         {
             var node = nodes[chain[i].coord];
             var y = firstY + (finalY - firstY) * i / (chain.Count - 1);
-            node.Position = new Vector2(chain[i].PointType == MapPointType.Boss ? -200f : -80f, y);
+            // Vanilla sets these offsets before parenting. Once attached, Position
+            // also includes the scene's centered anchors; preserve that origin.
+            var offset = new Vector2(chain[i].PointType == MapPointType.Boss ? -200f : -80f, y);
+            var parentSize = node.GetParent() is Control parent ? parent.Size : Vector2.Zero;
+            node.Position = PositionForAnchor(offset, parentSize, new Vector2(node.AnchorLeft, node.AnchorTop));
             if (node is NBossMapPoint) node.Scale = new Vector2(0.6f, 0.6f);
         }
     }
