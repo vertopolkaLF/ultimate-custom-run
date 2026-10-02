@@ -77,6 +77,7 @@ internal static class Program
             TestColorlessCards();
             TestAscensionModifiers();
             TestDailyIsolation();
+            TestSuperModifiers();
         }
         finally
         {
@@ -112,6 +113,7 @@ internal static class Program
             typeof(Insanity), typeof(AllStar), typeof(Flight), typeof(Vintage), typeof(CharacterCards), typeof(NeowStarterChoice),
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
+            typeof(SuperDraft), typeof(SuperSealed), typeof(MustHave),
             typeof(MegaCrit.Sts2.Core.Models.Relics.DingyRug),
             typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents), typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Ironclad), typeof(MegaCrit.Sts2.Core.Models.Characters.Silent),
@@ -361,7 +363,7 @@ internal static class Program
         Check(start.Take(3).Select(modifier => modifier.GetType()).SequenceEqual(new[] { typeof(Draft), typeof(SealedDeck), typeof(Insanity) }),
             "Draft, Sealed Deck and Insanity are adjacent for their shared chain");
         var linked = Enumerable.Range(1, start.Length - 1).Where(index => LinkedModifierChains.AreLinked(start[index - 1], start[index])).ToArray();
-        Check(linked.Length == 6, "Only the six adjacent mutually exclusive pairs receive chains, including Friendship");
+        Check(linked.Length == 7, "Seven adjacent mutually exclusive pairs receive chains, including Super Sealed");
         Check(LinkedModifierChains.AreLinked(ModelDb.Modifier<Draft>(), ModelDb.Modifier<SealedDeck>()) &&
             LinkedModifierChains.AreLinked(ModelDb.Modifier<SealedDeck>(), ModelDb.Modifier<Insanity>()), "Native deck replacement choices are linked");
         Check(LinkedModifierChains.AreLinked(ModelDb.Modifier<Specialized>(), ModelDb.Modifier<SpecializedDraft>()) &&
@@ -434,6 +436,90 @@ internal static class Program
             Check(withMod.SequenceEqual(vanilla), "100 daily seeds select exactly the same modifiers with and without our patches");
         }
         finally { ModEntry.ApplyPatches(); }
+    }
+
+    private static void TestSuperModifiers()
+    {
+        var custom = ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers));
+        foreach (var type in new[] { typeof(SuperDraft), typeof(SuperSealed), typeof(MustHave) })
+        {
+            var model = custom.Single(modifier => modifier.GetType() == type);
+            Check(ModifierListPatch.IsCustomOnly(model) && ModifierValues.For(model) == null,
+                type.Name + " is custom-only, appears once and has no adjustable values");
+            Check(ModifierModel.FromSerializable(model.ToSerializable()).GetType() == type,
+                type.Name + " survives save serialization");
+            var saved = model.ToSerializable();
+            var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+            saved.Serialize(writer);
+            var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+            reader.Reset(writer.Buffer);
+            Check(ModifierModel.FromSerializable(reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>()).GetType() == type,
+                type.Name + " survives multiplayer serialization");
+        }
+        Check(!ModelDb.Modifier<SuperDraft>().ClearsPlayerDeck && ModelDb.Modifier<SuperSealed>().ClearsPlayerDeck,
+            "Super Draft adds to the starter deck; Super Sealed replaces it");
+        Check(ModifierGroups.Classify(ModelDb.Modifier<SuperDraft>(), new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
+            ModifierGroups.Classify(ModelDb.Modifier<SuperSealed>(), new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
+            ModifierGroups.Classify(ModelDb.Modifier<MustHave>(), new HashSet<Type>()) == ModifierGroup.Negatives,
+            "Super starts and Must Have use the requested positive/negative groups");
+        foreach (var type in new[] { typeof(Draft), typeof(SealedDeck), typeof(Insanity) })
+            Check(SpecializedExclusivityPatch.ShouldUntick(ModelDb.Modifier<SuperSealed>(),
+                (ModifierModel)RuntimeHelpers.GetUninitializedObject(type)), "Super Sealed excludes " + type.Name);
+        Check(!SpecializedExclusivityPatch.ShouldUntick(ModelDb.Modifier<SuperDraft>(), ModelDb.Modifier<SuperSealed>()),
+            "Super Draft can add cards after Super Sealed replaces the deck");
+        for (var index = 0; index <= 12; index++)
+        {
+            var expected = 0.005 * Math.Pow(2, index);
+            Check(SuperDraft.CurseRisk(index) == expected, "Curse risk doubles for offer " + (index + 1));
+            var guaranteed = (int)Math.Floor(expected);
+            Check(SuperDraft.CurseCount(expected, 0) == guaranteed + 1 &&
+                SuperDraft.CurseCount(expected, 0.999) == guaranteed, "Whole and fractional Curse chances work at " + expected);
+        }
+        Check(SuperDraft.CurseCount(1.28, 0.279999) == 2 && SuperDraft.CurseCount(1.28, 0.28) == 1 &&
+            SuperDraft.CurseCount(2.56, 0.55) == 3 && SuperDraft.CurseCount(2.56, 0.57) == 2,
+            "128 percent and later offers grant guaranteed Curses plus a fractional roll");
+
+        var player = (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player));
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run,
+            new ModifierModel[] { ModelDb.Modifier<MustHave>().ToMutable(), ModelDb.Modifier<CardSwarm>().ToMutable() });
+        Check(SuperSealed.PoolSize == 50 && SuperSealed.DeckSize == 15 &&
+            SuperSealed.Options(ModelDb.CardPool<MegaCrit.Sts2.Core.Models.CardPools.ColorlessCardPool>()).Flags.HasFlag(CardCreationFlags.NoModifyHooks) &&
+            !CardSwarmRewardPatch.Generating, "Super Sealed uses a fixed 50-card pool and exactly 15 picks outside reward-count hooks");
+        var reward = (MegaCrit.Sts2.Core.Rewards.CardReward)RuntimeHelpers.GetUninitializedObject(typeof(MegaCrit.Sts2.Core.Rewards.CardReward));
+        AccessTools.Field(typeof(MegaCrit.Sts2.Core.Rewards.Reward), "<Player>k__BackingField").SetValue(reward, player);
+        AccessTools.Field(typeof(MegaCrit.Sts2.Core.Rewards.CardReward), "<CanSkip>k__BackingField").SetValue(reward, true);
+        Check(!reward.CanSkip && MustHave.IsPending(reward), "Must Have forbids skipping an unclaimed card reward");
+        var alternatives = new List<MegaCrit.Sts2.Core.Entities.CardRewardAlternatives.CardRewardAlternative>
+        {
+            Alternative("Skip", MegaCrit.Sts2.Core.Entities.Rewards.PostAlternateCardRewardAction.EndSelectionAndDoNotCompleteReward),
+            Alternative("REROLL", MegaCrit.Sts2.Core.Entities.Rewards.PostAlternateCardRewardAction.DoNothing),
+            Alternative("Heal", MegaCrit.Sts2.Core.Entities.Rewards.PostAlternateCardRewardAction.EndSelectionAndCompleteReward)
+        };
+        MustHave.FilterAlternatives(alternatives);
+        Check(alternatives.Single().OptionId == "REROLL", "Must Have preserves rerolls and rejects card substitutes");
+        var set = (MegaCrit.Sts2.Core.Rewards.RewardsSet)RuntimeHelpers.GetUninitializedObject(typeof(MegaCrit.Sts2.Core.Rewards.RewardsSet));
+        AccessTools.Field(typeof(MegaCrit.Sts2.Core.Rewards.RewardsSet), "<Rewards>k__BackingField").SetValue(set,
+            new List<MegaCrit.Sts2.Core.Rewards.Reward> { reward, new MegaCrit.Sts2.Core.Rewards.GoldReward(20, player) });
+        Check(MustHave.BlocksLeaving(set), "Unclaimed card rewards block leaving a mixed reward set");
+        AccessTools.Property(typeof(MegaCrit.Sts2.Core.Rewards.Reward), "SuccessfullySelected").SetValue(reward, true);
+        Check(!MustHave.BlocksLeaving(set), "Non-card rewards remain optional after taking the required card");
+        MustHave.AllowPassing(reward);
+        Check(reward.CanSkip && !MustHave.RequiresCard(reward), "Super Draft passing is exempt from Must Have");
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, Array.Empty<ModifierModel>());
+        Check(reward.CanSkip && !MustHave.BlocksLeaving(set), "Runs without Must Have retain optional card rewards");
+
+        static MegaCrit.Sts2.Core.Entities.CardRewardAlternatives.CardRewardAlternative Alternative(
+            string id, MegaCrit.Sts2.Core.Entities.Rewards.PostAlternateCardRewardAction action)
+        {
+            // The native constructor initializes Godot input StringNames; keep this fixture engine-free.
+            var alternative = (MegaCrit.Sts2.Core.Entities.CardRewardAlternatives.CardRewardAlternative)
+                RuntimeHelpers.GetUninitializedObject(typeof(MegaCrit.Sts2.Core.Entities.CardRewardAlternatives.CardRewardAlternative));
+            AccessTools.Field(alternative.GetType(), "<OptionId>k__BackingField").SetValue(alternative, id);
+            AccessTools.Property(alternative.GetType(), "AfterSelected").SetValue(alternative, action);
+            return alternative;
+        }
     }
 
     private static void Check(bool condition, string message)

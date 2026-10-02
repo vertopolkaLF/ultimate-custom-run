@@ -59,6 +59,9 @@ Normal, Draft, and Pick Any share the same value within a modifier family. Seale
 | Option | Effect |
 | --- | --- |
 | **Neow!!** | Restores the usual starter relic choice after the other starting effects. |
+| **Super Draft** | Add card rewards to your starting deck until you pass. Each pick risks a Curse: 0.5%, doubling each offer. At 128%, gain one guaranteed Curse plus a 28% chance of another. Passing adds no Curse; each player drafts independently. |
+| **Super Sealed** | Replace your starting deck by choosing exactly 15 cards from a pool of 50. Extra Card Choice / Card Swarm does not increase this fixed pool. |
+| **Must Have (negative)** | Requires taking a card from every card reward before leaving. Rerolls remain available; non-card rewards remain optional. Passing during Super Draft is allowed. |
 | **Specialized — Normal** | Adds the selected number of copies of a random eligible card. |
 | **Specialized — Draft** | Choose one Card Reward, then add the selected number of copies. Skipping adds no cards. |
 | **Specialized — Pick Any** | Choose an eligible common, uncommon, or rare card from your character's pool, then add the selected number of copies. |
@@ -69,7 +72,7 @@ Normal, Draft, and Pick Any share the same value within a modifier family. Seale
 | **Rich Loot** | Treasure chests contain one extra relic to choose from. Empty chests remain empty. |
 | **Card Swarm** | Card rewards contain one extra offer, including standard Draft rewards and the mod's starting drafts. Fixed tutorial rewards are unchanged. |
 
-Variants within each family are mutually exclusive. All Star and Friendship draft rewards can be skipped. Standard reward-generation hooks remain active, so other effects can modify offers.
+Variants within each family are mutually exclusive. Super Sealed is mutually exclusive with Draft, Sealed Deck, and Insanity. Super Draft adds cards after deck replacement and can be combined with those options. All Star and Friendship draft rewards can be skipped unless Must Have is enabled. Standard reward-generation hooks remain active, so other effects can modify offers; Super Sealed keeps its fixed pool of 50.
 
 ## Install and play
 

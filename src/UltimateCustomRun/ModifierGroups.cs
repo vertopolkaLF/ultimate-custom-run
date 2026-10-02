@@ -24,10 +24,10 @@ internal static class ModifierGroups
     internal static ModifierGroup Classify(ModifierModel modifier, IReadOnlySet<Type> negativeTypes)
     {
         if (modifier is AscensionModifier) return ModifierGroup.Ascension;
-        if (negativeTypes.Contains(modifier.GetType())) return ModifierGroup.Negatives;
+        if (modifier is MustHave || negativeTypes.Contains(modifier.GetType())) return ModifierGroup.Negatives;
         if (modifier is CharacterCards or ColorlessCards) return ModifierGroup.CardPool;
         if (modifier is CustomRunParameters) return ModifierGroup.RunParameters;
-        if (modifier is NeowStarterChoice or Specialized or SpecializedPickAny or SpecializedDraft or Draft or SealedDeck or Insanity or AllStar or AllStarDraft or Friendship or FriendshipDraft)
+        if (modifier is NeowStarterChoice or Specialized or SpecializedPickAny or SpecializedDraft or Draft or SuperDraft or SealedDeck or SuperSealed or Insanity or AllStar or AllStarDraft or Friendship or FriendshipDraft)
             return ModifierGroup.ImprovedStart;
         return ModifierGroup.Modifiers;
     }

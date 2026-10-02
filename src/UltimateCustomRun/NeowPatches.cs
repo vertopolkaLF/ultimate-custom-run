@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters;
+        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or SuperSealed or MustHave;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -35,6 +35,10 @@ internal static class ModifierListPatch
         ordered.InsertRange(allStarDraftIndex < 0 ? ordered.Count : allStarDraftIndex + 1,
             [ModelDb.Modifier<Friendship>().ToMutable(), ModelDb.Modifier<FriendshipDraft>().ToMutable()]);
         ordered.AddRange([ModelDb.Modifier<RichLoot>().ToMutable(), ModelDb.Modifier<CardSwarm>().ToMutable()]);
+        var startIndex = ordered.FindIndex(modifier => modifier is MegaCrit.Sts2.Core.Models.Modifiers.Insanity);
+        ordered.InsertRange(startIndex < 0 ? ordered.Count : startIndex + 1,
+            [ModelDb.Modifier<SuperSealed>().ToMutable(), ModelDb.Modifier<SuperDraft>().ToMutable()]);
+        ordered.Add(ModelDb.Modifier<MustHave>().ToMutable());
         ordered.Add(ModelDb.Modifier<NeowStarterChoice>().ToMutable());
         ordered.Add(ModelDb.Modifier<CustomRunParameters>().ToMutable());
         ordered.AddRange(AscensionModifiers.Create());
@@ -75,6 +79,13 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<RichLoot>().Entry + ".description"] = RichLoot.DisplayDescription,
             [ModelDb.GetId<CardSwarm>().Entry + ".title"] = CardSwarm.DisplayTitle,
             [ModelDb.GetId<CardSwarm>().Entry + ".description"] = CardSwarm.DisplayDescription,
+            [ModelDb.GetId<SuperDraft>().Entry + ".title"] = SuperDraft.DisplayTitle,
+            [ModelDb.GetId<SuperDraft>().Entry + ".description"] = SuperDraft.DisplayDescription,
+            [ModelDb.GetId<SuperSealed>().Entry + ".title"] = SuperSealed.DisplayTitle,
+            [ModelDb.GetId<SuperSealed>().Entry + ".description"] = SuperSealed.DisplayDescription,
+            [SuperSealed.PromptKey] = "Choose exactly [blue]15[/blue] cards for your starting deck.",
+            [ModelDb.GetId<MustHave>().Entry + ".title"] = MustHave.DisplayTitle,
+            [ModelDb.GetId<MustHave>().Entry + ".description"] = MustHave.DisplayDescription,
             [ModelDb.GetId<CustomRunParameters>().Entry + ".title"] = CustomRunParameters.DisplayTitle,
             [ModelDb.GetId<CustomRunParameters>().Entry + ".description"] = CustomRunParameters.DisplayDescription,
             [ModifierVariantUi.NormalLabelKey] = "Normal",
@@ -104,7 +115,12 @@ internal static class SpecializedExclusivityPatch
         selected.GetType() != other.GetType() &&
         ((IsSpecialized(selected) && IsSpecialized(other)) ||
             (IsAllStar(selected) && IsAllStar(other)) ||
+            (IsDeckReplacement(selected) && IsDeckReplacement(other)) ||
             (IsFriendship(selected) && IsFriendship(other)));
+
+    private static bool IsDeckReplacement(ModifierModel modifier) =>
+        modifier is MegaCrit.Sts2.Core.Models.Modifiers.Draft or MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck
+            or MegaCrit.Sts2.Core.Models.Modifiers.Insanity or SuperSealed;
 
     private static bool IsSpecialized(ModifierModel modifier) =>
         modifier is MegaCrit.Sts2.Core.Models.Modifiers.Specialized or SpecializedPickAny or SpecializedDraft;

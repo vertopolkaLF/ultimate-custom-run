@@ -5,6 +5,7 @@ using MegaCrit.Sts2.Core.Entities.CardRewardAlternatives;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Entities.Rewards;
 using MegaCrit.Sts2.Core.Factories;
 using MegaCrit.Sts2.Core.GameActions;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
@@ -49,15 +50,21 @@ internal static class SpecializedDraftReward
             int? index;
             if (LocalContext.IsMe(player))
             {
-                screen = NCardRewardSelectionScreen.ShowScreen(cards, Array.Empty<CardRewardAlternative>())
+                IReadOnlyList<CardRewardAlternative> alternatives = MustHave.IsActive(player)
+                    ? Array.Empty<CardRewardAlternative>()
+                    : [new CardRewardAlternative("Skip", PostAlternateCardRewardAction.EndSelectionAndDoNotCompleteReward)];
+                screen = NCardRewardSelectionScreen.ShowScreen(cards, alternatives)
                     ?? throw new InvalidOperationException("Could not open card rewards.");
                 index = await screen.OptionSelected();
+                if (index == cards.Count && alternatives.Count > 0) index = null;
                 synchronizer.SyncLocalChoice(player, choiceId, PlayerChoiceResult.FromIndex(index));
             }
             else
             {
                 index = (await synchronizer.WaitForRemoteChoice(player, choiceId)).AsIndexOrNull();
             }
+            if (index == null && MustHave.IsActive(player))
+                throw new InvalidOperationException("Must Have requires a card from this starting reward.");
             return ResolveSelection(cards, index);
         }
         finally
