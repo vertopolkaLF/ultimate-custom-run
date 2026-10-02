@@ -43,6 +43,7 @@ References come from the installed game's `data_sts2_windows_x86_64` directory. 
 | `build.ps1` | Release build, ZIP packaging, and optional local installation |
 | `workshop.json` | Workshop title, description, visibility, and change note |
 | `mod_id.txt` | Current Workshop item ID; do not replace it with an older ID |
+| `previews/` | Workshop gallery screenshots, synchronized as a complete set by ModUploader |
 | `AGENTS.md` | Automation rules and safe installation procedure |
 
 ## Make a focused change

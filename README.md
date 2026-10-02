@@ -17,6 +17,16 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 - Custom-only modifiers stay out of the Daily Challenge pool. Vanilla Daily values are preserved.
 - No BaseLib dependency or additional PCK file.
 
+## Screenshots
+
+**Starting decks and native value sliders**
+
+![Insanity set to 60 cards, All Star variants, and Friendship draft options](previews/custom-run-modifiers.jpg)
+
+**Extra rewards and card pools**
+
+![Grouped modifiers including Rich Loot, Card Swarm, and Colorless Cards](previews/rewards-and-card-pools.jpg)
+
 ## Adjustable values
 
 Enable a modifier to reveal its slider. Original values remain the defaults.
@@ -113,6 +123,8 @@ The smoke suite patches the installed game assembly and checks registration, sav
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, validation, and pull requests, and [AGENTS.md](AGENTS.md) for repository automation rules.
 
 `build.ps1` only builds, packages, and optionally installs locally. Workshop publishing is a separate maintainer action using ModUploader. The current item ID is stored in `mod_id.txt`. Its description and visibility are maintained in `workshop.json`; uploading with a non-null description replaces edits made directly in Steam.
+
+Workshop gallery screenshots are tracked in `previews/`. Keep every gallery image you want to retain there: ModUploader synchronizes that folder and removes additional previews missing from it. The description embeds the uploaded screenshots using their Steam-hosted URLs.
 
 ## License
 
