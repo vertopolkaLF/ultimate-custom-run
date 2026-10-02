@@ -1,6 +1,6 @@
 ﻿{
   "title": "Ultimate Custom Run",
-  "description": "Customize custom runs with collapsible modifier groups, linked exclusive choices, Neow!!, Specialized - Draft, Specialized - Pick Any, All Star - Draft, Friendship and Friendship - Draft, and Colorless Cards. Custom-only modifiers do not enter the Daily Challenge pool. No BaseLib dependency. Built against Slay the Spire 2 v0.111.0. Gameplay mod: every co-op player needs it. Pre-release build.",
+  "description": "Customize custom runs with collapsible modifier groups, linked exclusive choices, Neow!!, Specialized - Draft, Specialized - Pick Any, All Star - Draft, Friendship and Friendship - Draft, Colorless Cards, Rich Loot (extra relic in chests) and Card Swarm (extra card in card rewards). Custom-only modifiers do not enter the Daily Challenge pool. No BaseLib dependency. Built against Slay the Spire 2 v0.111.0. Gameplay mod: every co-op player needs it. Pre-release build.",
   "visibility": "friends_only",
   "changeNote": "Pre-release: new UltimateCustomRun identity.",
   "tags": [],

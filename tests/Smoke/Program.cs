@@ -48,8 +48,8 @@ internal static class Program
             Check(patched == null || !patched.Owners.Contains(ModEntry.HarmonyId),
                 "Original Specialized is not patched");
             Check(Harmony.GetAllPatchedMethods().Count(m =>
-                Harmony.GetPatchInfo(m)!.Owners.Contains(ModEntry.HarmonyId)) == 6,
-                "Exactly six intended game methods patched");
+                Harmony.GetPatchInfo(m)!.Owners.Contains(ModEntry.HarmonyId)) == 15,
+                "Exactly fifteen intended game methods patched");
 
             // Avoid starting a run or constructing native Godot objects.
             var neow = (Neow)RuntimeHelpers.GetUninitializedObject(typeof(Neow));

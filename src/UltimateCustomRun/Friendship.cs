@@ -54,7 +54,7 @@ internal static class FriendshipCardRewards
     {
         for (var i = 0; i < CardCount; i++)
         {
-            var offers = CardFactory.CreateForReward(player, SpecializedDraftReward.OfferCount, Options(player)).ToList();
+            var offers = CardFactory.CreateForReward(player, SpecializedDraftReward.OfferCountFor(player), Options(player)).ToList();
             var selected = await SpecializedDraftReward.SelectReward(player, offers);
             if (selected == null) continue;
             var result = await CardPileCmd.Add(selected, PileType.Deck);

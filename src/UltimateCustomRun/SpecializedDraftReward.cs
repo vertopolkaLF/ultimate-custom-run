@@ -19,6 +19,8 @@ internal static class SpecializedDraftReward
 {
     internal const int OfferCount = 3;
 
+    internal static int OfferCountFor(Player player) => CardSwarm.OfferCount(player, OfferCount);
+
     internal static CardCreationOptions Options(Player player) =>
         Options(player.Character.CardPool);
 
@@ -29,7 +31,7 @@ internal static class SpecializedDraftReward
     internal static async Task ChooseAndObtain(Player player)
     {
         // Generate standard distinct rewards across all available non-basic rarities.
-        var cards = CardFactory.CreateForReward(player, OfferCount, Options(player)).ToList();
+        var cards = CardFactory.CreateForReward(player, OfferCountFor(player), Options(player)).ToList();
         var selected = await SelectReward(player, cards);
         if (selected != null) await SpecializedCardChoices.ObtainCopies(player, selected);
     }

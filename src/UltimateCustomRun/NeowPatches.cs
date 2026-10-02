@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards;
+        modifier is NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -34,6 +34,7 @@ internal static class ModifierListPatch
         var allStarDraftIndex = ordered.FindIndex(modifier => modifier is AllStarDraft);
         ordered.InsertRange(allStarDraftIndex < 0 ? ordered.Count : allStarDraftIndex + 1,
             [ModelDb.Modifier<Friendship>().ToMutable(), ModelDb.Modifier<FriendshipDraft>().ToMutable()]);
+        ordered.AddRange([ModelDb.Modifier<RichLoot>().ToMutable(), ModelDb.Modifier<CardSwarm>().ToMutable()]);
         ordered.Add(ModelDb.Modifier<NeowStarterChoice>().ToMutable());
         // Its relic must be granted before start-of-run card reward modifiers resolve.
         ordered.Insert(0, ModelDb.Modifier<ColorlessCards>().ToMutable());
@@ -68,6 +69,10 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<FriendshipDraft>().Entry + ".description"] = FriendshipDraft.DisplayDescription,
             [ModelDb.GetId<ColorlessCards>().Entry + ".title"] = ColorlessCards.DisplayTitle,
             [ModelDb.GetId<ColorlessCards>().Entry + ".description"] = ColorlessCards.DisplayDescription,
+            [ModelDb.GetId<RichLoot>().Entry + ".title"] = RichLoot.DisplayTitle,
+            [ModelDb.GetId<RichLoot>().Entry + ".description"] = RichLoot.DisplayDescription,
+            [ModelDb.GetId<CardSwarm>().Entry + ".title"] = CardSwarm.DisplayTitle,
+            [ModelDb.GetId<CardSwarm>().Entry + ".description"] = CardSwarm.DisplayDescription,
             [ModifierVariantUi.NormalLabelKey] = "Normal",
             [ModifierVariantUi.DraftLabelKey] = "Draft",
             [ModifierVariantUi.DraftDescriptionKey] = "Card reward instead of random",

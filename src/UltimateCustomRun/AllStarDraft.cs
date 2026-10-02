@@ -27,7 +27,7 @@ public sealed class AllStarDraft : ModifierModel
     {
         for (var i = 0; i < RewardCount; i++)
         {
-            var offers = CardFactory.CreateForReward(player, SpecializedDraftReward.OfferCount,
+            var offers = CardFactory.CreateForReward(player, SpecializedDraftReward.OfferCountFor(player),
                 Options(ModelDb.CardPool<ColorlessCardPool>())).ToList();
             var selected = await SpecializedDraftReward.SelectReward(player, offers);
             if (selected == null) continue;
