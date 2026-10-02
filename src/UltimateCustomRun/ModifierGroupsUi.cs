@@ -140,6 +140,8 @@ internal static class ModifierGroupsUi
             var childList = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
             childList.AddThemeConstantOverride("separation", 8);
             body.AddChild(childList);
+            if (group == ModifierGroup.Disabled)
+                body.AddChild(new Control { Name = "ClickBlocker", MouseFilter = Control.MouseFilterEnum.Stop });
             sectionRoot.AddChild(header);
             sectionRoot.AddChild(body);
             content.AddChild(sectionRoot);
@@ -230,8 +232,8 @@ internal static class ModifierGroupsUi
         if (disabled == null) return;
         if (home != null && layout.SingleplayerDisabled.Count > 0)
         {
-            var mode = (MultiplayerUiMode)AccessTools.Field(typeof(NCustomRunModifiersList), "_mode").GetValue(list)!;
-            var target = mode == MultiplayerUiMode.Singleplayer ? disabled : home;
+            var locked = IsSingleplayer(list);
+            var target = locked ? disabled : home;
             var source = target == home ? disabled : home;
             if (layout.SingleplayerDisabled[0].GetParent() != target.ChildList)
             {
@@ -248,8 +250,24 @@ internal static class ModifierGroupsUi
                 foreach (var row in layout.SingleplayerDisabled.OfType<NRunModifierTickbox>().Where(row => source.Rows.Remove(row)))
                     target.Rows.Insert(Math.Min(rowIndex++, target.Rows.Count), row);
             }
+            foreach (var row in layout.SingleplayerDisabled.OfType<NRunModifierTickbox>())
+            {
+                if (locked) row.IsTicked = false;
+                row.FocusMode = locked || ModifierVariantUi.IsHiddenVariant(row.Modifier)
+                    ? Control.FocusModeEnum.None
+                    : Control.FocusModeEnum.All;
+            }
+            if (locked) ModifierVariantUi.RefreshFromTickboxes(list);
         }
         disabled.Root.Visible = disabled.Rows.Count > 0;
+    }
+
+    internal static bool IsSingleplayer(NCustomRunModifiersList list) =>
+        (MultiplayerUiMode)AccessTools.Field(typeof(NCustomRunModifiersList), "_mode").GetValue(list)! == MultiplayerUiMode.Singleplayer;
+
+    internal static void RemoveLockedModifiers(NCustomRunModifiersList list, List<ModifierModel> modifiers)
+    {
+        if (IsSingleplayer(list)) modifiers.RemoveAll(ModifierGroups.IsSingleplayerDisabled);
     }
 
     private static void Toggle(VBoxContainer content, Layout layout, Section section)
@@ -296,7 +314,7 @@ internal static class ModifierGroupsUi
     {
         if (!section.Root.Visible) yield break;
         yield return section.Header;
-        if (!section.Expanded) yield break;
+        if (!section.Expanded || section.Group == ModifierGroup.Disabled) yield break;
         foreach (var row in section.Rows)
             if (row.Visible) yield return row;
     }

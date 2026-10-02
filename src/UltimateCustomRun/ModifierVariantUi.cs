@@ -323,8 +323,11 @@ internal static class ModifierVariantUi
 internal static class ModifierVariantSelectionPatch
 {
     [HarmonyPostfix]
-    private static void Postfix(NCustomRunModifiersList __instance, ref List<ModifierModel> __result) =>
+    private static void Postfix(NCustomRunModifiersList __instance, ref List<ModifierModel> __result)
+    {
         ModifierVariantUi.TransformSelectedModifiers(__instance, ref __result);
+        ModifierGroupsUi.RemoveLockedModifiers(__instance, __result);
+    }
 }
 
 [HarmonyPatch(typeof(NCustomRunModifiersList), "AfterModifiersChanged")]
@@ -353,14 +356,20 @@ internal static class ModifierVariantInitializePatch
 internal static class ModifierVariantSetTickedPatch
 {
     [HarmonyPostfix]
-    private static void Postfix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0) =>
+    private static void Postfix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0)
+    {
         ModifierVariantUi.ApplyIncomingModifiers(__instance, __0);
+        ModifierGroupsUi.ApplyMode(__instance);
+    }
 }
 
 [HarmonyPatch(typeof(NCustomRunModifiersList), "SyncModifierList")]
 internal static class ModifierVariantSyncPatch
 {
     [HarmonyPostfix]
-    private static void Postfix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0) =>
+    private static void Postfix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0)
+    {
         ModifierVariantUi.ApplyIncomingModifiers(__instance, __0);
+        ModifierGroupsUi.ApplyMode(__instance);
+    }
 }
