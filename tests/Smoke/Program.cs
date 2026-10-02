@@ -7,11 +7,13 @@ using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Events;
 using MegaCrit.Sts2.Core.Models.Modifiers;
+using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.Events;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using UltimateCustomRun;
+using Friendship = UltimateCustomRun.Friendship;
 
 internal static class Program
 {
@@ -81,6 +83,7 @@ internal static class Program
             TestSealedSliders();
             TestSpeedrun();
             TestPresetManagement();
+            TestUltimateStarter();
         }
         finally
         {
@@ -116,7 +119,13 @@ internal static class Program
             typeof(Insanity), typeof(AllStar), typeof(Flight), typeof(Vintage), typeof(CharacterCards), typeof(NeowStarterChoice),
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
-            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun),
+            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter),
+            typeof(UltimateStrike), typeof(UltimateDefend),
+            typeof(StrikeIronclad), typeof(DefendIronclad), typeof(Bash),
+            typeof(StrikeSilent), typeof(DefendSilent), typeof(Neutralize), typeof(Survivor),
+            typeof(StrikeRegent), typeof(DefendRegent), typeof(FallingStar), typeof(Venerate),
+            typeof(StrikeNecrobinder), typeof(DefendNecrobinder), typeof(Bodyguard), typeof(Unleash),
+            typeof(StrikeDefect), typeof(DefendDefect), typeof(Zap), typeof(Dualcast),
             typeof(MegaCrit.Sts2.Core.Models.Relics.DingyRug),
             typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents), typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Ironclad), typeof(MegaCrit.Sts2.Core.Models.Characters.Silent),
@@ -680,6 +689,88 @@ internal static class Program
         Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.GodotExtensions.NDropdown), "OpenDropdown"))
             ?.Owners.Contains(ModEntry.HarmonyId) == true,
             "Preset remove-button focus is restored after native dropdown navigation setup");
+    }
+
+    private static void TestUltimateStarter()
+    {
+        var model = ModelDb.Modifier<UltimateStarter>();
+        Check(ModifierGroups.Classify(model, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
+            ModifierListPatch.IsCustomOnly(model) && ModifierValues.For(model) == null &&
+            !model.ClearsPlayerDeck && model.GenerateNeowOption(null!) == null &&
+            ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<UltimateStarter>().Count() == 1,
+            "Ultimate Starter appears once in Improved Start with a fixed count and no extra Neow prompt");
+        var savedModifier = model.ToMutable().ToSerializable();
+        var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+        savedModifier.Serialize(writer);
+        var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+        reader.Reset(writer.Buffer);
+        Check(ModifierModel.FromSerializable(savedModifier) is UltimateStarter &&
+            ModifierModel.FromSerializable(reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>()) is UltimateStarter,
+            "Ultimate Starter survives save and multiplayer modifier serialization");
+
+        // Use real native cards and piles without constructing engine-dependent player visuals.
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        AccessTools.Field(typeof(RunState), "_allCards").SetValue(run, new List<CardModel>());
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, Array.Empty<ModifierModel>());
+        var players = new List<Player>();
+        AccessTools.Field(typeof(RunState), "_players").SetValue(run, players);
+        var characters = new CharacterModel[]
+        {
+            ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Ironclad>(),
+            ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Silent>(),
+            ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Regent>(),
+            ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Necrobinder>(),
+            ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Defect>()
+        };
+        foreach (var character in characters)
+        {
+            var player = (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player));
+            AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
+            AccessTools.Field(typeof(Player), "<Deck>k__BackingField").SetValue(player, new CardPile(PileType.Deck));
+            players.Add(player);
+            foreach (var canonical in character.StartingDeck)
+            {
+                var card = canonical.ToMutable();
+                run.AddCard(card, player);
+                card.FloorAddedToDeck = 1;
+                player.Deck.AddInternal(card, silent: true);
+            }
+        }
+        var original = players.Select(player => player.Deck.Cards.ToArray()).ToArray();
+        UltimateStarter.ReplaceStarters(run);
+        Check(players.Select((player, index) => player.Deck.Cards.SequenceEqual(original[index])).All(unchanged => unchanged),
+            "Starting decks stay untouched without Ultimate Starter selected");
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run,
+            new ModifierModel[] { model.ToMutable(), ModelDb.Modifier<Hoarder>().ToMutable() });
+        UltimateStarter.ReplaceStarters(run);
+        for (var index = 0; index < players.Count; index++)
+        {
+            var player = players[index];
+            var special = original[index].Where(card => !card.IsBasicStrikeOrDefend).ToArray();
+            var basics = original[index].Where(card => card.IsBasicStrikeOrDefend).ToArray();
+            var deck = player.Deck.Cards;
+            Check(deck.OfType<UltimateStrike>().Count() == 3 && deck.OfType<UltimateDefend>().Count() == 3 &&
+                deck.Count == special.Length + 6 && special.All(deck.Contains),
+                characters[index].GetType().Name + " receives three of each Ultimate card and preserves special starters");
+            Check(basics.All(card => card.HasBeenRemovedFromState && !run.ContainsCard(card)) &&
+                deck.All(card => card.Owner == player && run.ContainsCard(card)) &&
+                deck.Where(card => card is UltimateStrike or UltimateDefend).All(card => card.FloorAddedToDeck == 1 && !card.IsUpgraded),
+                "Replaced cards leave the run; Ultimate cards have correct ownership and starting metadata");
+            var restored = deck.Select(card => CardModel.FromSerializable(card.ToSerializable())).ToArray();
+            Check(restored.OfType<UltimateStrike>().Count() == 3 && restored.OfType<UltimateDefend>().Count() == 3 &&
+                restored.Select(card => card.Id).SequenceEqual(deck.Select(card => card.Id)),
+                "Resulting starter deck round-trips through native card save serialization");
+        }
+        var completed = players.Select(player => player.Deck.Cards.ToArray()).ToArray();
+        UltimateStarter.ReplaceStarters(run);
+        model.ToMutable().OnRunLoaded(run);
+        Check(players.Select((player, index) => player.Deck.Cards.SequenceEqual(completed[index])).All(unchanged => unchanged),
+            "Repeated startup replacement and modifier reload never duplicate Ultimate starters");
+        Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(RunState), nameof(RunState.CreateForNewRun)))
+            ?.Owners.Contains(ModEntry.HarmonyId) == true &&
+            Harmony.GetPatchInfo(AccessTools.Method(typeof(RunState), nameof(RunState.FromSerializable)))
+                ?.Postfixes.Any(patch => patch.PatchMethod.DeclaringType == typeof(UltimateStarterNewRunPatch)) != true,
+            "Ultimate Starter patches new-run creation only");
     }
 
     private static void Check(bool condition, string message)

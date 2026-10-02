@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun;
+        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -37,7 +37,7 @@ internal static class ModifierListPatch
         ordered.AddRange([ModelDb.Modifier<RichLoot>().ToMutable(), ModelDb.Modifier<CardSwarm>().ToMutable()]);
         var startIndex = ordered.FindIndex(modifier => modifier is MegaCrit.Sts2.Core.Models.Modifiers.Insanity);
         ordered.InsertRange(startIndex < 0 ? ordered.Count : startIndex + 1,
-            [ModelDb.Modifier<SuperDraft>().ToMutable()]);
+            [ModelDb.Modifier<UltimateStarter>().ToMutable(), ModelDb.Modifier<SuperDraft>().ToMutable()]);
         ordered.Add(ModelDb.Modifier<MustHave>().ToMutable());
         ordered.Add(ModelDb.Modifier<Speedrun>().ToMutable());
         ordered.Add(ModelDb.Modifier<NeowStarterChoice>().ToMutable());
@@ -82,6 +82,8 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<CardSwarm>().Entry + ".description"] = CardSwarm.DisplayDescription,
             [ModelDb.GetId<SuperDraft>().Entry + ".title"] = SuperDraft.DisplayTitle,
             [ModelDb.GetId<SuperDraft>().Entry + ".description"] = SuperDraft.DisplayDescription,
+            [ModelDb.GetId<UltimateStarter>().Entry + ".title"] = UltimateStarter.DisplayTitle,
+            [ModelDb.GetId<UltimateStarter>().Entry + ".description"] = UltimateStarter.DisplayDescription,
             [ModelDb.GetId<MustHave>().Entry + ".title"] = MustHave.DisplayTitle,
             [ModelDb.GetId<MustHave>().Entry + ".description"] = MustHave.DisplayDescription,
             [ModelDb.GetId<Speedrun>().Entry + ".title"] = Speedrun.DisplayTitle,
