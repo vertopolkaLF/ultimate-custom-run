@@ -75,6 +75,7 @@ internal static class Program
             TestModifierValues();
             TestRadioChains();
             TestColorlessCards();
+            TestAscensionModifiers();
             TestDailyIsolation();
         }
         finally
@@ -87,7 +88,7 @@ internal static class Program
     private static void TestGroups()
     {
         Check(ModifierGroups.Sections.Select(s => s.Title).SequenceEqual(
-            new[] { "Improved Start", "Modifiers", "Card Pool", "Negatives", "Disabled" }), "Group titles and order match the requested layout");
+            new[] { "Improved Start", "Modifiers", "Card Pool", "Ascentions", "Negatives", "Disabled" }), "Group titles and order match the requested layout");
         var negatives = new HashSet<Type> { typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents),
             typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal) };
         foreach (var type in new[] { typeof(NeowStarterChoice), typeof(Specialized), typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(Draft),
@@ -115,7 +116,9 @@ internal static class Program
             typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents), typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Ironclad), typeof(MegaCrit.Sts2.Core.Models.Characters.Silent),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Regent), typeof(MegaCrit.Sts2.Core.Models.Characters.Necrobinder), typeof(MegaCrit.Sts2.Core.Models.Characters.Defect),
-            typeof(MegaCrit.Sts2.Core.Models.CardPools.ColorlessCardPool), typeof(Neow)]);
+            typeof(MegaCrit.Sts2.Core.Models.CardPools.ColorlessCardPool), typeof(Neow),
+            typeof(SwarmingElites), typeof(WearyTraveler), typeof(Poverty), typeof(TightBelt), typeof(UltimateCustomRun.AscendersBane),
+            typeof(Inflation), typeof(Scarcity), typeof(ToughEnemies), typeof(DeadlyEnemies), typeof(DoubleBoss)]);
         Check(ModelDb.All.Count(model => model is NeowStarterChoice) == 1,
             "Game startup constructs Neow!! once without DuplicateModelException");
         // Fixture for model IDs without invoking the engine-dependent startup logger.
@@ -126,6 +129,14 @@ internal static class Program
         var entries = (Dictionary<string, int>)AccessTools.Field(cacheType, "_entryNameToNetIdMap").GetValue(null)!;
         foreach (var id in ids.Select(id => id.Entry).Distinct()) entries[id] = entries.Count;
         entries[ModelDb.GetId(typeof(TestNeow)).Entry] = entries.Count;
+        var categoryNames = (List<string>)AccessTools.Field(cacheType, "_netIdToCategoryNameMap").GetValue(null)!;
+        categoryNames.Clear();
+        categoryNames.AddRange(categories.OrderBy(pair => pair.Value).Select(pair => pair.Key));
+        var entryNames = (List<string>)AccessTools.Field(cacheType, "_netIdToEntryNameMap").GetValue(null)!;
+        entryNames.Clear();
+        entryNames.AddRange(entries.OrderBy(pair => pair.Value).Select(pair => pair.Key));
+        AccessTools.Property(cacheType, "CategoryIdBitSize").SetValue(null, (int)Math.Ceiling(Math.Log2(categoryNames.Count)));
+        AccessTools.Property(cacheType, "EntryIdBitSize").SetValue(null, (int)Math.Ceiling(Math.Log2(entryNames.Count)));
         AccessTools.Field(cacheType, "_initialized").SetValue(null, true);
         foreach (var type in ModelDb.All.Select(model => model.GetType()).Distinct())
             AccessTools.Method(cacheType, "CachePropertiesForType").Invoke(null, [type, null, null]);
@@ -358,6 +369,47 @@ internal static class Program
         Check(LinkedModifierChains.AreLinked(ModelDb.Modifier<AllStar>(), ModelDb.Modifier<AllStarDraft>()), "All Star choices are linked");
         Check(!LinkedModifierChains.AreLinked(ModelDb.Modifier<Insanity>(), ModelDb.Modifier<Specialized>()) &&
             !LinkedModifierChains.AreLinked(ModelDb.Modifier<AllStarDraft>(), ModelDb.Modifier<NeowStarterChoice>()), "Independent modifiers are not visually linked");
+    }
+
+    private static void TestAscensionModifiers()
+    {
+        var levels = Enum.GetValues<MegaCrit.Sts2.Core.Entities.Ascension.AscensionLevel>().Where(level => (int)level > 0).ToArray();
+        var custom = ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers);
+        var effects = custom.OfType<AscensionModifier>().ToArray();
+        Check(effects.Select(effect => effect.Level).SequenceEqual(levels), "All ten ascension effects appear once in level order");
+        Check(ModifierListPatch.ForCustomRun(custom).OfType<AscensionModifier>().Count() == levels.Length,
+            "Repeated custom enumeration does not duplicate ascension modifiers");
+        foreach (var effect in effects)
+        {
+            Check(ModifierGroups.Classify(effect, new HashSet<Type>()) == ModifierGroup.Ascentions && ModifierListPatch.IsCustomOnly(effect),
+                effect.GetType().Name + " is custom-only and belongs to Ascentions");
+            var saved = effect.ToSerializable();
+            var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+            saved.Serialize(writer);
+            var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+            reader.Reset(writer.Buffer);
+            var network = reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>();
+            var restored = ModifierModel.FromSerializable(network);
+            Check(restored is AscensionModifier ascension && ascension.Level == effect.Level &&
+                ModifierModel.FromSerializable(saved).GetType() == effect.GetType(),
+                effect.GetType().Name + " survives save and network serialization");
+            var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+            AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { restored });
+            var manager = new MegaCrit.Sts2.Core.Entities.Ascension.AscensionManager(0);
+            IndependentAscensionPatch.Bind(manager, run);
+            foreach (var level in levels)
+                Check(manager.HasLevel(level) == (level == effect.Level), effect.GetType().Name + " activates only " + level);
+        }
+        var combined = new ModifierModel[] { ModelDb.Modifier<DoubleBoss>().ToMutable(), ModelDb.Modifier<TightBelt>().ToMutable(), ModelDb.Modifier<RichLoot>().ToMutable() };
+        Check(AscensionModifiers.HasLevel(combined, MegaCrit.Sts2.Core.Entities.Ascension.AscensionLevel.DoubleBoss) &&
+            AscensionModifiers.HasLevel(combined, MegaCrit.Sts2.Core.Entities.Ascension.AscensionLevel.TightBelt) &&
+            !AscensionModifiers.HasLevel(combined, MegaCrit.Sts2.Core.Entities.Ascension.AscensionLevel.Poverty), "Selected ascension effects combine without enabling intervening levels");
+        Check(AscensionModifiers.WithoutAscensions(combined).Single() == combined[2], "Changing ascension removes all independent effects and preserves other modifiers");
+        var vanilla = new MegaCrit.Sts2.Core.Entities.Ascension.AscensionManager(10);
+        Check(levels.All(vanilla.HasLevel), "Unbound vanilla Ascension 10 still enables every level");
+        foreach (var target in new[] { "OnModifiersListChanged", "AscensionChanged" })
+            Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.Screens.CustomRun.NCustomRunScreen), target))?.Owners.Contains(ModEntry.HarmonyId) == true,
+                "Ascension/modifier selection synchronization is patched: " + target);
     }
 
     private static void TestDailyIsolation()

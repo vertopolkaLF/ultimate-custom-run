@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm;
+        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -36,6 +36,7 @@ internal static class ModifierListPatch
             [ModelDb.Modifier<Friendship>().ToMutable(), ModelDb.Modifier<FriendshipDraft>().ToMutable()]);
         ordered.AddRange([ModelDb.Modifier<RichLoot>().ToMutable(), ModelDb.Modifier<CardSwarm>().ToMutable()]);
         ordered.Add(ModelDb.Modifier<NeowStarterChoice>().ToMutable());
+        ordered.AddRange(AscensionModifiers.Create());
         // Its relic must be granted before start-of-run card reward modifiers resolve.
         ordered.Insert(0, ModelDb.Modifier<ColorlessCards>().ToMutable());
         return ordered;
