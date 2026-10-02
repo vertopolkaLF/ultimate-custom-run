@@ -1,0 +1,12 @@
+{
+  "id": "SpecializedChoice",
+  "name": "Ultimate Custom Run",
+  "author": "vertopolkaLF",
+  "description": "Customize custom runs with modifier groups, Neow!!, Specialized – Pick Any, Specialized – Draft and All Star – Draft.",
+  "version": "1.6.1",
+  "has_pck": false,
+  "has_dll": true,
+  "min_game_version": "0.111.0",
+  "dependencies": [],
+  "affects_gameplay": true
+}
