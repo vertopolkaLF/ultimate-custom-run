@@ -26,11 +26,11 @@ internal static class Program
             var path = Path.Combine(dataPath, name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        Run(args.Contains("--ascension-only"));
+        Run(args.Contains("--ascension-only"), args.Contains("--boss-chain-only"));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Run(bool ascensionOnly)
+    private static void Run(bool ascensionOnly, bool bossChainOnly)
     {
         var assembly = typeof(ModEntry).Assembly;
         Check(assembly.GetName().Name == "UltimateCustomRun" && typeof(ModEntry).Namespace == "UltimateCustomRun" &&
@@ -72,6 +72,12 @@ internal static class Program
                 "Both new modifiers provide their own Neow buttons");
 
             TestNeowModifier();
+            if (bossChainOnly)
+            {
+                TestDoubleTrouble();
+                Console.WriteLine("PASS: managed boss chain integration checks. Map visuals require an in-game playtest.");
+                return;
+            }
             if (ascensionOnly)
             {
                 TestAscensionModifiers();
@@ -1025,6 +1031,22 @@ internal static class Program
 
     private static void TestDoubleTrouble()
     {
+        foreach (var lastNormalRow in new[] { 9, 14, 19, 29 })
+        foreach (var halfHeights in new[] { new[] { 91.8f, 46f, 91.8f },
+            new[] { 91.8f, 91.8f, 91.8f }, new[] { 91.8f, 46f, 91.8f, 46f, 91.8f } })
+        foreach (var finalTop in new[] { -2013.75f, -2093.75f })
+        {
+            var distance = BossChainMapUiPatch.FitRowDistance(lastNormalRow, halfHeights, finalTop);
+            var center = 768f - lastNormalRow * distance;
+            var previousHalfHeight = 46f;
+            foreach (var halfHeight in halfHeights)
+            {
+                center = BossChainMapUiPatch.NextCenterY(center, previousHalfHeight, halfHeight, distance);
+                previousHalfHeight = halfHeight;
+            }
+            Check(distance > 0f && Math.Abs(center - halfHeights[^1] - finalTop) < 0.002f,
+                "Boss chains preserve the native top margin across floor counts and campfires");
+        }
         foreach (var rowDistance in new[] { 70f, 116.25f, 149.4643f, 232.5f })
         foreach (var halfHeights in new[] { new[] { 91.8f, 91.8f, 91.8f }, new[] { 91.8f, 46f, 91.8f, 46f, 91.8f } })
         {

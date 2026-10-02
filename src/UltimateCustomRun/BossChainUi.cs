@@ -19,6 +19,14 @@ internal static class BossChainMapUiPatch
     internal static float NextCenterY(float previousCenter, float previousHalfHeight, float halfHeight, float rowDistance) =>
         previousCenter - previousHalfHeight - halfHeight - Math.Max(0f, rowDistance - 92f);
 
+    internal static float FitRowDistance(int lastNormalRow, IReadOnlyList<float> halfHeights, float finalTop)
+    {
+        var iconHeight = 46f + 2f * halfHeights.Sum();
+        var available = 768f - finalTop - iconHeight;
+        var spaced = (available + halfHeights.Count * 92f) / (lastNormalRow + halfHeights.Count);
+        return spaced >= 92f ? spaced : available / lastNormalRow;
+    }
+
     internal static IEnumerable<MapPoint> NormalPoints(ActMap map) =>
         map.GetAllMapPoints().Where(point => point.PointType != MapPointType.Boss);
 
@@ -39,6 +47,21 @@ internal static class BossChainMapUiPatch
         // Match the ordinary 92px map icons' visible gap, allowing for larger bosses.
         var lastNormalRow = run.Map.BossMapPoint.coord.row - 1;
         var distY = (float)AccessTools.Field(typeof(NMapScreen), "_distY").GetValue(screen)!;
+        var finalNode = nodes[chain[^1].coord];
+        var finalParentSize = finalNode.GetParent() is Control finalParent ? finalParent.Size : Vector2.Zero;
+        // Preserve the native final boss's visible top relative to the parchment.
+        var finalTop = finalNode.Position.Y - finalParentSize.Y * finalNode.AnchorTop +
+            finalNode.PivotOffset.Y - finalNode.Size.Y * finalNode.Scale.Y * 0.5f;
+        var halfHeights = chain.Select(point => nodes[point.coord] is NBossMapPoint boss
+            ? boss.Size.Y * 0.6f * 0.5f : 46f).ToArray();
+        var fittedDistY = FitRowDistance(lastNormalRow, halfHeights, finalTop);
+        foreach (var point in NormalPoints(run.Map).Append(run.Map.StartingMapPoint))
+        {
+            var node = nodes[point.coord];
+            node.Position += new Vector2(0f, point.coord.row * (distY - fittedDistY));
+        }
+        distY = fittedDistY;
+        AccessTools.Field(typeof(NMapScreen), "_distY").SetValue(screen, distY);
         var previousCenter = 740f - lastNormalRow * distY + 28f;
         var previousHalfHeight = 46f;
         for (var i = 0; i < chain.Count; i++)
