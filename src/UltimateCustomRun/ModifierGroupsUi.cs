@@ -22,6 +22,7 @@ internal static class ModifierGroupsUi
     }
     private sealed class Layout
     {
+        internal required VBoxContainer Content;
         internal List<Section> Sections = [];
     }
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, Layout> Layouts = new();
@@ -61,13 +62,14 @@ internal static class ModifierGroupsUi
         var negatives = ModelDb.BadModifiers.Select(m => m.GetType()).ToHashSet();
         var font = ResourceLoader.Load<Font>("res://themes/kreon_bold_shared.tres");
         var arrowTexture = ResourceLoader.Load<Texture2D>("res://images/packed/common_ui/settings_tiny_right_arrow.png");
-        var layout = new Layout();
+        var layout = new Layout { Content = content };
         Layouts.Add(list, layout);
         content.AddThemeConstantOverride("separation", 12);
 
         foreach (var (group, title) in ModifierGroups.Sections)
         {
             var children = rows.Where(row => row.Modifier != null && ModifierGroups.Classify(row.Modifier, negatives) == group).ToList();
+            var visibleRows = children.Where(row => !ModifierVariantUi.IsHiddenVariant(row.Modifier)).ToList();
             var sectionRoot = new VBoxContainer { Name = group.ToString(), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
             sectionRoot.AddThemeConstantOverride("separation", 4);
             var header = new NButton
@@ -132,22 +134,53 @@ internal static class ModifierGroupsUi
             sectionRoot.AddChild(header);
             sectionRoot.AddChild(body);
             content.AddChild(sectionRoot);
+            var variantRows = new List<ModifierVariantUi.VariantRow>();
+            try
+            {
+                foreach (var family in ModifierVariantUi.Families)
+                {
+                    var parentRow = children.FirstOrDefault(row => ModifierVariantUi.IsParent(row.Modifier, family));
+                    var draftRow = children.FirstOrDefault(row => ModifierVariantUi.IsDraft(row.Modifier, family));
+                    var pickAnyRow = children.FirstOrDefault(row => ModifierVariantUi.IsPickAny(row.Modifier, family));
+                    if (parentRow == null || draftRow == null) continue;
+                    variantRows.Add(ModifierVariantUi.Create(list, family, parentRow, draftRow, pickAnyRow, () => Refresh(list)));
+                }
+            }
+            catch (Exception ex)
+            {
+                GD.PushError($"[Ultimate Custom Run] Could not build modifier sub-options: {ex}");
+            }
             foreach (var row in children)
             {
                 row.Reparent(childList);
                 row.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+                if (ModifierVariantUi.IsHiddenVariant(row.Modifier))
+                {
+                    row.Visible = false;
+                    row.FocusMode = Control.FocusModeEnum.None;
+                    continue;
+                }
                 // Custom-only positive modifiers are absent from the global daily pool.
-                if (row.Modifier is { } modifier && ModifierListPatch.IsCustomOnly(modifier))
+                if (row.Modifier is { } modifier &&
+                    (ModifierListPatch.IsCustomOnly(modifier) || ModifierVariantUi.IsParent(modifier)))
                 {
                     var text = new MegaCrit.Sts2.Core.Localization.LocString("main_menu_ui", "CUSTOM_RUN_SCREEN.MODIFIER_LABEL");
+                    var modifierTitle = modifier.Title.GetFormattedText();
+                    if (ModifierVariantUi.IsParent(modifier)) modifierTitle += " [color=#ff9c3d]*[/color]";
                     text.Add("color", "green");
-                    text.Add("modifier_title", modifier.Title.GetFormattedText());
+                    text.Add("modifier_title", modifierTitle);
                     text.Add("modifier_description", modifier.Description.GetFormattedText());
                     row.GetNode<MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel>("HBoxContainer/Description").Text = text.GetFormattedText();
                 }
+                foreach (var variantRow in variantRows.Where(variantRow => ReferenceEquals(row, variantRow.ParentRow)))
+                    childList.AddChild(variantRow.Container);
             }
-            LinkedModifierChains.Attach(body, children);
-            var section = new Section { Header = header, Body = body, Arrow = arrow, Rows = children };
+            if (variantRows.Count > 0) ModifierVariantUi.InitializeChoices(list);
+            LinkedModifierChains.Attach(body, visibleRows);
+            var section = new Section
+            {
+                Header = header, Body = body, Arrow = arrow, Rows = visibleRows
+            };
             layout.Sections.Add(section);
             header.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => Toggle(content, layout, section)));
             header.MouseEntered += () => highlight.Visible = true;
@@ -179,10 +212,17 @@ internal static class ModifierGroupsUi
             content.Size = new Vector2(content.Size.X, content.GetCombinedMinimumSize().Y);
     }
 
+    internal static void Refresh(NCustomRunModifiersList list)
+    {
+        if (!GodotObject.IsInstanceValid(list) || !Layouts.TryGetValue(list, out var layout)) return;
+        UpdateFocus(layout);
+        ResizeContent(layout.Content);
+        Callable.From(() => ResizeContent(layout.Content)).CallDeferred();
+    }
+
     private static void UpdateFocus(Layout layout)
     {
-        var controls = layout.Sections.SelectMany(section =>
-            new Control[] { section.Header }.Concat(section.Expanded ? section.Rows : [])).ToList();
+        var controls = layout.Sections.SelectMany(FocusableControls).ToList();
         for (var i = 0; i < controls.Count; i++)
         {
             var previous = controls[(i + controls.Count - 1) % controls.Count];
@@ -192,6 +232,15 @@ internal static class ModifierGroupsUi
             controls[i].FocusNeighborBottom = controls[i].GetPathTo(next);
             controls[i].FocusNext = controls[i].GetPathTo(next);
         }
+
+    }
+
+    private static IEnumerable<Control> FocusableControls(Section section)
+    {
+        yield return section.Header;
+        if (!section.Expanded) yield break;
+        foreach (var row in section.Rows)
+            if (row.Visible) yield return row;
     }
 }
 

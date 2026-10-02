@@ -40,9 +40,6 @@ internal static class LinkedModifierChains
         {
             var previous = rows[index - 1];
             var next = rows[index];
-            const string hint = "Linked modifiers: choose at most one.";
-            previous.TooltipText = hint;
-            next.TooltipText = hint;
             var upper = previous.GetNode<Control>("HBoxContainer/TickboxVisuals");
             var lower = next.GetNode<Control>("HBoxContainer/TickboxVisuals");
             // Reserve enough tiles for unusually tall localized descriptions; no per-frame work.

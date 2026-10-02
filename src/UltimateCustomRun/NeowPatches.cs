@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or ColorlessCards;
+        modifier is NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -31,6 +31,9 @@ internal static class ModifierListPatch
             [ModelDb.Modifier<SpecializedDraft>().ToMutable(), ModelDb.Modifier<SpecializedPickAny>().ToMutable()]);
         var allStarIndex = ordered.FindIndex(modifier => modifier is MegaCrit.Sts2.Core.Models.Modifiers.AllStar);
         ordered.Insert(allStarIndex < 0 ? ordered.Count : allStarIndex + 1, ModelDb.Modifier<AllStarDraft>().ToMutable());
+        var allStarDraftIndex = ordered.FindIndex(modifier => modifier is AllStarDraft);
+        ordered.InsertRange(allStarDraftIndex < 0 ? ordered.Count : allStarDraftIndex + 1,
+            [ModelDb.Modifier<Friendship>().ToMutable(), ModelDb.Modifier<FriendshipDraft>().ToMutable()]);
         ordered.Add(ModelDb.Modifier<NeowStarterChoice>().ToMutable());
         // Its relic must be granted before start-of-run card reward modifiers resolve.
         ordered.Insert(0, ModelDb.Modifier<ColorlessCards>().ToMutable());
@@ -59,8 +62,17 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<SpecializedDraft>().Entry + ".description"] = SpecializedDraft.DisplayDescription,
             [ModelDb.GetId<AllStarDraft>().Entry + ".title"] = AllStarDraft.DisplayTitle,
             [ModelDb.GetId<AllStarDraft>().Entry + ".description"] = AllStarDraft.DisplayDescription,
+            [ModelDb.GetId<Friendship>().Entry + ".title"] = Friendship.DisplayTitle,
+            [ModelDb.GetId<Friendship>().Entry + ".description"] = Friendship.DisplayDescription,
+            [ModelDb.GetId<FriendshipDraft>().Entry + ".title"] = FriendshipDraft.DisplayTitle,
+            [ModelDb.GetId<FriendshipDraft>().Entry + ".description"] = FriendshipDraft.DisplayDescription,
             [ModelDb.GetId<ColorlessCards>().Entry + ".title"] = ColorlessCards.DisplayTitle,
-            [ModelDb.GetId<ColorlessCards>().Entry + ".description"] = ColorlessCards.DisplayDescription
+            [ModelDb.GetId<ColorlessCards>().Entry + ".description"] = ColorlessCards.DisplayDescription,
+            [ModifierVariantUi.NormalLabelKey] = "Normal",
+            [ModifierVariantUi.DraftLabelKey] = "Draft",
+            [ModifierVariantUi.DraftDescriptionKey] = "Card reward instead of random",
+            [ModifierVariantUi.PickAnyLabelKey] = "Pick Any",
+            [ModifierVariantUi.PickAnyDescriptionKey] = "You can pick any card"
         });
     }
 }
@@ -81,12 +93,16 @@ internal static class SpecializedExclusivityPatch
 
     internal static bool ShouldUntick(ModifierModel selected, ModifierModel other) =>
         selected.GetType() != other.GetType() &&
-        ((IsSpecialized(selected) && IsSpecialized(other)) || (IsAllStar(selected) && IsAllStar(other)));
+        ((IsSpecialized(selected) && IsSpecialized(other)) ||
+            (IsAllStar(selected) && IsAllStar(other)) ||
+            (IsFriendship(selected) && IsFriendship(other)));
 
     private static bool IsSpecialized(ModifierModel modifier) =>
         modifier is MegaCrit.Sts2.Core.Models.Modifiers.Specialized or SpecializedPickAny or SpecializedDraft;
     private static bool IsAllStar(ModifierModel modifier) =>
         modifier is MegaCrit.Sts2.Core.Models.Modifiers.AllStar or AllStarDraft;
+    private static bool IsFriendship(ModifierModel modifier) =>
+        modifier is Friendship or FriendshipDraft;
 }
 
 internal static class NeowRelicChoice

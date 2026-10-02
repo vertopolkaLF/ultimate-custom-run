@@ -1,6 +1,7 @@
 # Agent instructions
 
 - After any mod changes, build it and install it locally with `./build.ps1 -Install` before finishing. If a running game locks the installed DLL, stage the new DLL beside it, rename the old DLL to a backup outside the scanned mod folder, move the staged DLL to the canonical filename, and verify its SHA-256. Never stop the game; a restart is only needed to load the updated code. Do not publish it to Workshop unless explicitly requested.
+- Always commit after finishing the task.
 
 ## Локальная установка: точный порядок
 
