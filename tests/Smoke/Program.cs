@@ -88,7 +88,7 @@ internal static class Program
     private static void TestGroups()
     {
         Check(ModifierGroups.Sections.Select(s => s.Title).SequenceEqual(
-            new[] { "Improved Start", "Modifiers", "Card Pool", "Ascentions", "Negatives", "Disabled" }), "Group titles and order match the requested layout");
+            new[] { "Improved Start", "Modifiers", "Card Pool", "Ascension", "Negatives", "Disabled" }), "Group titles and order match the requested layout");
         var negatives = new HashSet<Type> { typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents),
             typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal) };
         foreach (var type in new[] { typeof(NeowStarterChoice), typeof(Specialized), typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(Draft),
@@ -381,8 +381,8 @@ internal static class Program
             "Repeated custom enumeration does not duplicate ascension modifiers");
         foreach (var effect in effects)
         {
-            Check(ModifierGroups.Classify(effect, new HashSet<Type>()) == ModifierGroup.Ascentions && ModifierListPatch.IsCustomOnly(effect),
-                effect.GetType().Name + " is custom-only and belongs to Ascentions");
+            Check(ModifierGroups.Classify(effect, new HashSet<Type>()) == ModifierGroup.Ascension && ModifierListPatch.IsCustomOnly(effect),
+                effect.GetType().Name + " is custom-only and belongs to Ascension");
             var saved = effect.ToSerializable();
             var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
             saved.Serialize(writer);

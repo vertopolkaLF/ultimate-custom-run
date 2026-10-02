@@ -10,8 +10,8 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 ## Features
 
-- Collapsible modifier groups: **Improved Start**, **Modifiers**, **Card Pool**, **Ascentions**, and **Negatives**. Options unavailable in singleplayer appear under **Disabled**.
-- **Ascentions** contains all ten Ascension effects as independent options, using the game's localized titles and descriptions. For example, enable Double Boss without any other Ascension penalties. Enabling an effect sets Ascension to 0; changing Ascension disables every independent Ascension option while preserving other modifiers.
+- Collapsible modifier groups: **Improved Start**, **Modifiers**, **Card Pool**, **Ascension**, and **Negatives**. Options unavailable in singleplayer appear under **Disabled**.
+- **Ascension** contains all ten Ascension effects as independent options, using the game's localized titles and descriptions. For example, enable Double Boss without any other Ascension penalties. Enabling an effect sets Ascension to 0; changing Ascension disables every independent Ascension option while preserving other modifiers.
 - Native sliders with live value labels and descriptions. Use the mouse or focus a slider and press left/right to change it by one step.
 - Linked mutually exclusive choices. Specialized, All Star, and Friendship keep their variants together under one checkbox.
 - Values persist in saves and synchronize from the co-op host.
@@ -27,6 +27,10 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 **Extra rewards and card pools**
 
 ![Grouped modifiers including Rich Loot, Card Swarm, and Colorless Cards](previews/rewards-and-card-pools.jpg)
+
+**Individual Ascension effects**
+
+![Independent Ascension effects selected at Ascension 0, including Double Boss](previews/ascension-modifiers.png)
 
 ## Adjustable values
 

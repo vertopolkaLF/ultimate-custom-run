@@ -3,7 +3,7 @@ using MegaCrit.Sts2.Core.Models.Modifiers;
 
 namespace UltimateCustomRun;
 
-internal enum ModifierGroup { ImprovedStart, Modifiers, CardPool, Ascentions, Negatives, Disabled }
+internal enum ModifierGroup { ImprovedStart, Modifiers, CardPool, Ascension, Negatives, Disabled }
 
 internal static class ModifierGroups
 {
@@ -12,7 +12,7 @@ internal static class ModifierGroups
         (ModifierGroup.ImprovedStart, "Improved Start"),
         (ModifierGroup.Modifiers, "Modifiers"),
         (ModifierGroup.CardPool, "Card Pool"),
-        (ModifierGroup.Ascentions, "Ascentions"),
+        (ModifierGroup.Ascension, "Ascension"),
         (ModifierGroup.Negatives, "Negatives"),
         (ModifierGroup.Disabled, "Disabled")
     ];
@@ -22,7 +22,7 @@ internal static class ModifierGroups
 
     internal static ModifierGroup Classify(ModifierModel modifier, IReadOnlySet<Type> negativeTypes)
     {
-        if (modifier is AscensionModifier) return ModifierGroup.Ascentions;
+        if (modifier is AscensionModifier) return ModifierGroup.Ascension;
         if (negativeTypes.Contains(modifier.GetType())) return ModifierGroup.Negatives;
         if (modifier is CharacterCards or ColorlessCards) return ModifierGroup.CardPool;
         if (modifier is NeowStarterChoice or Specialized or SpecializedPickAny or SpecializedDraft or Draft or SealedDeck or Insanity or AllStar or AllStarDraft or Friendship or FriendshipDraft)
