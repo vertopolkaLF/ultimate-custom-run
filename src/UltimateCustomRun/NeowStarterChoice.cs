@@ -1,7 +1,7 @@
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
 
-namespace SpecializedChoice;
+namespace UltimateCustomRun;
 
 // A marker modifier: normal starter relic options are restored after other modifiers.
 public sealed class NeowStarterChoice : ModifierModel

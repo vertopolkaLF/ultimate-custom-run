@@ -1,7 +1,7 @@
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Modifiers;
 
-namespace SpecializedChoice;
+namespace UltimateCustomRun;
 
 internal enum ModifierGroup { ImprovedStart, Modifiers, CardPool, Negatives }
 

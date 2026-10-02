@@ -9,11 +9,11 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace SpecializedChoice;
+namespace UltimateCustomRun;
 
 internal static class SpecializedCardChoices
 {
-    private const string PromptKey = "SPECIALIZED_CHOICE.selectionPrompt";
+    private const string PromptKey = "ULTIMATE_CUSTOM_RUN.selectionPrompt";
     internal const int Copies = 5;
 
     internal static async Task PickAny(Player player)

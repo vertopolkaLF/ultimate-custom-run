@@ -9,7 +9,7 @@ using MegaCrit.Sts2.Core.Models.Events;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 
-namespace SpecializedChoice;
+namespace UltimateCustomRun;
 
 internal static class ModifierListPatch
 {

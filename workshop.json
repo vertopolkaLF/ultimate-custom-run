@@ -1,8 +1,8 @@
 ﻿{
   "title": "Ultimate Custom Run",
-  "description": "Customize your custom runs! Choose the card Specialized adds: select one available card from your character's pool and receive five copies. New modifier: Neow!! — Brings back starter Neow relic choice. Other modifier effects resolve first, followed by the normal starter relic offers. No BaseLib dependency. Built against Slay the Spire 2 v0.111.0. Gameplay mod: every co-op player needs it. Managed integration tests passed; in-game UI and co-op have not been playtested.",
+  "description": "Customize custom runs with collapsible modifier groups, linked exclusive choices, Neow!!, Specialized - Draft, Specialized - Pick Any, All Star - Draft and Colorless Cards. Custom-only modifiers do not enter the Daily Challenge pool. No BaseLib dependency. Built against Slay the Spire 2 v0.111.0. Gameplay mod: every co-op player needs it. Pre-release build.",
   "visibility": "friends_only",
-  "changeNote": "1.1.1: Fixed fatal startup error caused by duplicate registration of the Neow!! modifier.",
+  "changeNote": "Pre-release: new UltimateCustomRun identity.",
   "tags": [],
   "dependencies": [],
   "contentDescriptors": []

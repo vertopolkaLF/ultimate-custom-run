@@ -5,7 +5,7 @@
     <Sts2Path Condition="'$(Sts2Path)' == ''">C:/Program Files (x86)/Steam/steamapps/common/Slay the Spire 2</Sts2Path>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/SpecializedChoice/SpecializedChoice.csproj" />
+    <ProjectReference Include="../../src/UltimateCustomRun/UltimateCustomRun.csproj" />
     <Reference Include="sts2"><HintPath>$(Sts2Path)/data_sts2_windows_x86_64/sts2.dll</HintPath></Reference>
     <Reference Include="GodotSharp"><HintPath>$(Sts2Path)/data_sts2_windows_x86_64/GodotSharp.dll</HintPath></Reference>
     <Reference Include="0Harmony"><HintPath>$(Sts2Path)/data_sts2_windows_x86_64/0Harmony.dll</HintPath></Reference>

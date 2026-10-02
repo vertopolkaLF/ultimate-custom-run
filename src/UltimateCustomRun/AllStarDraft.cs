@@ -7,7 +7,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.CardPools;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace SpecializedChoice;
+namespace UltimateCustomRun;
 
 public sealed class AllStarDraft : ModifierModel
 {

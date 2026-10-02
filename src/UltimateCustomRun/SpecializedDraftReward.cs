@@ -13,7 +13,7 @@ using MegaCrit.Sts2.Core.Nodes.Screens.CardSelection;
 using MegaCrit.Sts2.Core.Nodes.Screens.Overlays;
 using MegaCrit.Sts2.Core.Runs;
 
-namespace SpecializedChoice;
+namespace UltimateCustomRun;
 
 internal static class SpecializedDraftReward
 {

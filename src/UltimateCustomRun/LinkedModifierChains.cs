@@ -2,7 +2,7 @@ using Godot;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 
-namespace SpecializedChoice;
+namespace UltimateCustomRun;
 
 internal static class LinkedModifierChains
 {

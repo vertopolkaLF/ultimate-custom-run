@@ -11,7 +11,7 @@ using MegaCrit.Sts2.Core.Events;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Entities.Cards;
-using SpecializedChoice;
+using UltimateCustomRun;
 
 internal static class Program
 {
@@ -31,6 +31,8 @@ internal static class Program
     private static void Run()
     {
         var assembly = typeof(ModEntry).Assembly;
+        Check(assembly.GetName().Name == "UltimateCustomRun" && typeof(ModEntry).Namespace == "UltimateCustomRun" &&
+            ModEntry.HarmonyId == "vertopolka.UltimateCustomRun", "Assembly, namespace and Harmony identity are UltimateCustomRun");
         var initializer = typeof(ModEntry).GetCustomAttribute<ModInitializerAttribute>();
         Check(initializer?.initializerMethod == nameof(ModEntry.Initialize), "Game loader can find Initialize");
 

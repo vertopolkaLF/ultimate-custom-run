@@ -1,7 +1,7 @@
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
 
-namespace SpecializedChoice;
+namespace UltimateCustomRun;
 
 public sealed class SpecializedPickAny : ModifierModel
 {

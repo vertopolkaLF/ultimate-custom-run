@@ -1,7 +1,7 @@
 # Ultimate Custom Run
 
-Локальная версия 1.6.1. Один мод для кастомизации пользовательского забега Slay the Spire 2.
-Внутренний ID, папка и имя DLL сохраняются как SpecializedChoice для совместимости с существующей установкой и сохранениями.
+Локальная версия 1.7.0. Один мод для кастомизации пользовательского забега Slay the Spire 2.
+Внутренний ID, namespace, сборка, папка и DLL: UltimateCustomRun. Это новая идентичность мода в дорелизной версии.
 
 ## Как пользоваться
 
@@ -44,7 +44,7 @@ Improved Start содержит стартовые эффекты и оба но
 .\build.ps1 -GamePath 'E:\SteamLibrary\steamapps\common\Slay the Spire 2' -Install
 ```
 
-Результат: content/SpecializedChoice/ и artifacts/UltimateCustomRun-1.6.1.zip.
+Результат: content/UltimateCustomRun/ и artifacts/UltimateCustomRun-1.7.0.zip.
 Перед обычной установкой DLL закройте игру; новая сборка подхватывается после полного перезапуска.
 
 ## Проверки
@@ -58,9 +58,8 @@ dotnet run --project tests/Smoke -c Release
 
 ## Workshop
 
-Существующая страница: https://steamcommunity.com/sharedfiles/filedetails/?id=3811477836
-Видимость — только для друзей. ID сохранён в mod_id.txt.
-Локальная версия 1.6.1 не опубликована в Workshop. Публикация остановлена по просьбе пользователя; build.ps1 ничего не загружает.
+Проект не привязан к старой странице Workshop: mod_id.txt убран из рабочего каталога. Будущая публикация создаст новый Workshop item; сейчас ничего не публикуется. Видимость в workshop.json остаётся friends_only.
+Локальная версия 1.7.0 не опубликована в Workshop. Публикация остановлена по просьбе пользователя; build.ps1 ничего не загружает.
 
 В списке варианты стоят подряд: Specialized → Specialized - Draft → Specialized - Pick Any.
 

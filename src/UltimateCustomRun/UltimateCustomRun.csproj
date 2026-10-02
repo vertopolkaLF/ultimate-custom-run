@@ -3,8 +3,9 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>SpecializedChoice</AssemblyName>
-    <Version>1.6.1</Version>
+    <AssemblyName>UltimateCustomRun</AssemblyName>
+    <RootNamespace>UltimateCustomRun</RootNamespace>
+    <Version>1.7.0</Version>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <Sts2Path Condition="'$(Sts2Path)' == ''">C:/Program Files (x86)/Steam/steamapps/common/Slay the Spire 2</Sts2Path>
     <GameDataPath>$(Sts2Path)/data_sts2_windows_x86_64</GameDataPath>

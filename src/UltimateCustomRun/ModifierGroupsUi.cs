@@ -7,7 +7,7 @@ using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Models;
 
-namespace SpecializedChoice;
+namespace UltimateCustomRun;
 
 [HarmonyPatch(typeof(NCustomRunModifiersList), nameof(NCustomRunModifiersList._Ready))]
 internal static class ModifierGroupsUi

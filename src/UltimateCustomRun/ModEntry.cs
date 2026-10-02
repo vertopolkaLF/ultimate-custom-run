@@ -4,12 +4,12 @@ using MegaCrit.Sts2.Core.Modding;
 
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Smoke")]
 
-namespace SpecializedChoice;
+namespace UltimateCustomRun;
 
 [ModInitializer(nameof(Initialize))]
 public static class ModEntry
 {
-    public const string HarmonyId = "vertopolka.SpecializedChoice";
+    public const string HarmonyId = "vertopolka.UltimateCustomRun";
 
     public static void Initialize()
     {
