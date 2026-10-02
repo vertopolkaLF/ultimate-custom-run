@@ -124,7 +124,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, validation, and pull requests,
 
 `build.ps1` only builds, packages, and optionally installs locally. Workshop publishing is a separate maintainer action using ModUploader. The current item ID is stored in `mod_id.txt`. Its description and visibility are maintained in `workshop.json`; uploading with a non-null description replaces edits made directly in Steam.
 
-Workshop gallery screenshots are tracked in `previews/`. Keep every gallery image you want to retain there: ModUploader synchronizes that folder and removes additional previews missing from it. The description embeds the uploaded screenshots using their Steam-hosted URLs.
+Workshop gallery screenshots are tracked in `previews/`. Keep every gallery image you want to retain there: ModUploader synchronizes that folder and removes additional previews missing from it. Screenshots are displayed in the Workshop gallery and this README; the Workshop description contains text only.
 
 ## License
 
