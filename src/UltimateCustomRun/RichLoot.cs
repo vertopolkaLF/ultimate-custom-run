@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 public sealed class RichLoot : ModifierModel
 {
     internal const string DisplayTitle = "Rich Loot";
-    internal const string DisplayDescription = "Treasure chests contain [blue]1[/blue] extra relic.";
+    internal const string DisplayDescription = "Treasure chests contain [blue]1[/blue] extra relic to choose from.";
     protected override string IconPath => ImageHelper.GetImagePath("packed/modifiers/midas.png");
 
     internal static bool IsActive(IRunState runState) =>

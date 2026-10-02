@@ -249,7 +249,7 @@ internal static class Program
             (ModelDb.Modifier<Draft>(), 5, 20, 5, 10),
             (ModelDb.Modifier<SealedDeck>(), 5, 20, 5, 10),
             (ModelDb.Modifier<Insanity>(), 5, 60, 5, 30),
-            (ModelDb.Modifier<Hoarder>(), 1, 3, 1, 2),
+            (ModelDb.Modifier<Hoarder>(), 1, 5, 1, 2),
             (ModelDb.Modifier<Midas>(), 150, 300, 5, 200)
         };
         foreach (var (canonical, min, max, step, defaultValue) in cases)
