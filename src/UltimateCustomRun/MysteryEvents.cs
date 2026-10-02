@@ -102,7 +102,9 @@ public sealed class MysteryEvents : ModifierModel
             // Keep the actual map coordinate and ActFloor at Neow. The native room
             // transition adds a separate Unknown history entry (and TotalFloor).
             // Its pre-entry save preserves the event pool/RNG for reloads.
+            await manager.FadeOut();
             await manager.EnterMapPointInternal(1, MapPointType.Unknown, null, saveGame: true);
+            await manager.FadeIn();
         }
         else
         {
