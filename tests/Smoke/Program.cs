@@ -85,6 +85,7 @@ internal static class Program
             TestPresetManagement();
             TestUltimateStarter();
             TestDill();
+            TestHeadstart();
         }
         finally
         {
@@ -120,7 +121,7 @@ internal static class Program
             typeof(Insanity), typeof(AllStar), typeof(Flight), typeof(Vintage), typeof(CharacterCards), typeof(NeowStarterChoice),
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
-            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill),
+            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart),
             typeof(UltimateStrike), typeof(UltimateDefend),
             typeof(StrikeIronclad), typeof(DefendIronclad), typeof(Bash),
             typeof(StrikeSilent), typeof(DefendSilent), typeof(Neutralize), typeof(Survivor),
@@ -128,6 +129,8 @@ internal static class Program
             typeof(StrikeNecrobinder), typeof(DefendNecrobinder), typeof(Bodyguard), typeof(Unleash),
             typeof(StrikeDefect), typeof(DefendDefect), typeof(Zap), typeof(Dualcast),
             typeof(MegaCrit.Sts2.Core.Models.Relics.DingyRug),
+            typeof(MegaCrit.Sts2.Core.Models.Relics.Mango), typeof(MegaCrit.Sts2.Core.Models.Relics.JewelryBox),
+            typeof(MegaCrit.Sts2.Core.Models.Relics.BurningBlood), typeof(MegaCrit.Sts2.Core.Models.Relics.Circlet),
             typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents), typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Ironclad), typeof(MegaCrit.Sts2.Core.Models.Characters.Silent),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Regent), typeof(MegaCrit.Sts2.Core.Models.Characters.Necrobinder), typeof(MegaCrit.Sts2.Core.Models.Characters.Defect),
@@ -875,6 +878,92 @@ internal static class Program
             typeof(Dill).GetMethod(nameof(AbstractModel.AfterCombatVictory))!.DeclaringType == typeof(Dill) &&
             typeof(Dill).GetMethod(nameof(AbstractModel.BeforeCombatStart))!.DeclaringType != typeof(Dill),
             "Dill starts at exact HP only on new runs and grows after victories rather than before fights");
+    }
+
+    private static void TestHeadstart()
+    {
+        var canonical = ModelDb.Modifier<Headstart>();
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 5, 1, 1, "relics") &&
+            ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
+            ModifierListPatch.IsCustomOnly(canonical) &&
+            ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<Headstart>().Count() == 1,
+            "Headstart appears once in Improved Start with a 1..5 relic slider, step one, default one");
+        var neow = (Neow)RuntimeHelpers.GetUninitializedObject(typeof(Neow));
+        typeof(EventModel).GetProperty(nameof(EventModel.Owner))!.SetValue(neow,
+            (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player)));
+        Check(canonical.GenerateNeowOption(neow)?.Method.DeclaringType?.Assembly == typeof(Headstart).Assembly,
+            "Headstart provides a Neow relic-selection callback");
+        for (var count = 1; count <= 5; count++)
+        {
+            var model = canonical.ToMutable();
+            ModifierValues.Set(model, count);
+            var saved = model.ToSerializable();
+            var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+            saved.Serialize(writer);
+            var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+            reader.Reset(writer.Buffer);
+            foreach (var restored in new[] { ModifierModel.FromSerializable(saved),
+                ModifierModel.FromSerializable(reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>()),
+                (ModifierModel)model.MutableClone() })
+                Check(restored is Headstart && ModifierValues.Get(restored) == count,
+                    "Headstart count survives save, co-op settings and clone: " + count);
+            var selection = new HeadstartSelection(count, 20);
+            Check(!selection.CanConfirm && !selection.Toggle(-1) && !selection.Toggle(20),
+                "Headstart ignores invalid indexes and requires a complete selection");
+            for (var index = 0; index < count; index++) Check(selection.Toggle(index), "Headstart accepts a distinct relic");
+            Check(selection.CanConfirm && !selection.Toggle(count), "Headstart enforces exactly the configured count");
+            Check(selection.Toggle(0) && !selection.CanConfirm && selection.Toggle(count) && selection.CanConfirm,
+                "Headstart supports deselecting and replacing a relic");
+            Headstart.ValidateSelection(selection.Indexes, count, 20);
+            var choice = MegaCrit.Sts2.Core.GameActions.PlayerChoiceResult.FromIndexes(selection.Indexes.ToList());
+            var choiceWriter = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+            choice.ToNetData().Serialize(choiceWriter);
+            var choiceReader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+            choiceReader.Reset(choiceWriter.Buffer);
+            var net = choiceReader.Read<MegaCrit.Sts2.Core.Entities.Multiplayer.NetPlayerChoiceResult>();
+            Check(MegaCrit.Sts2.Core.GameActions.PlayerChoiceResult.FromNetData(
+                (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player)),
+                (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState)), net).AsIndexes().SequenceEqual(selection.Indexes),
+                "Headstart relic indexes survive native co-op choice serialization");
+        }
+        foreach (var invalid in new List<int>[] { [], [0, 0], [-1, 0], [0, 20], [0] })
+        {
+            var rejected = false;
+            try { Headstart.ValidateSelection(invalid, 2, 20); }
+            catch (InvalidOperationException) { rejected = true; }
+            Check(rejected, "Headstart rejects incomplete, duplicate or out-of-range remote choices");
+        }
+        RelicModel[] relics =
+        [
+            ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.DingyRug>(),
+            ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.Mango>(),
+            ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.JewelryBox>(),
+            ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.BurningBlood>(),
+            ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.Circlet>()
+        ];
+        var all = Headstart.FilterCandidates(relics.Concat(relics), new HashSet<ModelId>(), [], _ => true);
+        Check(all.Count == relics.Length && relics.All(all.Contains),
+            "Headstart includes unlocked Starter and Ancient relics without rarity exclusions or duplicates");
+        Check(all.Select(relic => relic.Id).SequenceEqual(Headstart.FilterCandidates(
+            relics.Reverse(), new HashSet<ModelId>(), [], _ => true).Select(relic => relic.Id)),
+            "Relic candidates have stable co-op indexes independent of source enumeration order");
+        var filtered = Headstart.FilterCandidates(relics, new HashSet<ModelId> { relics[1].Id },
+            [relics[0], relics[4]], relic => relic.Id != relics[2].Id);
+        Check(filtered.Select(relic => relic.Id).ToHashSet().SetEquals(new[] { relics[3].Id, relics[4].Id }),
+            "Headstart excludes other-character, already-owned non-stackable and disallowed relics, retaining stackable relics");
+        Check(Headstart.DescriptionText(1) == Headstart.DisplayDescription &&
+            Headstart.DescriptionText(5) == "Choose [blue]5[/blue] relics to start with.",
+            "Headstart description handles singular and plural relic counts");
+        var preset = System.Text.Json.JsonSerializer.Deserialize<ModifierPresetEntry>(
+            System.Text.Json.JsonSerializer.Serialize(new ModifierPresetEntry { Id = canonical.Id.ToString(), Value = 5 }))!;
+        Check(preset.Value == 5, "Headstart slider persists in modifier presets");
+        var nativeScreen = (MegaCrit.Sts2.Core.Nodes.Screens.NChooseARelicSelection)RuntimeHelpers.GetUninitializedObject(
+            typeof(MegaCrit.Sts2.Core.Nodes.Screens.NChooseARelicSelection));
+        Check(!HeadstartRelicUi.Initialize(nativeScreen) && HeadstartRelicUi.DefaultFocus(nativeScreen) == null,
+            "Headstart UI leaves unrelated native relic-selection screens untouched");
+        Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.Screens.NChooseARelicSelection), "_Ready"))
+            ?.Owners.Contains(ModEntry.HarmonyId) == true,
+            "Headstart picker initialization is patched against the installed game");
     }
 
     private static void Check(bool condition, string message)

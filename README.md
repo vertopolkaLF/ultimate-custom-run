@@ -61,6 +61,7 @@ Normal, Draft, and Pick Any share the same value within a modifier family. Seale
 | Option | Effect |
 | --- | --- |
 | **Neow!!** | Restores the usual starter relic choice after the other starting effects. |
+| **Headstart** | Choose 1–5 distinct relics at Neow (step 1, default 1). Uses compendium relic tiles in a searchable, scrolling selection grid with native hover tips and explicit confirmation. Includes all unlocked, character-compatible rarities, including Ancient, Event, Shop, and other available Starter relics, subject to native Neow restrictions. Already-owned non-stackable relics are excluded. Each co-op player chooses independently through synchronized choice indexes; normal pickup effects remain active. The count persists in saves and presets. |
 | **Ultimate Starter** | Replaces the normal basic Strikes and Defends with 3 Ultimate Strikes and 3 Ultimate Defends, preserving special starter cards such as Bash and Zap. Applies once when creating a run, for every co-op player. Draft, Sealed Deck, and Insanity replace the whole deck afterward if selected. |
 | **Super Draft** | Add card rewards to your starting deck until you pass. Each pick risks a Curse: 0.5%, doubling each offer. At 128%, gain one guaranteed Curse plus a 28% chance of another. Passing adds no Curse; each player drafts independently. |
 | **Must Have (negative)** | Requires taking a card from every card reward before leaving. Rerolls remain available; non-card rewards remain optional. Passing during Super Draft is allowed. |
