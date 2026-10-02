@@ -86,6 +86,7 @@ internal static class Program
             TestUltimateStarter();
             TestDill();
             TestHeadstart();
+            TestMysteryEvents();
         }
         finally
         {
@@ -121,7 +122,7 @@ internal static class Program
             typeof(Insanity), typeof(AllStar), typeof(Flight), typeof(Vintage), typeof(CharacterCards), typeof(NeowStarterChoice),
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
-            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart),
+            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart), typeof(MysteryEvents),
             typeof(UltimateStrike), typeof(UltimateDefend),
             typeof(StrikeIronclad), typeof(DefendIronclad), typeof(Bash),
             typeof(StrikeSilent), typeof(DefendSilent), typeof(Neutralize), typeof(Survivor),
@@ -878,6 +879,75 @@ internal static class Program
             typeof(Dill).GetMethod(nameof(AbstractModel.AfterCombatVictory))!.DeclaringType == typeof(Dill) &&
             typeof(Dill).GetMethod(nameof(AbstractModel.BeforeCombatStart))!.DeclaringType != typeof(Dill),
             "Dill starts at exact HP only on new runs and grows after victories rather than before fights");
+    }
+
+    private static void TestMysteryEvents()
+    {
+        var canonical = ModelDb.Modifier<MysteryEvents>();
+        Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
+            ModifierListPatch.IsCustomOnly(canonical) &&
+            ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<MysteryEvents>().Count() == 1,
+            "??? appears once in Improved Start and is isolated from Daily modifiers");
+        var modifier = (MysteryEvents)canonical.ToMutable();
+        for (var stage = 0; stage <= 4; stage++)
+        {
+            modifier.MysteryStage = stage;
+            var saved = modifier.ToSerializable();
+            var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+            saved.Serialize(writer);
+            var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+            reader.Reset(writer.Buffer);
+            foreach (var restored in new[] { ModifierModel.FromSerializable(saved),
+                ModifierModel.FromSerializable(reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>()),
+                (ModifierModel)modifier.MutableClone() })
+                Check(restored is MysteryEvents mystery && mystery.MysteryStage == stage,
+                    "Extra-event stage survives save, network and clone: " + stage);
+        }
+        modifier.MysteryStage = 1;
+        Check(!modifier.RecordReady(10, 0, [10, 20]) && !modifier.RecordReady(10, 1, [10, 20]) &&
+            !modifier.RecordReady(10, 1, [10, 20]) && modifier.RecordReady(20, 1, [10, 20]),
+            "Extra events wait for every co-op player and reject duplicate/stale proceed actions");
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { modifier });
+        AccessTools.Field(typeof(RunState), "_visitedMapCoords").SetValue(run,
+            new List<MegaCrit.Sts2.Core.Map.MapCoord> { new(0, 0) });
+        run.Map = new MegaCrit.Sts2.Core.Map.MockSinglePointActMap();
+        var manager = (RunManager)RuntimeHelpers.GetUninitializedObject(typeof(RunManager));
+        AccessTools.PropertySetter(typeof(RunManager), "State").Invoke(manager, [run]);
+        modifier.OnRunLoaded(run);
+        for (var stage = 1; stage <= 3; stage++)
+        {
+            modifier.MysteryStage = stage;
+            var roomType = MegaCrit.Sts2.Core.Rooms.RoomType.Monster;
+            Check(!MysteryRoomTypePatch.Prefix(manager, MegaCrit.Sts2.Core.Map.MapPointType.Unknown, ref roomType) &&
+                roomType == MegaCrit.Sts2.Core.Rooms.RoomType.Event && !modifier.ShouldProceedToNextMapPoint(),
+                "Every extra floor is guaranteed to be an Event and blocks main-map travel: " + stage);
+        }
+        modifier.MysteryStage = 4;
+        Check(modifier.ShouldProceedToNextMapPoint() && modifier.IsExtraRoom(run),
+            "After exactly three Events, map travel unlocks while the last room remains reloadable");
+        Check(MysteryEvents.HistoryIndex(run, 0, 0) == 0 && MysteryEvents.HistoryIndex(run, 0, 1) == 4 &&
+            MysteryEvents.HistoryIndex(run, 0, 3) == 6 && MysteryEvents.HistoryIndex(run, 1, 1) == 1,
+            "Three extra history floors preserve Neow and offset only the first act's actual map floors");
+        run.AddVisitedMapCoord(new(0, 1));
+        var normalType = MegaCrit.Sts2.Core.Rooms.RoomType.Monster;
+        Check(!modifier.IsExtraRoom(run) &&
+            MysteryRoomTypePatch.Prefix(manager, MegaCrit.Sts2.Core.Map.MapPointType.Unknown, ref normalType) &&
+            normalType == MegaCrit.Sts2.Core.Rooms.RoomType.Monster,
+            "Main-map question marks retain native room odds instead of becoming forced Events");
+        var pulseWriter = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+        new NetMysteryProceedAction { Stage = 2 }.Serialize(pulseWriter);
+        var pulseReader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+        pulseReader.Reset(pulseWriter.Buffer);
+        var pulse = new NetMysteryProceedAction();
+        pulse.Deserialize(pulseReader);
+        Check(pulse.Stage == 2, "Co-op proceed actions preserve their expected event stage");
+        foreach (var target in new[] {
+            AccessTools.Method(typeof(RunManager), nameof(RunManager.LoadIntoLatestMapCoord)),
+            AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.Screens.Map.NNormalMapPoint), "UpdateIcon"),
+            AccessTools.Method(typeof(RunState), nameof(RunState.GetHistoryEntryFor)) })
+            Check(Harmony.GetPatchInfo(target)?.Owners.Contains(ModEntry.HarmonyId) == true,
+                "Extra-event reload/history patch applies to the installed game: " + target.Name);
     }
 
     private static void TestHeadstart()

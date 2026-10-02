@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter or Dill or Headstart;
+        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter or Dill or Headstart or MysteryEvents;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -42,6 +42,7 @@ internal static class ModifierListPatch
         ordered.Add(ModelDb.Modifier<Speedrun>().ToMutable());
         ordered.Add(ModelDb.Modifier<Dill>().ToMutable());
         ordered.Add(ModelDb.Modifier<Headstart>().ToMutable());
+        ordered.Add(ModelDb.Modifier<MysteryEvents>().ToMutable());
         ordered.Add(ModelDb.Modifier<NeowStarterChoice>().ToMutable());
         ordered.Add(ModelDb.Modifier<CustomRunParameters>().ToMutable());
         ordered.AddRange(AscensionModifiers.Create());
@@ -92,6 +93,8 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<Speedrun>().Entry + ".description"] = Speedrun.DisplayDescription,
             [ModelDb.GetId<Dill>().Entry + ".title"] = Dill.DisplayTitle,
             [ModelDb.GetId<Dill>().Entry + ".description"] = Dill.DisplayDescription,
+            [ModelDb.GetId<MysteryEvents>().Entry + ".title"] = MysteryEvents.DisplayTitle,
+            [ModelDb.GetId<MysteryEvents>().Entry + ".description"] = MysteryEvents.DisplayDescription,
             [ModelDb.GetId<Headstart>().Entry + ".title"] = Headstart.DisplayTitle,
             [ModelDb.GetId<Headstart>().Entry + ".description"] = Headstart.DisplayDescription,
             [ModelDb.GetId<CustomRunParameters>().Entry + ".title"] = CustomRunParameters.DisplayTitle,
