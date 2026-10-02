@@ -342,8 +342,11 @@ internal static class ModifierVariantAfterChangedPatch
 internal static class ModifierVariantInitializePatch
 {
     [HarmonyPostfix]
-    private static void Postfix(NCustomRunModifiersList __instance) =>
+    private static void Postfix(NCustomRunModifiersList __instance)
+    {
         ModifierVariantUi.UpdateInteractionMode(__instance);
+        ModifierGroupsUi.ApplyMode(__instance);
+    }
 }
 
 [HarmonyPatch(typeof(NCustomRunModifiersList), "SetTickedModifiers")]

@@ -3,7 +3,7 @@ using MegaCrit.Sts2.Core.Models.Modifiers;
 
 namespace UltimateCustomRun;
 
-internal enum ModifierGroup { ImprovedStart, Modifiers, CardPool, Negatives }
+internal enum ModifierGroup { ImprovedStart, Modifiers, CardPool, Negatives, Disabled }
 
 internal static class ModifierGroups
 {
@@ -12,8 +12,12 @@ internal static class ModifierGroups
         (ModifierGroup.ImprovedStart, "Improved Start"),
         (ModifierGroup.Modifiers, "Modifiers"),
         (ModifierGroup.CardPool, "Card Pool"),
-        (ModifierGroup.Negatives, "Negatives")
+        (ModifierGroup.Negatives, "Negatives"),
+        (ModifierGroup.Disabled, "Disabled")
     ];
+
+    internal static bool IsSingleplayerDisabled(ModifierModel? modifier) =>
+        modifier is Friendship or FriendshipDraft;
 
     internal static ModifierGroup Classify(ModifierModel modifier, IReadOnlySet<Type> negativeTypes)
     {

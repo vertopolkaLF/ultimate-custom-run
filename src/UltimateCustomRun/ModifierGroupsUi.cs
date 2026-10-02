@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using OpCodes = System.Reflection.Emit.OpCodes;
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Entities.UI;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
@@ -14,16 +15,23 @@ internal static class ModifierGroupsUi
 {
     private sealed class Section
     {
+        internal required ModifierGroup Group;
+        internal required VBoxContainer Root;
         internal required NButton Header;
         internal required MarginContainer Body;
+        internal required VBoxContainer ChildList;
         internal required TextureRect Arrow;
-        internal required IReadOnlyList<NRunModifierTickbox> Rows;
+        internal required List<NRunModifierTickbox> Rows;
         internal bool Expanded = true;
     }
     private sealed class Layout
     {
         internal required VBoxContainer Content;
         internal List<Section> Sections = [];
+        internal List<Control> SingleplayerDisabled = [];
+        internal Section? DisabledHome;
+        internal int HomeChildIndex;
+        internal int HomeRowIndex;
     }
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, Layout> Layouts = new();
     private static readonly Color NegativeColor = Color.FromHtml("ff6b64");
@@ -71,6 +79,7 @@ internal static class ModifierGroupsUi
             var children = rows.Where(row => row.Modifier != null && ModifierGroups.Classify(row.Modifier, negatives) == group).ToList();
             var visibleRows = children.Where(row => !ModifierVariantUi.IsHiddenVariant(row.Modifier)).ToList();
             var sectionRoot = new VBoxContainer { Name = group.ToString(), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+            if (group == ModifierGroup.Disabled) sectionRoot.Modulate = new Color(1, 1, 1, 0.6f);
             sectionRoot.AddThemeConstantOverride("separation", 4);
             var header = new NButton
             {
@@ -154,6 +163,8 @@ internal static class ModifierGroupsUi
             {
                 row.Reparent(childList);
                 row.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+                var singleplayerDisabled = ModifierGroups.IsSingleplayerDisabled(row.Modifier);
+                if (singleplayerDisabled) layout.SingleplayerDisabled.Add(row);
                 if (ModifierVariantUi.IsHiddenVariant(row.Modifier))
                 {
                     row.Visible = false;
@@ -173,13 +184,17 @@ internal static class ModifierGroupsUi
                     row.GetNode<MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel>("HBoxContainer/Description").Text = text.GetFormattedText();
                 }
                 foreach (var variantRow in variantRows.Where(variantRow => ReferenceEquals(row, variantRow.ParentRow)))
+                {
                     childList.AddChild(variantRow.Container);
+                    if (singleplayerDisabled) layout.SingleplayerDisabled.Add(variantRow.Container);
+                }
             }
             if (variantRows.Count > 0) ModifierVariantUi.InitializeChoices(list);
             LinkedModifierChains.Attach(body, visibleRows);
             var section = new Section
             {
-                Header = header, Body = body, Arrow = arrow, Rows = visibleRows
+                Group = group, Root = sectionRoot, Header = header, Body = body,
+                ChildList = childList, Arrow = arrow, Rows = visibleRows
             };
             layout.Sections.Add(section);
             header.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => Toggle(content, layout, section)));
@@ -189,10 +204,54 @@ internal static class ModifierGroupsUi
             header.FocusExited += () => highlight.Visible = false;
         }
 
+        if (layout.SingleplayerDisabled.Count > 0)
+        {
+            var first = layout.SingleplayerDisabled[0];
+            layout.DisabledHome = layout.Sections.FirstOrDefault(section => section.ChildList == first.GetParent());
+            layout.HomeChildIndex = first.GetIndex();
+            layout.HomeRowIndex = layout.DisabledHome?.Rows.FindIndex(row => layout.SingleplayerDisabled.Contains(row)) ?? 0;
+        }
         content.MinimumSizeChanged += () => Callable.From(() => ResizeContent(content)).CallDeferred();
+        ApplyMode(list, layout);
         UpdateFocus(layout);
         ResizeContent(content);
         Callable.From(() => ResizeContent(content)).CallDeferred();
+    }
+
+    internal static void ApplyMode(NCustomRunModifiersList list)
+    {
+        if (!GodotObject.IsInstanceValid(list) || !Layouts.TryGetValue(list, out var layout)) return;
+        ApplyMode(list, layout);
+        Refresh(list);
+    }
+
+    private static void ApplyMode(NCustomRunModifiersList list, Layout layout)
+    {
+        var disabled = layout.Sections.FirstOrDefault(section => section.Group == ModifierGroup.Disabled);
+        var home = layout.DisabledHome;
+        if (disabled == null) return;
+        if (home != null && layout.SingleplayerDisabled.Count > 0)
+        {
+            var mode = (MultiplayerUiMode)AccessTools.Field(typeof(NCustomRunModifiersList), "_mode").GetValue(list)!;
+            var target = mode == MultiplayerUiMode.Singleplayer ? disabled : home;
+            var source = target == home ? disabled : home;
+            if (layout.SingleplayerDisabled[0].GetParent() != target.ChildList)
+            {
+                var focus = layout.Content.GetViewport()?.GuiGetFocusOwner();
+                if (focus != null && layout.SingleplayerDisabled.Any(node => node == focus || node.IsAncestorOf(focus)))
+                    source.Header.GrabFocus();
+                var childIndex = target == home ? layout.HomeChildIndex : target.ChildList.GetChildCount();
+                foreach (var node in layout.SingleplayerDisabled)
+                {
+                    node.Reparent(target.ChildList, false);
+                    target.ChildList.MoveChild(node, Math.Min(childIndex++, target.ChildList.GetChildCount() - 1));
+                }
+                var rowIndex = target == home ? layout.HomeRowIndex : target.Rows.Count;
+                foreach (var row in layout.SingleplayerDisabled.OfType<NRunModifierTickbox>().Where(row => source.Rows.Remove(row)))
+                    target.Rows.Insert(Math.Min(rowIndex++, target.Rows.Count), row);
+            }
+        }
+        disabled.Root.Visible = disabled.Rows.Count > 0;
     }
 
     private static void Toggle(VBoxContainer content, Layout layout, Section section)
@@ -237,6 +296,7 @@ internal static class ModifierGroupsUi
 
     private static IEnumerable<Control> FocusableControls(Section section)
     {
+        if (!section.Root.Visible) yield break;
         yield return section.Header;
         if (!section.Expanded) yield break;
         foreach (var row in section.Rows)
