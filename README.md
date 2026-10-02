@@ -4,7 +4,7 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3811713944) · [Report a bug](https://github.com/vertopolkaLF/ultimate-custom-run/issues/new/choose) · [Contributing](CONTRIBUTING.md) · [GPL-3.0 license](LICENSE)
 
-**Version 1.7.0 · Pre-release · Built against game v0.111.0.** The Workshop item is currently friends-only. Source builds are available independently of Workshop access.
+**Version 1.7.0 · Pre-release · Built against game v0.111.0.** Available publicly on Steam Workshop and GitHub.
 
 ![Ultimate Custom Run artwork](image.png)
 
@@ -62,7 +62,7 @@ Variants within each family are mutually exclusive. All Star and Friendship draf
 
 ### Steam Workshop
 
-Subscribe to [Ultimate Custom Run](https://steamcommunity.com/sharedfiles/filedetails/?id=3811713944) if you have access to the friends-only item, then let Steam download it.
+Subscribe to [Ultimate Custom Run](https://steamcommunity.com/sharedfiles/filedetails/?id=3811713944), then let Steam download it.
 
 ### Local package
 
