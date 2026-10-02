@@ -53,19 +53,39 @@ Enable a modifier to reveal its slider. Original values remain the defaults.
 | Hoarder | 1–5 additional copies | 1 | 2 |
 | Midas | 150–300% of normal gold rewards | 5% | 200% |
 | Double Trouble | 2–3 bosses per act | 1 | 2 |
+| Headstart | 1–5 relics | 1 | 1 |
+| ??? | 1–10 additional Events | 1 | 3 |
+| Speedrun | 10–60 minutes before HP penalties | 5 | 30 |
+| Dill — initial max HP | 1–20 HP | 1 | 1 |
+| Dill — max HP per fight | 1–5 HP | 1 | 2 |
 
-Run Parameters use the game's defaults until a value is changed. Parameter values are saved with runs and presets, and synchronized from the co-op host.
+### Custom Run Parameters
+
+Enable **Custom Run Parameters** to configure these six settings. Values persist in runs and presets and synchronize from the co-op host. The modifier's hover tip lists only changed settings, one per line, with their current values highlighted; unchanged settings are omitted.
+
+| Parameter | Range | Step | Default |
+| --- | --- | --- | --- |
+| Floors per act | Vanilla or 8–30 total floors | 1 | Vanilla |
+| Base hand size | Vanilla or 0–10 cards | 1 | Vanilla |
+| Base energy | Vanilla or 0–10 energy | 1 | Vanilla |
+| Enemy HP | 25–500% | 25% | 100% |
+| Enemy damage | 25–500% | 25% | 100% |
+| Player HP | 25–500% | 25% | 100% |
+
+Floors per act includes the Ancient/start floor and the first boss floor. The configured total is the same in singleplayer and co-op. Double Trouble, Campfires between bosses, Double Boss, and ??? can add their own extra floors. New maps use the configured length, including maps generated after loading a run; an already-generated saved map retains its layout. Fully restart the game and start a new run to check the floor-count fix on Act 1.
+
+Base hand size replaces the normal start-of-turn draw count; the engine's hand limit remains 10 cards. Base energy replaces the normal maximum energy. Enemy damage scales damage dealt by monsters to the opposing side, excluding source-less HP loss such as event damage. Player HP scales starting current and maximum HP; Dill overrides that initial HP when selected.
 
 Normal, Draft, and Pick Any share the same value within a modifier family. Sealed Deck has two sliders: cards to choose and pool size. The first slider's maximum is always the second slider's value minus 5; reducing the pool automatically clamps the chosen-card count. Both values persist in saves, co-op settings, and presets. Extra Card Choice / Card Swarm does not enlarge the configured pool. Hoarder counts copies **in addition to** the original card and still blocks Merchant card removal. Midas uses a percentage of the normal gold reward, rounded down: 200% means twice the gold. It still blocks Smithing at Rest Sites.
 
-## New options
+## Added modifiers and variants
 
 | Option | Effect |
 | --- | --- |
 | **Neow!!** | Restores the usual starter relic choice after the other starting effects. |
 | **Double Trouble** | Fight 2–3 different Bosses at the end of every Act (step 1, default 2), with separate normal rewards from each, including the final Act. A10 does not add another boss on top of this count. The count persists in saves, presets, and co-op settings. |
 | **Campfires between bosses** | A Double Trouble submodifier, visible only while its parent is enabled. Adds a normal Rest Site between every pair of bosses (one with 2 bosses, two with 3). Off by default. Saved with runs and presets, synchronized from the co-op host, and inactive without its parent. The boss/rest chain is preserved in native map saves. |
-| **???** | Encounter 1?10 additional Events after Neow, before entering the main map (step 1, default 3). The count persists in saves and presets. Each occupies its own extra floor, uses the native shuffled, unlocked event pool, and is guaranteed to be an Event. Events with any custom appearance conditions are excluded even when those conditions currently pass; if every eligible event has already been seen, only unconditional events may repeat. The generated map and its first three floors are unchanged. Supports saving/loading and synchronized co-op progression after all players proceed. |
+| **???** | Encounter 1–10 additional Events after Neow, before entering the main map (step 1, default 3). The count persists in saves and presets. Each occupies its own extra floor, uses the native shuffled, unlocked event pool, and is guaranteed to be an Event. Events with any custom appearance conditions are excluded even when those conditions currently pass; if every eligible event has already been seen, only unconditional events may repeat. The generated map and its first three floors are unchanged. Supports saving/loading and synchronized co-op progression after all players proceed. |
 | **Headstart** | Choose 1–5 distinct relics at Neow (step 1, default 1). Uses compendium relic tiles in a searchable, scrolling selection grid with native hover tips and explicit confirmation. Includes all unlocked, character-compatible rarities, including Ancient, Event, Shop, and other available Starter relics, subject to native Neow restrictions. Circlet, Deprecated Relic, and already-owned non-stackable relics are excluded. Each co-op player chooses independently through synchronized choice indexes; normal pickup effects remain active. The count persists in saves and presets. |
 | **Ultimate Starter** | Replaces the normal basic Strikes and Defends with 3 Ultimate Strikes and 3 Ultimate Defends, preserving special starter cards such as Bash and Zap. Applies once when creating a run, for every co-op player. Draft, Sealed Deck, and Insanity replace the whole deck afterward if selected. |
 | **Super Draft** | Choose card rewards to add to your starting deck until you skip. Each card chosen has a 0.5% chance to add a random Curse to your deck, doubling with each reward. Chances above 100% add guaranteed Curses plus a chance for another. |
@@ -83,6 +103,46 @@ Normal, Draft, and Pick Any share the same value within a modifier family. Seale
 | **Card Swarm** | Card rewards contain one extra offer, including standard Draft rewards and the mod's starting drafts. Fixed tutorial rewards are unchanged. |
 
 Variants within each family are mutually exclusive. Draft, Sealed Deck, and Insanity are mutually exclusive. Super Draft adds cards after deck replacement and can be combined with those options. All Star and Friendship draft rewards can be skipped unless Must Have is enabled. Standard reward-generation hooks remain active, so other effects can modify offers; Sealed Deck keeps its configured pool size.
+
+## Included vanilla modifiers
+
+All vanilla custom-run options remain available. The following table completes the catalog alongside the added modifiers and variants above. Adjustable values use the ranges in **Adjustable values**.
+
+| Modifier | Effect |
+| --- | --- |
+| **Specialized — Normal** | Start with 1–10 copies of one random eligible card (default 5). |
+| **All Star — Normal** | Start with 1–10 random Colorless cards (default 5). |
+| **Draft** | Choose 5–20 card rewards to replace the starting deck (step 5, default 10). |
+| **Sealed Deck** | Replace the starting deck with cards chosen from a fixed offer pool; both the chosen-card count and pool size are adjustable. |
+| **Insanity** | Replace the starting deck with 5–60 random cards (step 5, default 30). |
+| **Hoarder** | Add 1–5 extra copies whenever a card enters your deck (default 2); Merchant card removal is disabled. |
+| **Flight** | Ignore paths when choosing the next room. |
+| **Vintage** | Normal enemies give relic rewards instead of card rewards. |
+| **Character card pools** | Add the selected character's cards to card rewards and eligible Merchant offerings. Includes Ironclad, Silent, Regent, Necrobinder, and Defect options. |
+| **Deadly Events** | Unknown rooms can contain Elites and are more likely to contain Treasure rooms. |
+| **Cursed Run** | Add a random Curse to the deck at the start of every Act. |
+| **Big Game Hunter** | More Elites appear; Elite card rewards contain Rare cards. |
+| **Midas** | Enemies give 150–300% of normal gold rewards (step 5%, default 200%); Smithing is disabled. |
+| **Murderous** | Players and enemies start each combat with 3 Strength. |
+| **Night Terrors** | Resting heals all HP but costs 5 max HP. |
+| **Terminal** | Lose 1 max HP on entering each new room; start each combat with 5 Plating. |
+
+## Individual Ascension modifiers
+
+Each effect can be selected independently. Names and in-game descriptions use the game's localization. Enabling one sets the run's Ascension level to 0; changing the Ascension level disables all individual Ascension modifiers while keeping the rest of the selection.
+
+| Modifier | Effect |
+| --- | --- |
+| **Swarming Elites** | Elites spawn more often. |
+| **Weary Traveler** | Ancients heal only 80% of missing HP. |
+| **Poverty** | Enemies and Treasure Chests drop 25% less Gold. |
+| **Tight Belt** | Start with one fewer potion slot. |
+| **Ascender's Bane** | Start the run Cursed. |
+| **Inflation** | Merchant card removal costs more. |
+| **Scarcity** | Rare and Upgraded cards appear less often. |
+| **Tough Enemies** | Enemies are harder to kill. |
+| **Deadly Enemies** | Enemies have deadlier attacks. |
+| **Double Boss** | Fight two bosses at the end of Act 3. With Double Trouble, its configured boss count takes precedence. |
 
 ## Install and play
 
@@ -140,7 +200,7 @@ dotnet run --project tests/Smoke -c Release
 dotnet run --project tests/Smoke -c Release '-p:Sts2Path=E:\SteamLibrary\steamapps\common\Slay the Spire 2' -- 'E:\SteamLibrary\steamapps\common\Slay the Spire 2'
 ```
 
-The smoke suite patches the installed game assembly and checks registration, save and network-property serialization, cloning, slider ranges, native count patches, Midas gold rewards, draft selection, modifier grouping, and exclusivity. It also compares modifier selection for 100 Daily seeds with and without the mod's patches.
+The smoke suite patches the installed game assembly and checks native map generation for every floor count from 8 to 30 across all acts in singleplayer and co-op, map serialization, loaded-act floor overrides, registration, save and network-property serialization, cloning, slider ranges, native count patches, Midas gold rewards, draft selection, modifier grouping, and exclusivity. It also compares modifier selection for 100 Daily seeds with and without the mod's patches.
 
 **These are managed integration checks, not an in-game playtest.** UI layout, input, actual deck acquisition, and live co-op behavior still need testing in the game. Compatibility with later game versions is not guaranteed; changed patch targets can require a mod update.
 
