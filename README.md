@@ -11,6 +11,7 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 ## Features
 
 - Collapsible modifier groups: **Improved Start**, **Modifiers**, **Card Pool**, **Ascension**, and **Negatives**. Options unavailable in singleplayer appear under **Disabled**.
+- Named modifier presets: save the current selection and slider values as a loadout, then restore it from the dropdown. Presets are stored locally.
 - **Ascension** contains all ten Ascension effects as independent options, using the game's localized titles and descriptions. For example, enable Double Boss without any other Ascension penalties. Enabling an effect sets Ascension to 0; changing Ascension disables every independent Ascension option while preserving other modifiers.
 - Native sliders with live value labels and descriptions. Use the mouse or focus a slider and press left/right to change it by one step.
 - Linked mutually exclusive choices. Specialized, All Star, and Friendship keep their variants together under one checkbox.
@@ -19,6 +20,10 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 - No BaseLib dependency or additional PCK file.
 
 ## Screenshots
+
+**Named modifier presets**
+
+![Custom Run modifier presets with a saved loadout selected](previews/modifier-presets.jpg)
 
 **Starting decks and native value sliders**
 
@@ -84,7 +89,7 @@ The repository includes the packaged DLL; you can also build it yourself using t
 
 1. Fully restart the game after installing or updating the mod.
 2. Enable **Ultimate Custom Run** in **Settings → Mod Settings**.
-3. Start a **Custom Run**, select modifiers, and adjust their values.
+3. Start a **Custom Run**, select modifiers and adjust their values. Use the loadout dropdown to restore a preset or **Save** to store the current selection.
 4. Resolve the selected starting effects at Neow.
 
 Every co-op player needs the same mod version. Only the host can change slider values. Keep one active installation: do not enable the old **SpecializedChoice** mod alongside Ultimate Custom Run, or duplicate models may conflict at startup.
