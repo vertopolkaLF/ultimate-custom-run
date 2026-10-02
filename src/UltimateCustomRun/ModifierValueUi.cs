@@ -92,6 +92,7 @@ internal static class ModifierValueUi
     {
         foreach (var modifier in modifiers)
             if (ModifierValues.For(modifier) != null) SetFamilyValue(list, modifier, ModifierValues.Get(modifier));
+        CustomRunParametersUi.ApplyIncoming(list, modifiers);
         Refresh(list);
     }
 
@@ -121,6 +122,7 @@ internal static class ModifierValueUi
             }
             finally { row.Applying = false; }
         }
+        CustomRunParametersUi.Refresh(list);
         ModifierGroupsUi.Refresh(list);
     }
 

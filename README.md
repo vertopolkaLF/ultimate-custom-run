@@ -10,7 +10,8 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 ## Features
 
-- Collapsible modifier groups: **Improved Start**, **Modifiers**, **Card Pool**, **Ascension**, and **Negatives**. Options unavailable in singleplayer appear under **Disabled**.
+- Collapsible modifier groups: **Improved Start**, **Run Parameters**, **Modifiers**, **Card Pool**, **Ascension**, and **Negatives**. Options unavailable in singleplayer appear under **Disabled**.
+- **Run Parameters** can set bosses per act (vanilla, 1, or 2), floors per act (vanilla or 8–30), base hand size (vanilla or 0–15), base energy (vanilla or 0–10), and enemy HP, enemy damage, and player HP multipliers (25–500%, step 25%).
 - Named modifier presets: save the current selection and slider values as a loadout, then restore it from the dropdown. Presets are stored locally.
 - **Ascension** contains all ten Ascension effects as independent options, using the game's localized titles and descriptions. For example, enable Double Boss without any other Ascension penalties. Enabling an effect sets Ascension to 0; changing Ascension disables every independent Ascension option while preserving other modifiers.
 - Native sliders with live value labels and descriptions. Use the mouse or focus a slider and press left/right to change it by one step.
@@ -48,6 +49,8 @@ Enable a modifier to reveal its slider. Original values remain the defaults.
 | Insanity | 5–60 cards | 5 | 30 |
 | Hoarder | 1–5 additional copies | 1 | 2 |
 | Midas | 150–300% of normal gold rewards | 5% | 200% |
+
+Run Parameters use the game's defaults until a value is changed. The boss setting supports one or two bosses because the native act map has a primary and a second boss slot. Parameter values are saved with runs and presets, and synchronized from the co-op host.
 
 Normal, Draft, and Pick Any share the same value within a modifier family. Sealed Deck still offers a pool of 30 cards. Hoarder counts copies **in addition to** the original card and still blocks Merchant card removal. Midas uses a percentage of the normal gold reward, rounded down: 200% means twice the gold. It still blocks Smithing at Rest Sites.
 

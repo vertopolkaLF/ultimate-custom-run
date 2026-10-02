@@ -195,6 +195,8 @@ internal static class ModifierGroupsUi
                     childList.AddChild(valueRow);
                     if (singleplayerDisabled) layout.SingleplayerDisabled.Add(valueRow);
                 }
+                if (CustomRunParametersUi.Create(list, row) is { } parameterRows)
+                    childList.AddChild(parameterRows);
             }
             if (variantRows.Count > 0) ModifierVariantUi.InitializeChoices(list);
             LinkedModifierChains.Attach(body, visibleRows);

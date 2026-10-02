@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm;
+        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -36,6 +36,7 @@ internal static class ModifierListPatch
             [ModelDb.Modifier<Friendship>().ToMutable(), ModelDb.Modifier<FriendshipDraft>().ToMutable()]);
         ordered.AddRange([ModelDb.Modifier<RichLoot>().ToMutable(), ModelDb.Modifier<CardSwarm>().ToMutable()]);
         ordered.Add(ModelDb.Modifier<NeowStarterChoice>().ToMutable());
+        ordered.Add(ModelDb.Modifier<CustomRunParameters>().ToMutable());
         ordered.AddRange(AscensionModifiers.Create());
         // Its relic must be granted before start-of-run card reward modifiers resolve.
         ordered.Insert(0, ModelDb.Modifier<ColorlessCards>().ToMutable());
@@ -74,6 +75,8 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<RichLoot>().Entry + ".description"] = RichLoot.DisplayDescription,
             [ModelDb.GetId<CardSwarm>().Entry + ".title"] = CardSwarm.DisplayTitle,
             [ModelDb.GetId<CardSwarm>().Entry + ".description"] = CardSwarm.DisplayDescription,
+            [ModelDb.GetId<CustomRunParameters>().Entry + ".title"] = CustomRunParameters.DisplayTitle,
+            [ModelDb.GetId<CustomRunParameters>().Entry + ".description"] = CustomRunParameters.DisplayDescription,
             [ModifierVariantUi.NormalLabelKey] = "Normal",
             [ModifierVariantUi.DraftLabelKey] = "Draft",
             [ModifierVariantUi.DraftDescriptionKey] = "Card reward instead of random",
