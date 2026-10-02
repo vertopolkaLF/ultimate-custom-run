@@ -12,7 +12,7 @@ namespace UltimateCustomRun;
 public sealed class SuperDraft : ModifierModel
 {
     internal const string DisplayTitle = "Super Draft";
-    internal const string DisplayDescription = "Add card rewards to your starting deck until you pass. Each pick risks a Curse: [blue]0.5%[/blue], doubling each offer. At [blue]128%[/blue], gain one guaranteed Curse plus a [blue]28%[/blue] chance of another. Passing adds no Curse; each player drafts independently.";
+    internal const string DisplayDescription = "Choose card rewards to add to your starting deck until you skip. Each card chosen has a [blue]0.5%[/blue] chance to add a random [red]Curse[/red] to your deck, doubling with each reward. Chances above [blue]100%[/blue] add guaranteed [red]Curses[/red] plus a chance for another.";
     protected override string IconPath => ImageHelper.GetImagePath("packed/modifiers/draft.png");
     public override Func<Task>? GenerateNeowOption(EventModel eventModel) =>
         eventModel.Owner is { } player ? () => OfferRewards(player) : null;
