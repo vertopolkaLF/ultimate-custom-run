@@ -34,6 +34,7 @@ internal static class ModifierValues
         Insanity => new(5, 60, 5, 30, "cards"),
         Hoarder => new(1, 5, 1, 2, "extra copies"),
         Midas => new(150, 300, 5, 200, "% gold"),
+        Speedrun => new(10, 60, 5, 30, "minutes"),
         _ => null
     };
 

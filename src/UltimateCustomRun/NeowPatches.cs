@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave;
+        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -39,6 +39,7 @@ internal static class ModifierListPatch
         ordered.InsertRange(startIndex < 0 ? ordered.Count : startIndex + 1,
             [ModelDb.Modifier<SuperDraft>().ToMutable()]);
         ordered.Add(ModelDb.Modifier<MustHave>().ToMutable());
+        ordered.Add(ModelDb.Modifier<Speedrun>().ToMutable());
         ordered.Add(ModelDb.Modifier<NeowStarterChoice>().ToMutable());
         ordered.Add(ModelDb.Modifier<CustomRunParameters>().ToMutable());
         ordered.AddRange(AscensionModifiers.Create());
@@ -83,6 +84,8 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<SuperDraft>().Entry + ".description"] = SuperDraft.DisplayDescription,
             [ModelDb.GetId<MustHave>().Entry + ".title"] = MustHave.DisplayTitle,
             [ModelDb.GetId<MustHave>().Entry + ".description"] = MustHave.DisplayDescription,
+            [ModelDb.GetId<Speedrun>().Entry + ".title"] = Speedrun.DisplayTitle,
+            [ModelDb.GetId<Speedrun>().Entry + ".description"] = Speedrun.DisplayDescription,
             [ModelDb.GetId<CustomRunParameters>().Entry + ".title"] = CustomRunParameters.DisplayTitle,
             [ModelDb.GetId<CustomRunParameters>().Entry + ".description"] = CustomRunParameters.DisplayDescription,
             [ModifierVariantUi.NormalLabelKey] = "Normal",

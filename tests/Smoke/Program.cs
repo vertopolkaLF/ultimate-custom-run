@@ -79,6 +79,7 @@ internal static class Program
             TestDailyIsolation();
             TestSuperModifiers();
             TestSealedSliders();
+            TestSpeedrun();
         }
         finally
         {
@@ -114,7 +115,7 @@ internal static class Program
             typeof(Insanity), typeof(AllStar), typeof(Flight), typeof(Vintage), typeof(CharacterCards), typeof(NeowStarterChoice),
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
-            typeof(SuperDraft), typeof(MustHave),
+            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun),
             typeof(MegaCrit.Sts2.Core.Models.Relics.DingyRug),
             typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents), typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Ironclad), typeof(MegaCrit.Sts2.Core.Models.Characters.Silent),
@@ -576,6 +577,73 @@ internal static class Program
             "Super Sealed is removed from the Custom Run menu");
         Check(ModifierValues.Get(canonical) == 10 && ModifierValues.GetSealedPool(canonical) == 30,
             "Custom Sealed Deck settings do not leak into canonical Daily defaults");
+    }
+
+    private static void TestSpeedrun()
+    {
+        var canonical = ModelDb.Modifier<Speedrun>();
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(10, 60, 5, 30, "minutes"),
+            "Speedrun limit uses 10..60 minutes, step 5, default 30");
+        Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.Negatives &&
+            ModifierListPatch.IsCustomOnly(canonical) &&
+            ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<Speedrun>().Count() == 1,
+            "Speedrun appears once under Negatives and stays out of Daily pools");
+        foreach (var limit in Enumerable.Range(0, 11).Select(index => 10 + index * 5))
+        {
+            Check(Speedrun.DueMinutes(limit * 60 - 1, limit) == 0 &&
+                Speedrun.DueMinutes(limit * 60, limit) == 0 &&
+                Speedrun.DueMinutes(limit * 60 + 59, limit) == 0 &&
+                Speedrun.DueMinutes((limit + 1) * 60, limit) == 1 &&
+                Speedrun.DueMinutes((limit + 4) * 60 + 59, limit) == 4,
+                "Speedrun charges only full minutes after limit " + limit);
+            var model = canonical.ToMutable();
+            ModifierValues.Set(model, limit);
+            ((Speedrun)model).SpeedrunPenaltyMinutes = 4;
+            var saved = model.ToSerializable();
+            var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+            saved.Serialize(writer);
+            var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+            reader.Reset(writer.Buffer);
+            foreach (var restored in new[] { ModifierModel.FromSerializable(saved),
+                ModifierModel.FromSerializable(reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>()),
+                (ModifierModel)model.MutableClone() })
+                Check(restored is Speedrun speedrun && speedrun.SpeedrunPenaltyMinutes == 4 &&
+                    ModifierValues.Get(restored) == limit,
+                    "Speedrun limit and paid penalties survive save, network and clone: " + limit);
+        }
+        var adjustable = canonical.ToMutable();
+        ModifierValues.Set(adjustable, 33);
+        Check(ModifierValues.Get(adjustable) == 35, "Speedrun limit snaps to five-minute steps");
+        ModifierValues.Set(adjustable, int.MinValue);
+        Check(ModifierValues.Get(adjustable) == 10, "Speedrun clamps its lower limit");
+        ModifierValues.Set(adjustable, int.MaxValue);
+        Check(ModifierValues.Get(adjustable) == 60 && ModifierValues.Get(canonical) == 30,
+            "Speedrun clamps its upper limit without changing canonical defaults");
+        var pulseWriter = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+        new NetSpeedrunPenaltyAction { Due = 7 }.Serialize(pulseWriter);
+        var pulseReader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+        pulseReader.Reset(pulseWriter.Buffer);
+        var pulse = new NetSpeedrunPenaltyAction();
+        pulse.Deserialize(pulseReader);
+        Check(pulse.Due == 7, "Host penalty count survives network serialization");
+        var penalties = (Speedrun)canonical.ToMutable();
+        var lostHp = 0;
+        Task LoseHp() { lostHp += Speedrun.HpLoss; return Task.CompletedTask; }
+        penalties.ApplyMinutes(3, LoseHp, () => false).GetAwaiter().GetResult();
+        Check(lostHp == 15 && penalties.SpeedrunPenaltyMinutes == 3,
+            "Delayed timer applies five HP for each overdue minute");
+        var resumed = (Speedrun)ModifierModel.FromSerializable(penalties.ToSerializable());
+        resumed.ApplyMinutes(3, LoseHp, () => false).GetAwaiter().GetResult();
+        resumed.ApplyMinutes(2, LoseHp, () => false).GetAwaiter().GetResult();
+        Check(lostHp == 15, "Reloads and repeated or stale pulses do not charge paid minutes again");
+        resumed.ApplyMinutes(5, LoseHp, () => false).GetAwaiter().GetResult();
+        Check(lostHp == 25 && resumed.SpeedrunPenaltyMinutes == 5,
+            "Resumed timer charges only newly elapsed minutes");
+        resumed.ApplyMinutes(8, LoseHp, () => lostHp >= 30).GetAwaiter().GetResult();
+        Check(lostHp == 30 && resumed.SpeedrunPenaltyMinutes == 6,
+            "Pending penalties stop as soon as the run ends");
+        Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.TopBar.NRunTimer), "OnTimerTimeout"))
+            ?.Owners.Contains(ModEntry.HarmonyId) == true, "Native one-second run timer is patched");
     }
 
     private static void Check(bool condition, string message)

@@ -139,7 +139,7 @@ internal static class ModifierValueUi
                 var russian = LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
                 var unit = russian ? row.Spec.Unit switch
                 {
-                    "cards" => "карт", "offers" => "карт в пуле", "extra copies" => "доп. копий", _ => "% золота"
+                    "cards" => "карт", "offers" => "карт в пуле", "extra copies" => "доп. копий", "minutes" => "мин.", _ => "% золота"
                 } : row.Spec.Unit;
                 if (!row.Pool && row.Parent.Modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
                     unit = russian ? "карт в колоду" : "cards to choose";

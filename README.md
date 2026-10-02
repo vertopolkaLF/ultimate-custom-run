@@ -63,6 +63,7 @@ Normal, Draft, and Pick Any share the same value within a modifier family. Seale
 | **Neow!!** | Restores the usual starter relic choice after the other starting effects. |
 | **Super Draft** | Add card rewards to your starting deck until you pass. Each pick risks a Curse: 0.5%, doubling each offer. At 128%, gain one guaranteed Curse plus a 28% chance of another. Passing adds no Curse; each player drafts independently. |
 | **Must Have (negative)** | Requires taking a card from every card reward before leaving. Rerolls remain available; non-card rewards remain optional. Passing during Super Draft is allowed. |
+| **Speedrun (negative)** | Every full minute after the selected time limit, lose 5 HP. Limit: 10–60 minutes, step 5, default 30. Uses the native run timer, including its singleplayer pause behavior. Elapsed time and applied penalties persist in saves; the host schedules penalties for all players in co-op. |
 | **Specialized — Normal** | Adds the selected number of copies of a random eligible card. |
 | **Specialized — Draft** | Choose one Card Reward, then add the selected number of copies. Skipping adds no cards. |
 | **Specialized — Pick Any** | Choose an eligible common, uncommon, or rare card from your character's pool, then add the selected number of copies. |
