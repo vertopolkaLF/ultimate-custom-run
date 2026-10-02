@@ -38,6 +38,8 @@ internal static class ModifierValues
         Speedrun => new(10, 60, 5, 30, "minutes"),
         Dill => new(1, 20, 1, 1, "initial max HP"),
         Headstart => new(1, 5, 1, 1, "relics"),
+        RichLoot => new(1, 3, 1, 1, "extra relics"),
+        CardSwarm => new(1, 3, 1, 1, "extra cards"),
         MysteryEvents => new(1, 10, 1, MysteryEvents.EventCount, "events"),
         _ => null
     };
@@ -168,6 +170,15 @@ internal static class ModifierValues
                 var key = __result.LocEntryKey + $".ultimate_parameters_{values.FloorsPerAct}_{values.BaseHandSize}_{values.BaseEnergy}_{values.EnemyHpPercent}_{values.EnemyDamagePercent}_{values.PlayerHpPercent}";
                 LocManager.Instance.GetTable(__result.LocTable).MergeWith(new Dictionary<string, string>
                     { [key] = CustomRunParametersUi.DescriptionText(values, russian) });
+                __result = new LocString(__result.LocTable, key);
+                return;
+            }
+            if (__instance is RichLoot or CardSwarm)
+            {
+                var count = Get(__instance);
+                var key = __result.LocEntryKey + ".ultimate_reward_" + count;
+                var text = __instance is RichLoot ? RichLoot.DescriptionText(count) : CardSwarm.DescriptionText(count);
+                LocManager.Instance.GetTable(__result.LocTable).MergeWith(new Dictionary<string, string> { [key] = text });
                 __result = new LocString(__result.LocTable, key);
                 return;
             }

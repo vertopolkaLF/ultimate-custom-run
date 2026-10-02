@@ -12,14 +12,15 @@ public sealed class CardSwarm : ModifierModel
 {
     internal const string DisplayTitle = "Card Swarm";
     internal const string DisplayDescription = "Card rewards contain [blue]1[/blue] extra card.";
-    internal const int ExtraCards = 1;
+    internal static string DescriptionText(int count) =>
+        $"Card rewards contain [blue]{count}[/blue] extra {(count == 1 ? "card" : "cards")}.";
     protected override string IconPath => ImageHelper.GetImagePath("packed/modifiers/draft.png");
 
     internal static bool IsActive(IRunState runState) =>
         runState.Modifiers.Any(modifier => modifier is CardSwarm);
 
     internal static int OfferCount(Player player, int baseCount) =>
-        IsActive(player.RunState) ? baseCount + ExtraCards : baseCount;
+        IsActive(player.RunState) ? baseCount + ModifierValues.ForPlayer<CardSwarm>(player) : baseCount;
 }
 
 // The saved OptionCount stays vanilla; extending only at generation time keeps reloads from stacking extra cards.

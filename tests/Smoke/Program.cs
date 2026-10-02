@@ -26,11 +26,11 @@ internal static class Program
             var path = Path.Combine(dataPath, name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        Run(args.Contains("--ascension-only"), args.Contains("--boss-chain-only"));
+        Run(args.Contains("--ascension-only"), args.Contains("--boss-chain-only"), args.Contains("--reward-sliders-only"));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Run(bool ascensionOnly, bool bossChainOnly)
+    private static void Run(bool ascensionOnly, bool bossChainOnly, bool rewardSlidersOnly)
     {
         var assembly = typeof(ModEntry).Assembly;
         Check(assembly.GetName().Name == "UltimateCustomRun" && typeof(ModEntry).Namespace == "UltimateCustomRun" &&
@@ -72,6 +72,13 @@ internal static class Program
                 "Both new modifiers provide their own Neow buttons");
 
             TestNeowModifier();
+            if (rewardSlidersOnly)
+            {
+                TestModifierValues();
+                TestRewardSliders();
+                Console.WriteLine("PASS: managed reward slider checks. Slider and relic layout visuals require an in-game playtest.");
+                return;
+            }
             if (bossChainOnly)
             {
                 TestDoubleTrouble();
@@ -87,6 +94,7 @@ internal static class Program
             TestGroups();
             TestSpecializedVariants();
             TestModifierValues();
+            TestRewardSliders();
             TestRadioChains();
             TestColorlessCards();
             TestAscensionModifiers();
@@ -301,7 +309,9 @@ internal static class Program
             (ModelDb.Modifier<SealedDeck>(), 5, 25, 5, 10),
             (ModelDb.Modifier<Insanity>(), 5, 60, 5, 30),
             (ModelDb.Modifier<Hoarder>(), 1, 5, 1, 2),
-            (ModelDb.Modifier<Midas>(), 150, 300, 5, 200)
+            (ModelDb.Modifier<Midas>(), 150, 300, 5, 200),
+            (ModelDb.Modifier<RichLoot>(), 1, 3, 1, 1),
+            (ModelDb.Modifier<CardSwarm>(), 1, 3, 1, 1)
         };
         foreach (var (canonical, min, max, step, defaultValue) in cases)
         {
@@ -360,6 +370,53 @@ internal static class Program
                 instruction.operand is MethodInfo method && method.DeclaringType == typeof(ModifierValues) &&
                 method.Name is nameof(ModifierValues.ForPlayer) or nameof(ModifierValues.Get)) == 1,
                 target.Type.Name + " gameplay replaces exactly one count with the configured resolver");
+        }
+    }
+
+    private static void TestRewardSliders()
+    {
+        var player = (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player));
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
+        AccessTools.Field(typeof(RunState), "_players").SetValue(run, new List<Player> { player });
+        var loot = ModelDb.Modifier<RichLoot>().ToMutable();
+        var swarm = ModelDb.Modifier<CardSwarm>().ToMutable();
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new[] { loot, swarm });
+        for (var count = 1; count <= 3; count++)
+        {
+            ModifierValues.Set(loot, count);
+            ModifierValues.Set(swarm, count);
+            Check(CardSwarm.OfferCount(player, 3) == 3 + count && CardSwarm.OfferCount(player, 5) == 5 + count,
+                $"Card Swarm adds {count} cards to different base reward sizes");
+            for (var players = 1; players <= 4; players++)
+            {
+                var relics = Enumerable.Repeat(MegaCrit.Sts2.Core.Factories.RelicFactory.FallbackRelic, players).ToList();
+                var rng = new MegaCrit.Sts2.Core.Random.Rng(42u);
+                RichLootChestPatch.Postfix(relics, run, new RelicGrabBag(), rng);
+                Check(relics.Count == players + count, $"Rich Loot adds {count} relic choices to a chest with {players} base choices");
+                var expectedRng = new MegaCrit.Sts2.Core.Random.Rng(42u);
+                for (var i = 0; i < count; i++) MegaCrit.Sts2.Core.Factories.RelicFactory.RollRarity(expectedRng);
+                Check(rng.NextFloat() == expectedRng.NextFloat(), "Extra relics use exactly one native rarity roll each");
+            }
+            var empty = new List<RelicModel>();
+            RichLootChestPatch.Postfix(empty, run, new RelicGrabBag(), new MegaCrit.Sts2.Core.Random.Rng(42u));
+            Check(empty.Count == 0, "Rich Loot preserves empty chests");
+        }
+        Check(RichLoot.DescriptionText(1) == RichLoot.DisplayDescription &&
+            CardSwarm.DescriptionText(1) == CardSwarm.DisplayDescription,
+            "Default reward descriptions preserve existing behavior");
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, Array.Empty<ModifierModel>());
+        var vanilla = new List<RelicModel> { MegaCrit.Sts2.Core.Factories.RelicFactory.FallbackRelic };
+        RichLootChestPatch.Postfix(vanilla, run, new RelicGrabBag(), new MegaCrit.Sts2.Core.Random.Rng(42u));
+        Check(vanilla.Count == 1 && CardSwarm.OfferCount(player, 3) == 3,
+            "Runs without the reward modifiers retain their original counts");
+        for (var count = 5; count <= 7; count++)
+        {
+            var positions = Enumerable.Range(0, count).Select(index => RichLootHolderPatch.PositionFor(index, count,
+                new Godot.Vector2(-148, -180), new Godot.Vector2(12, 44), new Godot.Vector2(-388, -68))).ToArray();
+            Check(positions.Distinct().Count() == count && positions.All(position => positions.All(other =>
+                position == other || Math.Abs(position.X - other.X) >= 136 || Math.Abs(position.Y - other.Y) >= 136)),
+                $"All {count} relic holders have distinct, non-overlapping positions");
         }
     }
 
