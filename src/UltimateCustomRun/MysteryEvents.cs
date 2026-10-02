@@ -45,6 +45,25 @@ public sealed class MysteryEvents : ModifierModel
     private void ResetTransientState() { _ready = []; _requested = false; }
 
     internal static MysteryEvents? For(IRunState? state) => state?.Modifiers.OfType<MysteryEvents>().FirstOrDefault();
+    internal static bool IsUnconditionalEvent(EventModel eventModel) => eventModel is not AncientEventModel &&
+        eventModel.GetType().GetMethod(nameof(EventModel.IsAllowed))?.DeclaringType == typeof(EventModel);
+
+    internal static int SelectEventIndex(IReadOnlyList<EventModel> events, int start, IReadOnlySet<ModelId> visited)
+    {
+        var repeat = -1;
+        for (var offset = 0; offset < events.Count; offset++)
+        {
+            var index = (start % events.Count + offset) % events.Count;
+            var candidate = events[index];
+            if (!IsUnconditionalEvent(candidate)) continue;
+            if (!visited.Contains(candidate.Id)) return index;
+            if (repeat < 0) repeat = index;
+        }
+        // Repeats are preferable to letting the native exhaustion fallback pick
+        // an event with prerequisites. Never broaden this pool after exhaustion.
+        if (repeat >= 0) return repeat;
+        throw new InvalidOperationException("??? has no unconditional events in the unlocked event pool.");
+    }
     internal static bool BeforeMainMap(IRunState state) => state.CurrentActIndex == 0 &&
         state.CurrentMapCoord == state.Map.StartingMapPoint.coord;
     internal bool IsExtraRoom(IRunState state) => MysteryStage > 0 && BeforeMainMap(state);
@@ -94,6 +113,20 @@ public sealed class MysteryEvents : ModifierModel
     // History includes the extra floors, while map coordinates never change.
     internal static int HistoryIndex(IRunState state, int actIndex, int row) => row +
         (actIndex == 0 && row > 0 && For(state) is { } modifier ? Math.Min(modifier.MysteryStage, EventCount) : 0);
+}
+
+[HarmonyPatch(typeof(RoomSet), nameof(RoomSet.EnsureNextEventIsValid))]
+internal static class MysteryEventPoolPatch
+{
+    [HarmonyPrefix]
+    internal static bool Prefix(RoomSet __instance, RunState __0)
+    {
+        if (MysteryEvents.For(__0)?.IsExtraRoom(__0) != true) return true;
+        var index = MysteryEvents.SelectEventIndex(__instance.events, __instance.eventsVisited, __0.VisitedEventIds);
+        var currentIndex = __instance.eventsVisited % __instance.events.Count;
+        __instance.eventsVisited += (index - currentIndex + __instance.events.Count) % __instance.events.Count;
+        return false;
+    }
 }
 
 internal sealed class MysteryProceedAction(Player player, int stage) : GameAction

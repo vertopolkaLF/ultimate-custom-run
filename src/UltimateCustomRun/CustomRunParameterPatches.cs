@@ -122,9 +122,10 @@ internal static class CustomRunEnemyDamagePatch
         ?? throw new MissingMethodException(typeof(Hook).FullName, "ModifyDamage");
 
     [HarmonyPostfix]
-    private static void Postfix(IRunState runState, Creature dealer, Creature target, ref decimal __result)
+    internal static void Postfix(IRunState runState, Creature? dealer, Creature target, ref decimal __result)
     {
-        if (!dealer.IsMonster || dealer.Side == target.Side) return;
+        // Event HP loss and other source-less damage have no dealer.
+        if (dealer == null || !dealer.IsMonster || dealer.Side == target.Side) return;
         var percent = CustomRunParameterValuesStore.From(runState.Modifiers).EnemyDamagePercent;
         if (percent != 100) __result *= percent / 100m;
     }

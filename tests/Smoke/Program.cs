@@ -141,6 +141,7 @@ internal static class Program
             typeof(MegaCrit.Sts2.Core.Models.Characters.Ironclad), typeof(MegaCrit.Sts2.Core.Models.Characters.Silent),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Regent), typeof(MegaCrit.Sts2.Core.Models.Characters.Necrobinder), typeof(MegaCrit.Sts2.Core.Models.Characters.Defect),
             typeof(MegaCrit.Sts2.Core.Models.CardPools.ColorlessCardPool), typeof(Neow),
+            typeof(TabletOfTruth), typeof(AromaOfChaos), typeof(SunkenStatue), typeof(DenseVegetation), typeof(UnrestSite),
             typeof(SwarmingElites), typeof(WearyTraveler), typeof(Poverty), typeof(TightBelt), typeof(UltimateCustomRun.AscendersBane),
             typeof(Inflation), typeof(Scarcity), typeof(ToughEnemies), typeof(DeadlyEnemies), typeof(DoubleBoss)]);
         Check(ModelDb.All.Count(model => model is NeowStarterChoice) == 1,
@@ -995,6 +996,42 @@ internal static class Program
 
     private static void TestMysteryEvents()
     {
+        var hpLossDamage = 3m;
+        CustomRunEnemyDamagePatch.Postfix(null!, null,
+            (MegaCrit.Sts2.Core.Entities.Creatures.Creature)RuntimeHelpers.GetUninitializedObject(
+                typeof(MegaCrit.Sts2.Core.Entities.Creatures.Creature)), ref hpLossDamage);
+        Check(hpLossDamage == 3m,
+            "Source-less event damage (Tablet of Truth max-HP loss) neither crashes nor receives enemy scaling");
+
+        var tablet = ModelDb.Event<TabletOfTruth>();
+        var aroma = ModelDb.Event<AromaOfChaos>();
+        var statue = ModelDb.Event<SunkenStatue>();
+        var vegetation = ModelDb.Event<DenseVegetation>();
+        var unrest = ModelDb.Event<UnrestSite>();
+        Check(MysteryEvents.IsUnconditionalEvent(tablet) && MysteryEvents.IsUnconditionalEvent(aroma) &&
+            MysteryEvents.IsUnconditionalEvent(statue) && !MysteryEvents.IsUnconditionalEvent(vegetation) &&
+            !MysteryEvents.IsUnconditionalEvent(unrest) && !MysteryEvents.IsUnconditionalEvent(ModelDb.Event<Neow>()),
+            "??? excludes conditional and Ancient events while retaining unconditional Tablet of Truth");
+        var pool = new EventModel[] { vegetation, tablet, unrest, aroma, statue };
+        var seen = new HashSet<ModelId>();
+        var selected = new List<ModelId>();
+        var cursor = 0;
+        for (var floor = 0; floor < 3; floor++)
+        {
+            var index = MysteryEvents.SelectEventIndex(pool, cursor, seen);
+            selected.Add(pool[index].Id);
+            seen.Add(pool[index].Id);
+            cursor = index + 1;
+        }
+        Check(selected.SequenceEqual(new[] { tablet.Id, aroma.Id, statue.Id }),
+            "Three extra floors skip every conditional event and visit distinct safe events in seeded pool order");
+        Check(MysteryEvents.SelectEventIndex(pool, cursor, seen) == 1,
+            "Exhausted pools repeat an unconditional event instead of falling back to a forbidden event");
+        var emptyRejected = false;
+        try { MysteryEvents.SelectEventIndex([vegetation, unrest], 0, seen); }
+        catch (InvalidOperationException) { emptyRejected = true; }
+        Check(emptyRejected, "A pool with no unconditional events fails explicitly instead of selecting a conditional event");
+
         var canonical = ModelDb.Modifier<MysteryEvents>();
         Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
             ModifierListPatch.IsCustomOnly(canonical) &&
@@ -1054,6 +1091,22 @@ internal static class Program
         var pulse = new NetMysteryProceedAction();
         pulse.Deserialize(pulseReader);
         Check(pulse.Stage == 2, "Co-op proceed actions preserve their expected event stage");
+        var roomSet = new MegaCrit.Sts2.Core.Rooms.RoomSet();
+        roomSet.events.AddRange(pool);
+        Check(MysteryEventPoolPatch.Prefix(roomSet, run) && roomSet.eventsVisited == 0,
+            "Ordinary map event selection retains the native pool and cursor");
+        AccessTools.Field(typeof(RunState), "_visitedMapCoords").SetValue(run,
+            new List<MegaCrit.Sts2.Core.Map.MapCoord> { new(0, 0) });
+        AccessTools.Field(typeof(RunState), "_visitedEventIds").SetValue(run, new HashSet<ModelId>());
+        AccessTools.Field(typeof(RunState), "_players").SetValue(run,
+            new List<Player> { (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player)) });
+        modifier.MysteryStage = 1;
+        Check(vegetation.IsAllowed(run) && !MysteryEventPoolPatch.Prefix(roomSet, run) && roomSet.NextEvent.Id == tablet.Id,
+            "??? excludes an event with spawn conditions even when those conditions currently pass");
+        roomSet.eventsVisited = 5;
+        AccessTools.Field(typeof(RunState), "_visitedEventIds").SetValue(run, seen);
+        Check(!MysteryEventPoolPatch.Prefix(roomSet, run) && roomSet.eventsVisited == 6 && roomSet.NextEvent.Id == tablet.Id,
+            "Native extra-event selection wraps the shuffled pool while preserving its visit counter");
         foreach (var target in new[] {
             AccessTools.Method(typeof(RunManager), nameof(RunManager.LoadIntoLatestMapCoord)),
             AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.Screens.Map.NNormalMapPoint), "UpdateIcon"),
