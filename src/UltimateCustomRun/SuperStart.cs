@@ -1,16 +1,9 @@
-using System.Globalization;
-using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
-using MegaCrit.Sts2.Core.Factories;
-using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Helpers;
-using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.CardPools;
-using MegaCrit.Sts2.Core.Models.Relics;
-using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Runs;
 
@@ -46,48 +39,11 @@ public sealed class SuperDraft : ModifierModel
             {
                 var canonical = player.PlayerRng.Rewards.NextItem(ModelDb.CardPool<CurseCardPool>()
                     .GetUnlockedCards(player.UnlockState, player.RunState.CardMultiplayerConstraint)
-                    .Where(card => card.CanBeGeneratedByModifiers));
+                    .Where(card => card.CanBeGeneratedByModifiers))
+                    ?? throw new InvalidOperationException("Super Draft has no eligible Curses.");
                 var curse = player.RunState.CreateCard(canonical, player);
                 CardCmd.PreviewCardPileAdd(await CardPileCmd.Add(curse, PileType.Deck));
             }
         }
-    }
-}
-
-public sealed class SuperSealed : ModifierModel
-{
-    internal const string DisplayTitle = "Super Sealed";
-    internal const string DisplayDescription = "Replace your starting deck by choosing exactly [blue]15[/blue] cards from a pool of [blue]50[/blue]. Extra Card Choice does not increase this fixed pool.";
-    internal const int PoolSize = 50;
-    internal const int DeckSize = 15;
-    internal const string PromptKey = "SUPER_SEALED.selectionPrompt";
-    public override bool ClearsPlayerDeck => true;
-    protected override string IconPath => ImageHelper.GetImagePath("packed/modifiers/sealed_deck.png");
-    public override Func<Task>? GenerateNeowOption(EventModel eventModel) =>
-        eventModel.Owner is { } player ? () => ChooseCards(player) : null;
-
-    internal static CardCreationOptions Options(CardPoolModel pool) =>
-        new CardCreationOptions([pool], CardCreationSource.Other,
-            CardRarityOddsType.RegularEncounter).WithFlags(CardCreationFlags.NoUpgradeRoll |
-                CardCreationFlags.ForceRarityOddsChange | CardCreationFlags.IsCardReward | CardCreationFlags.NoModifyHooks);
-
-    private static async Task ChooseCards(Player player)
-    {
-        // Generate directly, outside CardReward.Populate, to keep the pool fixed at fifty.
-        var pool = CardFactory.CreateForReward(player, PoolSize, Options(player.Character.CardPool)).ToList();
-        if (pool.Count != PoolSize) throw new InvalidOperationException("Super Sealed requires exactly fifty offers.");
-        var prefs = new CardSelectorPrefs(new LocString("modifiers", PromptKey), DeckSize)
-        {
-            Cancelable = false, RequireManualConfirmation = true,
-            Comparison = (left, right) => left.Rarity != right.Rarity
-                ? left.Rarity.CompareTo(right.Rarity)
-                : string.Compare(left.Title, right.Title, LocManager.Instance.CultureInfo, CompareOptions.None)
-        };
-        var cards = (await CardSelectCmd.FromSimpleGridForRewards(
-            new BlockingPlayerChoiceContext(), pool, player, prefs)).ToList();
-        if (cards.Count != DeckSize) throw new InvalidOperationException("Super Sealed requires exactly fifteen picks.");
-        CardCmd.PreviewCardPileAdd(await CardPileCmd.Add(cards, PileType.Deck), 1.2f, CardPreviewStyle.GridLayout);
-        foreach (var participant in player.RunState.Players) participant.RelicGrabBag.Remove<PandorasBox>();
-        player.RunState.SharedRelicGrabBag.Remove<PandorasBox>();
     }
 }

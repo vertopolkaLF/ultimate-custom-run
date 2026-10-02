@@ -15,6 +15,7 @@ internal sealed class ModifierPresetEntry
 {
     public string Id { get; set; } = string.Empty;
     public int? Value { get; set; }
+    public int? SealedPoolSize { get; set; }
 }
 
 internal static class ModifierPresetStore
@@ -38,6 +39,8 @@ internal static class ModifierPresetStore
         {
             var entry = new ModifierPresetEntry { Id = modifier.Id.ToString() };
             if (ModifierValues.For(modifier) != null) entry.Value = ModifierValues.Get(modifier);
+            if (modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
+                entry.SealedPoolSize = ModifierValues.GetSealedPool(modifier);
             preset.Modifiers.Add(entry);
         }
 

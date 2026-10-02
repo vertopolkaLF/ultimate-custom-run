@@ -78,6 +78,7 @@ internal static class Program
             TestAscensionModifiers();
             TestDailyIsolation();
             TestSuperModifiers();
+            TestSealedSliders();
         }
         finally
         {
@@ -113,7 +114,7 @@ internal static class Program
             typeof(Insanity), typeof(AllStar), typeof(Flight), typeof(Vintage), typeof(CharacterCards), typeof(NeowStarterChoice),
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
-            typeof(SuperDraft), typeof(SuperSealed), typeof(MustHave),
+            typeof(SuperDraft), typeof(MustHave),
             typeof(MegaCrit.Sts2.Core.Models.Relics.DingyRug),
             typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents), typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Ironclad), typeof(MegaCrit.Sts2.Core.Models.Characters.Silent),
@@ -260,7 +261,7 @@ internal static class Program
             (ModelDb.Modifier<Friendship>(), 1, 10, 1, 5),
             (ModelDb.Modifier<FriendshipDraft>(), 1, 10, 1, 5),
             (ModelDb.Modifier<Draft>(), 5, 20, 5, 10),
-            (ModelDb.Modifier<SealedDeck>(), 5, 20, 5, 10),
+            (ModelDb.Modifier<SealedDeck>(), 5, 25, 5, 10),
             (ModelDb.Modifier<Insanity>(), 5, 60, 5, 30),
             (ModelDb.Modifier<Hoarder>(), 1, 5, 1, 2),
             (ModelDb.Modifier<Midas>(), 150, 300, 5, 200)
@@ -363,7 +364,7 @@ internal static class Program
         Check(start.Take(3).Select(modifier => modifier.GetType()).SequenceEqual(new[] { typeof(Draft), typeof(SealedDeck), typeof(Insanity) }),
             "Draft, Sealed Deck and Insanity are adjacent for their shared chain");
         var linked = Enumerable.Range(1, start.Length - 1).Where(index => LinkedModifierChains.AreLinked(start[index - 1], start[index])).ToArray();
-        Check(linked.Length == 7, "Seven adjacent mutually exclusive pairs receive chains, including Super Sealed");
+        Check(linked.Length == 6, "Six adjacent mutually exclusive pairs receive chains");
         Check(LinkedModifierChains.AreLinked(ModelDb.Modifier<Draft>(), ModelDb.Modifier<SealedDeck>()) &&
             LinkedModifierChains.AreLinked(ModelDb.Modifier<SealedDeck>(), ModelDb.Modifier<Insanity>()), "Native deck replacement choices are linked");
         Check(LinkedModifierChains.AreLinked(ModelDb.Modifier<Specialized>(), ModelDb.Modifier<SpecializedDraft>()) &&
@@ -441,7 +442,7 @@ internal static class Program
     private static void TestSuperModifiers()
     {
         var custom = ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers));
-        foreach (var type in new[] { typeof(SuperDraft), typeof(SuperSealed), typeof(MustHave) })
+        foreach (var type in new[] { typeof(SuperDraft), typeof(MustHave) })
         {
             var model = custom.Single(modifier => modifier.GetType() == type);
             Check(ModifierListPatch.IsCustomOnly(model) && ModifierValues.For(model) == null,
@@ -456,17 +457,7 @@ internal static class Program
             Check(ModifierModel.FromSerializable(reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>()).GetType() == type,
                 type.Name + " survives multiplayer serialization");
         }
-        Check(!ModelDb.Modifier<SuperDraft>().ClearsPlayerDeck && ModelDb.Modifier<SuperSealed>().ClearsPlayerDeck,
-            "Super Draft adds to the starter deck; Super Sealed replaces it");
-        Check(ModifierGroups.Classify(ModelDb.Modifier<SuperDraft>(), new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
-            ModifierGroups.Classify(ModelDb.Modifier<SuperSealed>(), new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
-            ModifierGroups.Classify(ModelDb.Modifier<MustHave>(), new HashSet<Type>()) == ModifierGroup.Negatives,
-            "Super starts and Must Have use the requested positive/negative groups");
-        foreach (var type in new[] { typeof(Draft), typeof(SealedDeck), typeof(Insanity) })
-            Check(SpecializedExclusivityPatch.ShouldUntick(ModelDb.Modifier<SuperSealed>(),
-                (ModifierModel)RuntimeHelpers.GetUninitializedObject(type)), "Super Sealed excludes " + type.Name);
-        Check(!SpecializedExclusivityPatch.ShouldUntick(ModelDb.Modifier<SuperDraft>(), ModelDb.Modifier<SuperSealed>()),
-            "Super Draft can add cards after Super Sealed replaces the deck");
+        Check(!ModelDb.Modifier<SuperDraft>().ClearsPlayerDeck, "Super Draft adds to the starting deck");
         for (var index = 0; index <= 12; index++)
         {
             var expected = 0.005 * Math.Pow(2, index);
@@ -484,9 +475,6 @@ internal static class Program
         AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
         AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run,
             new ModifierModel[] { ModelDb.Modifier<MustHave>().ToMutable(), ModelDb.Modifier<CardSwarm>().ToMutable() });
-        Check(SuperSealed.PoolSize == 50 && SuperSealed.DeckSize == 15 &&
-            SuperSealed.Options(ModelDb.CardPool<MegaCrit.Sts2.Core.Models.CardPools.ColorlessCardPool>()).Flags.HasFlag(CardCreationFlags.NoModifyHooks) &&
-            !CardSwarmRewardPatch.Generating, "Super Sealed uses a fixed 50-card pool and exactly 15 picks outside reward-count hooks");
         var reward = (MegaCrit.Sts2.Core.Rewards.CardReward)RuntimeHelpers.GetUninitializedObject(typeof(MegaCrit.Sts2.Core.Rewards.CardReward));
         AccessTools.Field(typeof(MegaCrit.Sts2.Core.Rewards.Reward), "<Player>k__BackingField").SetValue(reward, player);
         AccessTools.Field(typeof(MegaCrit.Sts2.Core.Rewards.CardReward), "<CanSkip>k__BackingField").SetValue(reward, true);
@@ -520,6 +508,74 @@ internal static class Program
             AccessTools.Property(alternative.GetType(), "AfterSelected").SetValue(alternative, action);
             return alternative;
         }
+    }
+
+    private static void TestSealedSliders()
+    {
+        var canonical = ModelDb.Modifier<SealedDeck>();
+        Check(ModifierValues.Get(canonical) == 10 && ModifierValues.GetSealedPool(canonical) == 30 &&
+            ModifierValues.SealedPoolSpec == new ModifierValues.Spec(10, 60, 5, 30, "offers"),
+            "Sealed Deck defaults to 10 of 30; pool slider uses 10..60, step 5");
+        for (var pool = 10; pool <= 60; pool += 5)
+        {
+            var model = canonical.ToMutable();
+            ModifierValues.SetSealedPool(model, pool);
+            Check(ModifierValues.For(model)!.Max == pool - 5, "Sealed Deck pick maximum is pool minus five: " + pool);
+            for (var selected = 5; selected <= pool - 5; selected += 5)
+            {
+                ModifierValues.Set(model, selected);
+                var saved = model.ToSerializable();
+                var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+                saved.Serialize(writer);
+                var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+                reader.Reset(writer.Buffer);
+                foreach (var restored in new[] { ModifierModel.FromSerializable(saved),
+                    ModifierModel.FromSerializable(reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>()),
+                    (ModifierModel)model.MutableClone() })
+                    Check(ModifierValues.Get(restored) == selected && ModifierValues.GetSealedPool(restored) == pool,
+                        $"Sealed Deck {selected} of {pool} survives save, network or clone");
+            }
+            ModifierValues.Set(model, int.MaxValue);
+            Check(ModifierValues.Get(model) == pool - 5, "Pick count clamps to the current pool limit");
+        }
+        var shrinking = canonical.ToMutable();
+        ModifierValues.SetSealedPool(shrinking, 60);
+        ModifierValues.Set(shrinking, 55);
+        ModifierValues.SetSealedPool(shrinking, 20);
+        Check(ModifierValues.Get(shrinking) == 15, "Reducing the pool automatically clamps the selected card count");
+        ModifierValues.SetSealedPool(shrinking, int.MinValue);
+        Check(ModifierValues.GetSealedPool(shrinking) == 10 && ModifierValues.Get(shrinking) == 5,
+            "Minimum pool leaves five selected cards");
+        ModifierValues.SetSealedPool(shrinking, int.MaxValue);
+        Check(ModifierValues.GetSealedPool(shrinking) == 60 && ModifierValues.Get(shrinking) == 5,
+            "Increasing the pool preserves the current selected count and caps at sixty");
+        ModifierValues.SetSealedPool(shrinking, 33);
+        Check(ModifierValues.GetSealedPool(shrinking) == 35, "Pool values snap to step five");
+        var oldSave = canonical.ToMutable();
+        ModifierValues.Set(oldSave, 20);
+        var savedOld = oldSave.ToSerializable();
+        savedOld.Props!.ints!.RemoveAll(property => property.name == ModifierValues.SealedPoolKey);
+        var oldRestored = ModifierModel.FromSerializable(savedOld);
+        Check(ModifierValues.Get(oldRestored) == 20 && ModifierValues.GetSealedPool(oldRestored) == 30,
+            "Older saves without a pool property retain the default pool of thirty");
+        Check(ModifierValues.SealedDescriptionText("Choose [blue]10[/blue] from [blue]30[/blue].", 30, 60)
+            == "Choose [blue]30[/blue] from [blue]60[/blue].", "Description substitutes both values without confusing equal numbers");
+        var stateMachine = AccessTools.AsyncMoveNext(AccessTools.Method(typeof(SealedDeck), "ChooseCards"));
+        var instructions = PatchProcessor.GetCurrentInstructions(stateMachine);
+        Check(instructions.Count(instruction => instruction.operand is MethodInfo method &&
+            method.DeclaringType == typeof(ModifierValues) && method.Name == nameof(ModifierValues.SealedPoolForPlayer)) == 1 &&
+            instructions.Count(instruction => instruction.operand is MethodInfo method &&
+            method.DeclaringType == typeof(ModifierValues) && method.Name == nameof(ModifierValues.FixedSealedPool)) == 1,
+            "Native Sealed Deck resolves the configured pool once and prevents reward hooks changing its size");
+        var preset = new ModifierPresetEntry { Id = canonical.Id.ToString(), Value = 55, SealedPoolSize = 60 };
+        var restoredPreset = System.Text.Json.JsonSerializer.Deserialize<ModifierPresetEntry>(
+            System.Text.Json.JsonSerializer.Serialize(preset))!;
+        Check(restoredPreset.Value == 55 && restoredPreset.SealedPoolSize == 60,
+            "Presets preserve both Sealed Deck sliders");
+        Check(!ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers).Any(modifier => modifier.GetType().Name == "SuperSealed"),
+            "Super Sealed is removed from the Custom Run menu");
+        Check(ModifierValues.Get(canonical) == 10 && ModifierValues.GetSealedPool(canonical) == 30,
+            "Custom Sealed Deck settings do not leak into canonical Daily defaults");
     }
 
     private static void Check(bool condition, string message)

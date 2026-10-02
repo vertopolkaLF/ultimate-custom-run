@@ -19,6 +19,10 @@ public sealed class SpecializedDraft : ModifierModel
     [MegaCrit.Sts2.Core.Saves.Runs.SavedProperty]
     public int CustomValue { get => ModifierValues.Get(this); set => ModifierValues.Set(this, value); }
 
+    // Register the second native Sealed Deck property's name for network SavedProperties.
+    [MegaCrit.Sts2.Core.Saves.Runs.SavedProperty]
+    public int SealedPoolSize { get; set; } = 30;
+
     internal const string DisplayTitle = "Specialized - Draft";
     internal const string DisplayDescription = "Choose [blue]1[/blue] card reward. Add [blue]5[/blue] copies yo your starting deck.";
     protected override string IconPath => ImageHelper.GetImagePath("packed/modifiers/specialized.png");

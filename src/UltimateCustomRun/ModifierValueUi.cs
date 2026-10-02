@@ -21,6 +21,7 @@ internal static class ModifierValueUi
         internal required NSlider Slider;
         internal required Label Label;
         internal bool Applying;
+        internal bool Pool;
     }
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, List<Row>> Rows = new();
     private static List<NRunModifierTickbox> Tickboxes(NCustomRunModifiersList list) =>
@@ -28,10 +29,22 @@ internal static class ModifierValueUi
 
     internal static Control? Create(NCustomRunModifiersList list, NRunModifierTickbox parent)
     {
-        if (ModifierValues.For(parent.Modifier) is not { } spec) return null;
+        if (parent.Modifier is not MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck) return CreateRow(list, parent);
+        var root = new VBoxContainer
+        {
+            Name = "SealedDeckValues", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, Visible = parent.IsTicked
+        };
+        root.AddChild(CreateRow(list, parent)!);
+        root.AddChild(CreateRow(list, parent, true)!);
+        return root;
+    }
+
+    private static Control? CreateRow(NCustomRunModifiersList list, NRunModifierTickbox parent, bool pool = false)
+    {
+        if ((pool ? ModifierValues.SealedPoolSpec : ModifierValues.For(parent.Modifier)) is not { } spec) return null;
         var root = new HBoxContainer
         {
-            Name = parent.Modifier!.Id.Entry + "Value", CustomMinimumSize = new Vector2(0, 64),
+            Name = parent.Modifier!.Id.Entry + (pool ? "PoolValue" : "Value"), CustomMinimumSize = new Vector2(0, 64),
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, Visible = parent.IsTicked
         };
         root.AddThemeConstantOverride("separation", 16);
@@ -49,7 +62,7 @@ internal static class ModifierValueUi
         var slider = ResourceLoader.Load<PackedScene>("res://scenes/ui/volume_slider.tscn").Instantiate<NSlider>();
         slider.Name = "ValueSlider";
         slider.MinValue = 0;
-        slider.MaxValue = (spec.Max - spec.Min) / spec.Step;
+        slider.MaxValue = Math.Max(1, (spec.Max - spec.Min) / spec.Step);
         slider.Step = 1;
         slider.Rounded = true;
         slider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -58,14 +71,15 @@ internal static class ModifierValueUi
         foreach (var child in slider.FindChildren("*", "Control", true, false).OfType<Control>())
             child.MouseFilter = Control.MouseFilterEnum.Ignore;
         root.AddChild(slider);
-        var row = new Row { Parent = parent, Spec = spec, Root = root, Slider = slider, Label = label };
+        var row = new Row { Parent = parent, Spec = spec, Root = root, Slider = slider, Label = label, Pool = pool };
         Rows.GetOrCreateValue(list).Add(row);
         slider.Ready += () => Refresh(list);
         slider.ValueChanged += value =>
         {
             if (row.Applying || !Editable(list)) return;
             var amount = spec.Min + (int)Math.Round(value) * spec.Step;
-            SetFamilyValue(list, parent.Modifier!, amount);
+            if (pool) ModifierValues.SetSealedPool(parent.Modifier!, amount);
+            else SetFamilyValue(list, parent.Modifier!, amount);
             Refresh(list);
             list.EmitSignal(NCustomRunModifiersList.SignalName.ModifiersChanged);
         };
@@ -91,7 +105,13 @@ internal static class ModifierValueUi
     internal static void ApplyIncoming(NCustomRunModifiersList list, IReadOnlyCollection<ModifierModel> modifiers)
     {
         foreach (var modifier in modifiers)
+        {
+            if (modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
+                foreach (var tickbox in Tickboxes(list))
+                    if (tickbox.Modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
+                        ModifierValues.SetSealedPool(tickbox.Modifier, ModifierValues.GetSealedPool(modifier));
             if (ModifierValues.For(modifier) != null) SetFamilyValue(list, modifier, ModifierValues.Get(modifier));
+        }
         CustomRunParametersUi.ApplyIncoming(list, modifiers);
         Refresh(list);
     }
@@ -105,16 +125,24 @@ internal static class ModifierValueUi
             try
             {
                 row.Root.Visible = row.Parent.IsTicked;
+                if (row.Root.GetParent() is VBoxContainer group && group.Name == "SealedDeckValues")
+                    group.Visible = row.Parent.IsTicked;
                 var editable = Editable(list) && !
                     (ModifierGroupsUi.IsSingleplayer(list) && ModifierGroups.IsSingleplayerDisabled(row.Parent.Modifier));
+                row.Spec = row.Pool ? ModifierValues.SealedPoolSpec : ModifierValues.For(row.Parent.Modifier)!;
+                editable &= row.Spec.Max > row.Spec.Min;
                 row.Slider.MouseFilter = editable ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
                 row.Slider.FocusMode = editable ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
-                var value = ModifierValues.Get(row.Parent.Modifier!);
+                // NSlider divides by MaxValue. A single allowed pick count uses a disabled 0..1 track.
+                row.Slider.MaxValue = Math.Max(1, (row.Spec.Max - row.Spec.Min) / row.Spec.Step);
+                var value = row.Pool ? ModifierValues.GetSealedPool(row.Parent.Modifier!) : ModifierValues.Get(row.Parent.Modifier!);
                 var russian = LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
                 var unit = russian ? row.Spec.Unit switch
                 {
-                    "cards" => "карт", "extra copies" => "доп. копий", _ => "% золота"
+                    "cards" => "карт", "offers" => "карт в пуле", "extra copies" => "доп. копий", _ => "% золота"
                 } : row.Spec.Unit;
+                if (!row.Pool && row.Parent.Modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
+                    unit = russian ? "карт в колоду" : "cards to choose";
                 row.Label.Text = $"{value} {unit}";
                 if (row.Slider.IsNodeReady()) row.Slider.SetValueWithoutAnimation((value - row.Spec.Min) / row.Spec.Step);
                 else row.Slider.SetValueNoSignal((value - row.Spec.Min) / row.Spec.Step);

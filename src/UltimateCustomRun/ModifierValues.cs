@@ -7,6 +7,7 @@ using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Modifiers;
+using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves.Runs;
 
 namespace UltimateCustomRun;
@@ -14,27 +15,52 @@ namespace UltimateCustomRun;
 internal static class ModifierValues
 {
     internal const string SaveKey = nameof(SpecializedDraft.CustomValue);
+    internal const string SealedPoolKey = nameof(SpecializedDraft.SealedPoolSize);
+    internal static readonly Spec SealedPoolSpec = new(10, 60, 5, 30, "offers");
     internal sealed record Spec(int Min, int Max, int Step, int Default, string Unit)
     {
         internal int Normalize(int value) => Min + (int)Math.Round(
             (Math.Clamp(value, Min, Max) - Min) / (double)Step, MidpointRounding.AwayFromZero) * Step;
     }
-    private sealed class ValueState { internal int Value; }
+    private sealed class ValueState { internal int Value; internal int PoolSize = 30; }
     private static readonly ConditionalWeakTable<ModifierModel, ValueState> Values = new();
 
     internal static Spec? For(ModifierModel? modifier) => modifier switch
     {
         Specialized or SpecializedDraft or SpecializedPickAny or AllStar or AllStarDraft or Friendship or FriendshipDraft
             => new(1, 10, 1, 5, "cards"),
-        Draft or SealedDeck => new(5, 20, 5, 10, "cards"),
+        Draft => new(5, 20, 5, 10, "cards"),
+        SealedDeck => new(5, GetSealedPool(modifier) - 5, 5, 10, "cards"),
         Insanity => new(5, 60, 5, 30, "cards"),
         Hoarder => new(1, 5, 1, 2, "extra copies"),
         Midas => new(150, 300, 5, 200, "% gold"),
         _ => null
     };
 
-    internal static int Get(ModifierModel modifier) => Values.TryGetValue(modifier, out var state)
-        ? state.Value : For(modifier)?.Default ?? throw new ArgumentException("Modifier has no configurable value.");
+    internal static int Get(ModifierModel modifier)
+    {
+        var spec = For(modifier) ?? throw new ArgumentException("Modifier has no configurable value.");
+        return spec.Normalize(Values.TryGetValue(modifier, out var state) ? state.Value : spec.Default);
+    }
+
+    internal static int GetSealedPool(ModifierModel modifier) => Values.TryGetValue(modifier, out var state)
+        ? state.PoolSize : SealedPoolSpec.Default;
+
+    internal static void SetSealedPool(ModifierModel modifier, int value)
+    {
+        modifier.AssertMutable();
+        if (modifier is not SealedDeck) throw new ArgumentException("Only Sealed Deck has a configurable pool.");
+        var selected = Get(modifier);
+        var state = Values.GetOrCreateValue(modifier);
+        state.PoolSize = SealedPoolSpec.Normalize(value);
+        state.Value = For(modifier)!.Normalize(selected);
+    }
+
+    internal static int SealedPoolForPlayer(Player player) => GetSealedPool(
+        player.RunState.Modifiers.FirstOrDefault(modifier => modifier is SealedDeck) ?? ModelDb.Modifier<SealedDeck>());
+
+    internal static CardCreationOptions FixedSealedPool(CardCreationOptions options) =>
+        options.WithFlags(CardCreationFlags.NoModifyHooks);
 
     internal static void Set(ModifierModel modifier, int value)
     {
@@ -69,6 +95,10 @@ internal static class ModifierValues
     internal static LocString SealedPrompt(LocString original, Player player) =>
         WithValue(original, 10, ForPlayer<SealedDeck>(player));
 
+    internal static string SealedDescriptionText(string original, int selected, int pool) =>
+        Regex.Replace(original, @"\[blue\](10|30)\[/blue]",
+            match => "[blue]" + (match.Groups[1].Value == "10" ? selected : pool) + "[/blue]");
+
     [HarmonyPatch(typeof(ModifierModel), nameof(ModifierModel.ToSerializable))]
     private static class SavePatch
     {
@@ -80,6 +110,11 @@ internal static class ModifierValues
             __result.Props.ints ??= [];
             __result.Props.ints.RemoveAll(prop => prop.name == SaveKey);
             __result.Props.ints.Add(new(SaveKey, state.Value));
+            if (__instance is SealedDeck)
+            {
+                __result.Props.ints.RemoveAll(prop => prop.name == SealedPoolKey);
+                __result.Props.ints.Add(new(SealedPoolKey, state.PoolSize));
+            }
         }
     }
 
@@ -90,6 +125,8 @@ internal static class ModifierValues
         private static void Postfix(SerializableModifier __0, ModifierModel __result)
         {
             if (For(__result) == null) return;
+            var pool = __0.Props?.ints?.FirstOrDefault(prop => prop.name == SealedPoolKey);
+            if (__result is SealedDeck && pool is { name: SealedPoolKey }) SetSealedPool(__result, pool.Value.value);
             var saved = __0.Props?.ints?.FirstOrDefault(prop => prop.name == SaveKey);
             if (saved is { name: SaveKey }) Set(__result, saved.Value.value);
         }
@@ -102,7 +139,10 @@ internal static class ModifierValues
         private static void Postfix(AbstractModel __instance, AbstractModel __result)
         {
             if (__instance is ModifierModel source && __result is ModifierModel target && Values.TryGetValue(source, out var state))
+            {
+                if (source is SealedDeck) SetSealedPool(target, state.PoolSize);
                 Set(target, state.Value);
+            }
         }
     }
 
@@ -113,6 +153,16 @@ internal static class ModifierValues
         private static void Postfix(ModifierModel __instance, ref LocString __result)
         {
             if (For(__instance) is not { } spec || !Values.TryGetValue(__instance, out var state)) return;
+            if (__instance is SealedDeck)
+            {
+                var key = __result.LocEntryKey + $".ultimate_sealed_{Get(__instance)}_{state.PoolSize}";
+                var text = SealedDescriptionText(__result.GetRawText(), Get(__instance), state.PoolSize);
+                LocManager.Instance.GetTable(__result.LocTable).MergeWith(new Dictionary<string, string> { [key] = text });
+                var result = new LocString(__result.LocTable, key);
+                result.AddVariablesFrom(__result);
+                __result = result;
+                return;
+            }
             __result = WithValue(__result, spec.Default, state.Value);
         }
     }
@@ -143,8 +193,23 @@ internal static class NativeModifierCountPatch
             ? AccessTools.Method(typeof(ModifierValues), nameof(ModifierValues.Get))
             : AccessTools.Method(typeof(ModifierValues), nameof(ModifierValues.ForPlayer)).MakeGenericMethod(target.Type);
         var replacements = 0;
+        var poolReplacements = 0;
         foreach (var instruction in instructions)
         {
+            if (target.Type == typeof(SealedDeck) && instruction.LoadsConstant(30))
+            {
+                poolReplacements++;
+                yield return new CodeInstruction(OpCodes.Ldarg_0).MoveLabelsFrom(instruction).MoveBlocksFrom(instruction);
+                yield return new CodeInstruction(OpCodes.Ldfld, field);
+                yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(ModifierValues), nameof(ModifierValues.SealedPoolForPlayer)));
+                continue;
+            }
+            if (target.Type == typeof(SealedDeck) && instruction.operand is MethodInfo factory &&
+                factory.DeclaringType == typeof(MegaCrit.Sts2.Core.Factories.CardFactory) && factory.Name == "CreateForReward")
+            {
+                yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(ModifierValues), nameof(ModifierValues.FixedSealedPool)))
+                    .MoveLabelsFrom(instruction).MoveBlocksFrom(instruction);
+            }
             if (instruction.LoadsConstant(target.Default))
             {
                 replacements++;
@@ -165,6 +230,8 @@ internal static class NativeModifierCountPatch
             }
         }
         if (replacements != 1) throw new InvalidOperationException($"{target.Type.Name} count changed: expected one value, found {replacements}.");
+        if (target.Type == typeof(SealedDeck) && poolReplacements != 1)
+            throw new InvalidOperationException($"Sealed Deck pool changed: expected one value, found {poolReplacements}.");
     }
 }
 

@@ -45,14 +45,16 @@ Enable a modifier to reveal its slider. Original values remain the defaults.
 | Modifier | Range | Step | Default |
 | --- | --- | --- | --- |
 | Specialized, All Star, Friendship | 1–10 cards or copies | 1 | 5 |
-| Draft, Sealed Deck | 5–20 cards | 5 | 10 |
+| Draft | 5–20 cards | 5 | 10 |
+| Sealed Deck — cards to choose | 5–(pool size − 5) cards | 5 | 10 |
+| Sealed Deck — card pool | 10–60 offers | 5 | 30 |
 | Insanity | 5–60 cards | 5 | 30 |
 | Hoarder | 1–5 additional copies | 1 | 2 |
 | Midas | 150–300% of normal gold rewards | 5% | 200% |
 
 Run Parameters use the game's defaults until a value is changed. The boss setting supports one or two bosses because the native act map has a primary and a second boss slot. Parameter values are saved with runs and presets, and synchronized from the co-op host.
 
-Normal, Draft, and Pick Any share the same value within a modifier family. Sealed Deck still offers a pool of 30 cards. Hoarder counts copies **in addition to** the original card and still blocks Merchant card removal. Midas uses a percentage of the normal gold reward, rounded down: 200% means twice the gold. It still blocks Smithing at Rest Sites.
+Normal, Draft, and Pick Any share the same value within a modifier family. Sealed Deck has two sliders: cards to choose and pool size. The first slider's maximum is always the second slider's value minus 5; reducing the pool automatically clamps the chosen-card count. Both values persist in saves, co-op settings, and presets. Extra Card Choice / Card Swarm does not enlarge the configured pool. Hoarder counts copies **in addition to** the original card and still blocks Merchant card removal. Midas uses a percentage of the normal gold reward, rounded down: 200% means twice the gold. It still blocks Smithing at Rest Sites.
 
 ## New options
 
@@ -60,7 +62,6 @@ Normal, Draft, and Pick Any share the same value within a modifier family. Seale
 | --- | --- |
 | **Neow!!** | Restores the usual starter relic choice after the other starting effects. |
 | **Super Draft** | Add card rewards to your starting deck until you pass. Each pick risks a Curse: 0.5%, doubling each offer. At 128%, gain one guaranteed Curse plus a 28% chance of another. Passing adds no Curse; each player drafts independently. |
-| **Super Sealed** | Replace your starting deck by choosing exactly 15 cards from a pool of 50. Extra Card Choice / Card Swarm does not increase this fixed pool. |
 | **Must Have (negative)** | Requires taking a card from every card reward before leaving. Rerolls remain available; non-card rewards remain optional. Passing during Super Draft is allowed. |
 | **Specialized — Normal** | Adds the selected number of copies of a random eligible card. |
 | **Specialized — Draft** | Choose one Card Reward, then add the selected number of copies. Skipping adds no cards. |
@@ -72,7 +73,7 @@ Normal, Draft, and Pick Any share the same value within a modifier family. Seale
 | **Rich Loot** | Treasure chests contain one extra relic to choose from. Empty chests remain empty. |
 | **Card Swarm** | Card rewards contain one extra offer, including standard Draft rewards and the mod's starting drafts. Fixed tutorial rewards are unchanged. |
 
-Variants within each family are mutually exclusive. Super Sealed is mutually exclusive with Draft, Sealed Deck, and Insanity. Super Draft adds cards after deck replacement and can be combined with those options. All Star and Friendship draft rewards can be skipped unless Must Have is enabled. Standard reward-generation hooks remain active, so other effects can modify offers; Super Sealed keeps its fixed pool of 50.
+Variants within each family are mutually exclusive. Draft, Sealed Deck, and Insanity are mutually exclusive. Super Draft adds cards after deck replacement and can be combined with those options. All Star and Friendship draft rewards can be skipped unless Must Have is enabled. Standard reward-generation hooks remain active, so other effects can modify offers; Sealed Deck keeps its configured pool size.
 
 ## Install and play
 

@@ -219,6 +219,8 @@ internal static class ModifierPresetUi
             if (source == null) continue;
 
             var modifier = (ModifierModel)source.MutableClone();
+            if (modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
+                ModifierValues.SetSealedPool(modifier, entry.SealedPoolSize ?? ModifierValues.SealedPoolSpec.Default);
             if (entry.Value is { } value && ModifierValues.For(modifier) != null)
                 ModifierValues.Set(modifier, value);
             selected.Add(modifier);
