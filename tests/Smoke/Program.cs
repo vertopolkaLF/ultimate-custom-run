@@ -26,11 +26,11 @@ internal static class Program
             var path = Path.Combine(dataPath, name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        Run(args.Contains("--ascension-only"), args.Contains("--boss-chain-only"), args.Contains("--reward-sliders-only"));
+        Run(args.Contains("--ascension-only"), args.Contains("--boss-chain-only"), args.Contains("--reward-sliders-only"), args.Contains("--mystery-only"));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Run(bool ascensionOnly, bool bossChainOnly, bool rewardSlidersOnly)
+    private static void Run(bool ascensionOnly, bool bossChainOnly, bool rewardSlidersOnly, bool mysteryOnly)
     {
         var assembly = typeof(ModEntry).Assembly;
         Check(assembly.GetName().Name == "UltimateCustomRun" && typeof(ModEntry).Namespace == "UltimateCustomRun" &&
@@ -72,6 +72,12 @@ internal static class Program
                 "Both new modifiers provide their own Neow buttons");
 
             TestNeowModifier();
+            if (mysteryOnly)
+            {
+                TestMysteryEvents();
+                Console.WriteLine("PASS: managed mystery event regression checks. Live transitions require an in-game playtest.");
+                return;
+            }
             if (rewardSlidersOnly)
             {
                 TestModifierValues();
@@ -1346,18 +1352,16 @@ internal static class Program
         }
         Check(selected.SequenceEqual(new[] { tablet.Id, aroma.Id, statue.Id }),
             "Three extra floors skip every conditional event and visit distinct safe events in seeded pool order");
-        Check(MysteryEvents.SelectEventIndex(pool, cursor, seen) == 1,
-            "Exhausted pools repeat an unconditional event instead of falling back to a forbidden event");
-        var emptyRejected = false;
-        try { MysteryEvents.SelectEventIndex([vegetation, unrest], 0, seen); }
-        catch (InvalidOperationException) { emptyRejected = true; }
-        Check(emptyRejected, "A pool with no unconditional events fails explicitly instead of selecting a conditional event");
+        Check(MysteryEvents.SelectEventIndex(pool, cursor, seen) == -1 &&
+            MysteryEvents.SelectEventIndex([vegetation, unrest], 0, seen) == -1 &&
+            MysteryEvents.SelectEventIndex([], 0, seen) == -1,
+            "Exhausted, conditional-only and empty pools never repeat or select forbidden events");
 
         var canonical = ModelDb.Modifier<MysteryEvents>();
-        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 10, 1, 3, "events") &&
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 5, 1, 3, "events") &&
             MysteryEvents.DescriptionText(1) == "Encounter [blue]1[/blue] additional Event after Neow." &&
             MysteryEvents.DescriptionText(3) == MysteryEvents.DisplayDescription,
-            "??? slider spans 1..10 events, defaults to three, and uses singular/plural descriptions");
+            "??? slider spans 1..5 events, defaults to three, and uses singular/plural descriptions");
         Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
             ModifierListPatch.IsCustomOnly(canonical) &&
             ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<MysteryEvents>().Count() == 1,
@@ -1389,7 +1393,7 @@ internal static class Program
         var manager = (RunManager)RuntimeHelpers.GetUninitializedObject(typeof(RunManager));
         AccessTools.PropertySetter(typeof(RunManager), "State").Invoke(manager, [run]);
         modifier.OnRunLoaded(run);
-        for (var count = 1; count <= 10; count++)
+        for (var count = 1; count <= 5; count++)
         {
             var adjustable = (MysteryEvents)canonical.ToMutable();
             ModifierValues.Set(adjustable, count);
@@ -1421,8 +1425,8 @@ internal static class Program
         ModifierValues.Set(clamped, int.MinValue);
         Check(clamped.EventLimit == 1, "??? slider clamps its lower bound to one event");
         ModifierValues.Set(clamped, int.MaxValue);
-        Check(clamped.EventLimit == 10 && ModifierValues.Get(canonical) == 3,
-            "??? slider clamps its upper bound to ten without changing canonical defaults");
+        Check(clamped.EventLimit == 5 && ModifierValues.Get(canonical) == 3,
+            "??? slider clamps its upper bound to five without changing canonical defaults");
         for (var stage = 1; stage <= 3; stage++)
         {
             modifier.MysteryStage = stage;
@@ -1464,14 +1468,88 @@ internal static class Program
             "??? excludes an event with spawn conditions even when those conditions currently pass");
         roomSet.eventsVisited = 5;
         AccessTools.Field(typeof(RunState), "_visitedEventIds").SetValue(run, seen);
-        Check(!MysteryEventPoolPatch.Prefix(roomSet, run) && roomSet.eventsVisited == 6 && roomSet.NextEvent.Id == tablet.Id,
-            "Native extra-event selection wraps the shuffled pool while preserving its visit counter");
+        var exhaustedRejected = false;
+        try { MysteryEventPoolPatch.Prefix(roomSet, run); }
+        catch (InvalidOperationException) { exhaustedRejected = true; }
+        Check(exhaustedRejected && roomSet.eventsVisited == 5,
+            "An exhausted extra-event pool cannot advance to a repeated event");
+        TestMysteryProceedLifecycle(player: run.Players[0]);
         foreach (var target in new[] {
             AccessTools.Method(typeof(RunManager), nameof(RunManager.LoadIntoLatestMapCoord)),
             AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.Screens.Map.NNormalMapPoint), "UpdateIcon"),
             AccessTools.Method(typeof(RunState), nameof(RunState.GetHistoryEntryFor)) })
             Check(Harmony.GetPatchInfo(target)?.Owners.Contains(ModEntry.HarmonyId) == true,
                 "Extra-event reload/history patch applies to the installed game: " + target.Name);
+    }
+
+    private static void TestMysteryProceedLifecycle(Player player)
+    {
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        var modifier = (MysteryEvents)ModelDb.Modifier<MysteryEvents>().ToMutable();
+        AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { modifier });
+        modifier.OnRunLoaded(run);
+        var enqueued = new List<MegaCrit.Sts2.Core.GameActions.GameAction>();
+        void Enqueue(MegaCrit.Sts2.Core.GameActions.GameAction action)
+        {
+            AccessTools.PropertySetter(typeof(MegaCrit.Sts2.Core.GameActions.GameAction), "State").Invoke(action,
+                [MegaCrit.Sts2.Core.Entities.Actions.GameActionState.WaitingForExecution]);
+            enqueued.Add(action);
+        }
+        var first = new MysteryProceedAction(player, 0);
+        modifier.RequestProceed(first, Enqueue);
+        modifier.RequestProceed(new MysteryProceedAction(player, 0), Enqueue);
+        Check(enqueued.Count == 1, "Proceed suppresses duplicates while an action is queued");
+        AccessTools.PropertySetter(typeof(MegaCrit.Sts2.Core.GameActions.GameAction), "State").Invoke(first,
+            [MegaCrit.Sts2.Core.Entities.Actions.GameActionState.Canceled]);
+        var retry = new MysteryProceedAction(player, 0);
+        modifier.RequestProceed(retry, Enqueue);
+        Check(enqueued.Count == 2, "A canceled Proceed action can be retried without reloading");
+        AccessTools.PropertySetter(typeof(MegaCrit.Sts2.Core.GameActions.GameAction), "State").Invoke(retry,
+            [MegaCrit.Sts2.Core.Entities.Actions.GameActionState.Finished]);
+        modifier.RequestProceed(new MysteryProceedAction(player, 0), Enqueue);
+        Check(enqueued.Count == 3, "A completed no-op Proceed action releases the retry guard");
+
+        var reveal = new TaskCompletionSource();
+        var order = new List<string>();
+        var transition = MysteryEvents.EnterEvent(
+            () => { order.Add("out"); return Task.CompletedTask; },
+            () => { order.Add("enter"); return Task.CompletedTask; },
+            () => { order.Add("in"); return reveal.Task; });
+        Check(transition.IsCompletedSuccessfully && !reveal.Task.IsCompleted &&
+            order.SequenceEqual(new[] { "out", "enter", "in" }),
+            "Room loading waits for fade-out, but an unfinished fade-in cannot block the action queue");
+        reveal.SetResult();
+
+        var act = ModelDb.Act<MegaCrit.Sts2.Core.Models.Acts.Overgrowth>().ToMutable();
+        var pool = new MegaCrit.Sts2.Core.Rooms.RoomSet();
+        pool.events.Add(ModelDb.Event<AromaOfChaos>());
+        AccessTools.Field(typeof(ActModel), "_rooms").SetValue(act, pool);
+        AccessTools.Field(typeof(RunState), "<Acts>k__BackingField").SetValue(run, new[] { act });
+        AccessTools.Field(typeof(RunState), "_visitedEventIds").SetValue(run, new HashSet<ModelId> { pool.events[0].Id });
+        modifier.MysteryStage = 1;
+        Check(!modifier.HasNextEvent(run), "Proceed detects an exhausted pool before trying to load another room");
+        AccessTools.Field(typeof(RunState), "_visitedEventIds").SetValue(run, new HashSet<ModelId>());
+        Check(modifier.HasNextEvent(run), "Proceed can load an unvisited unconditional event");
+        modifier.MysteryStage = modifier.EventLimit;
+        Check(!modifier.HasNextEvent(run), "Proceed stops at the configured limit even if unvisited events remain");
+
+        modifier.MysteryStage = 6;
+        modifier.MysteryHistoryFloors = 2;
+        ModifierValues.Set(modifier, 5);
+        var restored = (MysteryEvents)ModifierModel.FromSerializable(modifier.ToSerializable());
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { restored });
+        Check(restored.MysteryHistoryFloors == 2 && MysteryEvents.HistoryIndex(run, 0, 1) == 3,
+            "Early exhaustion preserves the actual extra-floor count through saving");
+
+        modifier.MysteryStage = 8;
+        var legacy = modifier.ToSerializable();
+        legacy.Props!.ints!.RemoveAll(prop => prop.name is "MysteryHistoryFloors" or "CustomValue");
+        legacy.Props.ints.Add(new("CustomValue", 10));
+        restored = (MysteryEvents)ModifierModel.FromSerializable(legacy);
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { restored });
+        Check(restored.EventLimit == 5 && restored.MysteryHistoryFloors == 8 && MysteryEvents.HistoryIndex(run, 0, 1) == 9,
+            "Legacy ten-event saves clamp to five while preserving already-entered floors");
     }
 
     private static void TestHeadstart()

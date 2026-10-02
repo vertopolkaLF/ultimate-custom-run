@@ -40,7 +40,7 @@ internal static class ModifierValues
         Headstart => new(1, 5, 1, 1, "relics"),
         RichLoot => new(1, 3, 1, 1, "extra relics"),
         CardSwarm => new(1, 3, 1, 1, "extra cards"),
-        MysteryEvents => new(1, 10, 1, MysteryEvents.EventCount, "events"),
+        MysteryEvents => new(1, 5, 1, MysteryEvents.EventCount, "events"),
         _ => null
     };
 
@@ -139,6 +139,9 @@ internal static class ModifierValues
             var pool = __0.Props?.ints?.FirstOrDefault(prop => prop.name == SealedPoolKey);
             if (__result is SealedDeck && pool is { name: SealedPoolKey }) SetSealedPool(__result, pool.Value.value);
             var saved = __0.Props?.ints?.FirstOrDefault(prop => prop.name == SaveKey);
+            if (__result is MysteryEvents mystery && mystery.MysteryHistoryFloors < 0)
+                mystery.MysteryHistoryFloors = Math.Min(mystery.MysteryStage,
+                    saved is { name: SaveKey } ? Math.Clamp(saved.Value.value, 1, 10) : MysteryEvents.EventCount);
             if (saved is { name: SaveKey }) Set(__result, saved.Value.value);
         }
     }

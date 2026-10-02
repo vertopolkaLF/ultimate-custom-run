@@ -1,5 +1,6 @@
 using System.Reflection.Emit;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Entities.Actions;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -32,7 +33,15 @@ public sealed class MysteryEvents : ModifierModel
         $"Encounter [blue]{count}[/blue] additional {(count == 1 ? "Event" : "Events")} after Neow.";
     private int _stage;
     private HashSet<ulong> _ready = [];
-    private bool _requested;
+    private GameAction? _requestedAction;
+    private int _historyFloors = -1;
+
+    [SavedProperty]
+    public int MysteryHistoryFloors
+    {
+        get => _historyFloors;
+        set { AssertMutable(); _historyFloors = Math.Clamp(value, -1, 10); }
+    }
 
     // 0 = Neow, 1..EventLimit = extra event, EventLimit + 1 = main map.
     [SavedProperty]
@@ -45,7 +54,7 @@ public sealed class MysteryEvents : ModifierModel
     protected override string IconPath => ImageHelper.GetImagePath("atlases/ui_atlas.sprites/map/icons/map_unknown.tres");
     protected override void AfterRunCreated(RunState runState) => ResetTransientState();
     protected override void AfterRunLoaded(RunState runState) => ResetTransientState();
-    private void ResetTransientState() { _ready = []; _requested = false; }
+    private void ResetTransientState() { _ready = []; _requestedAction = null; }
 
     internal static MysteryEvents? For(IRunState? state) => state?.Modifiers.OfType<MysteryEvents>().FirstOrDefault();
     internal static bool IsUnconditionalEvent(EventModel eventModel) => eventModel is not AncientEventModel &&
@@ -53,19 +62,14 @@ public sealed class MysteryEvents : ModifierModel
 
     internal static int SelectEventIndex(IReadOnlyList<EventModel> events, int start, IReadOnlySet<ModelId> visited)
     {
-        var repeat = -1;
         for (var offset = 0; offset < events.Count; offset++)
         {
             var index = (start % events.Count + offset) % events.Count;
             var candidate = events[index];
             if (!IsUnconditionalEvent(candidate)) continue;
             if (!visited.Contains(candidate.Id)) return index;
-            if (repeat < 0) repeat = index;
         }
-        // Repeats are preferable to letting the native exhaustion fallback pick
-        // an event with prerequisites. Never broaden this pool after exhaustion.
-        if (repeat >= 0) return repeat;
-        throw new InvalidOperationException("??? has no unconditional events in the unlocked event pool.");
+        return -1;
     }
     internal static bool BeforeMainMap(IRunState state) => state.CurrentActIndex == 0 &&
         state.CurrentMapCoord == state.Map.StartingMapPoint.coord;
@@ -81,30 +85,55 @@ public sealed class MysteryEvents : ModifierModel
 
     internal void RequestProceed(Player player)
     {
-        if (_requested) return;
-        _requested = true;
-        try { RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(new MysteryProceedAction(player, MysteryStage)); }
-        catch { _requested = false; throw; }
+        if (_ready.Contains(player.NetId)) return;
+        RequestProceed(new MysteryProceedAction(player, MysteryStage),
+            RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue);
+    }
+
+    internal void RequestProceed(GameAction action, Action<GameAction> enqueue)
+    {
+        if (_requestedAction is { State: not GameActionState.Finished and not GameActionState.Canceled }) return;
+        _requestedAction = action;
+        try { enqueue(action); }
+        catch { _requestedAction = null; throw; }
+    }
+
+    internal static RoomSet EventPool(IRunState state) =>
+        (RoomSet)AccessTools.Field(typeof(ActModel), "_rooms").GetValue(state.Act)!;
+
+    internal bool HasNextEvent(RunState state) => MysteryStage < EventLimit &&
+        SelectEventIndex(EventPool(state).events, EventPool(state).eventsVisited, state.VisitedEventIds) >= 0;
+
+    internal static async Task EnterEvent(Func<Task> fadeOut, Func<Task> enter, Func<Task> fadeIn)
+    {
+        await fadeOut();
+        await enter();
+        // Match native map travel: an interrupted reveal must not retain the queue action.
+        _ = TaskHelper.RunSafely(fadeIn());
     }
 
     internal async Task Proceed(Player player, int stage)
     {
+        // Clients execute the host's deserialized action, rather than their request instance.
+        if (stage == MysteryStage && _requestedAction?.OwnerId == player.NetId) _requestedAction = null;
         var manager = RunManager.Instance;
         if (!ReferenceEquals(manager.DebugOnlyGetState(), RunState) || manager.IsGameOver || manager.IsCleaningUp ||
             !NeedsEvents(RunState) || RunState.BaseRoom is not EventRoom ||
             !manager.EventSynchronizer.GetEventForPlayer(player).IsFinished) return;
         if (!RecordReady(player.NetId, stage, RunState.Players.Select(p => p.NetId))) return;
 
-        MysteryStage++;
+        var hasNext = HasNextEvent(RunState);
+        MysteryHistoryFloors = hasNext ? MysteryStage + 1 : MysteryStage;
+        MysteryStage = hasNext ? MysteryStage + 1 : EventLimit + 1;
         ResetTransientState();
-        if (MysteryStage <= EventLimit)
+        if (hasNext)
         {
             // Keep the actual map coordinate and ActFloor at Neow. The native room
             // transition adds a separate Unknown history entry (and TotalFloor).
             // Its pre-entry save preserves the event pool/RNG for reloads.
-            await manager.FadeOut();
-            await manager.EnterMapPointInternal(1, MapPointType.Unknown, null, saveGame: true);
-            await manager.FadeIn();
+            await EnterEvent(manager.FadeOut,
+                () => manager.EnterMapPointInternal(1, MapPointType.Unknown, null, saveGame: true),
+                () => manager.FadeIn());
         }
         else
         {
@@ -117,7 +146,9 @@ public sealed class MysteryEvents : ModifierModel
 
     // History includes the extra floors, while map coordinates never change.
     internal static int HistoryIndex(IRunState state, int actIndex, int row) => row +
-        (actIndex == 0 && row > 0 && For(state) is { } modifier ? Math.Min(modifier.MysteryStage, modifier.EventLimit) : 0);
+        (actIndex == 0 && row > 0 && For(state) is { } modifier
+            ? modifier.MysteryHistoryFloors >= 0 ? modifier.MysteryHistoryFloors : Math.Min(modifier.MysteryStage, modifier.EventLimit)
+            : 0);
 }
 
 [HarmonyPatch(typeof(RoomSet), nameof(RoomSet.EnsureNextEventIsValid))]
@@ -128,6 +159,7 @@ internal static class MysteryEventPoolPatch
     {
         if (MysteryEvents.For(__0)?.IsExtraRoom(__0) != true) return true;
         var index = MysteryEvents.SelectEventIndex(__instance.events, __instance.eventsVisited, __0.VisitedEventIds);
+        if (index < 0) throw new InvalidOperationException("??? has no unvisited unconditional events available.");
         var currentIndex = __instance.eventsVisited % __instance.events.Count;
         __instance.eventsVisited += (index - currentIndex + __instance.events.Count) % __instance.events.Count;
         return false;
@@ -190,6 +222,16 @@ internal static class MysteryLoadPatch
     {
         var state = __instance.DebugOnlyGetState();
         if (state == null || MysteryEvents.For(state) is not { } modifier || !modifier.IsExtraRoom(state)) return true;
+        if (!modifier.NeedsEvents(state))
+        {
+            // Includes legacy runs already past the new cap. A pre-entry save may not
+            // yet contain its staged event floor, so use the actual saved history.
+            modifier.MysteryHistoryFloors = state.MapPointHistory.Count > 0
+                ? Math.Max(0, state.MapPointHistory[0].Count - 1) : 0;
+            // Finished non-Ancient events cannot be restored as pre-finished models.
+            __result = __instance.EnterRoom(new MapRoom());
+            return false;
+        }
         __result = __instance.EnterMapPointInternal(1, MapPointType.Unknown, __0, saveGame: false);
         return false;
     }
