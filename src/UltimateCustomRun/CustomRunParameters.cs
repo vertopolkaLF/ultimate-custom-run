@@ -9,13 +9,11 @@ namespace UltimateCustomRun;
 public sealed class CustomRunParameters : ModifierModel
 {
     internal const string DisplayTitle = "Custom Run Parameters";
-    internal const string DisplayDescription = "Adjust map length, boss count, starting combat resources, and health multipliers.";
+    internal const string DisplayDescription = "Adjust map length, starting combat resources, and health multipliers.";
 
     protected override string IconPath => ImageHelper.GetImagePath("packed/modifiers/specialized.png");
 
     // Real saved properties are discovered by the game's replay/network ID cache.
-    [SavedProperty]
-    public int BossesPerAct { get => Values.BossesPerAct; set => Set(CustomRunParameter.BossesPerAct, value); }
     [SavedProperty]
     public int FloorsPerAct { get => Values.FloorsPerAct; set => Set(CustomRunParameter.FloorsPerAct, value); }
     [SavedProperty]
@@ -35,7 +33,6 @@ public sealed class CustomRunParameters : ModifierModel
 
 internal enum CustomRunParameter
 {
-    BossesPerAct,
     FloorsPerAct,
     BaseHandSize,
     BaseEnergy,
@@ -45,7 +42,6 @@ internal enum CustomRunParameter
 }
 
 internal readonly record struct CustomRunParameterValues(
-    int BossesPerAct,
     int FloorsPerAct,
     int BaseHandSize,
     int BaseEnergy,
@@ -53,11 +49,10 @@ internal readonly record struct CustomRunParameterValues(
     int EnemyDamagePercent,
     int PlayerHpPercent)
 {
-    internal static CustomRunParameterValues Default => new(-1, -1, -1, -1, 100, 100, 100);
+    internal static CustomRunParameterValues Default => new(-1, -1, -1, 100, 100, 100);
 
     internal int Get(CustomRunParameter parameter) => parameter switch
     {
-        CustomRunParameter.BossesPerAct => BossesPerAct,
         CustomRunParameter.FloorsPerAct => FloorsPerAct,
         CustomRunParameter.BaseHandSize => BaseHandSize,
         CustomRunParameter.BaseEnergy => BaseEnergy,
@@ -69,7 +64,6 @@ internal readonly record struct CustomRunParameterValues(
 
     internal CustomRunParameterValues With(CustomRunParameter parameter, int value) => parameter switch
     {
-        CustomRunParameter.BossesPerAct => this with { BossesPerAct = value },
         CustomRunParameter.FloorsPerAct => this with { FloorsPerAct = value },
         CustomRunParameter.BaseHandSize => this with { BaseHandSize = value },
         CustomRunParameter.BaseEnergy => this with { BaseEnergy = value },
@@ -110,7 +104,6 @@ internal static class CustomRunParameterValuesStore
 
     private static int Normalize(CustomRunParameter parameter, int value) => parameter switch
     {
-        CustomRunParameter.BossesPerAct => value < 0 ? -1 : Math.Clamp(value, 1, 2),
         CustomRunParameter.FloorsPerAct => value < 0 ? -1 : Math.Clamp(value, 8, 30),
         CustomRunParameter.BaseHandSize => value < 0 ? -1 : Math.Clamp(value, 0, 10),
         CustomRunParameter.BaseEnergy => value < 0 ? -1 : Math.Clamp(value, 0, 10),

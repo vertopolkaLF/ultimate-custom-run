@@ -139,6 +139,7 @@ internal static class ModifierValueUi
 
     internal static void Refresh(NCustomRunModifiersList list)
     {
+        SubmodifierUi.Refresh(list);
         if (!Rows.TryGetValue(list, out var rows)) return;
         foreach (var row in rows)
         {
@@ -160,7 +161,7 @@ internal static class ModifierValueUi
                 var russian = LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
                 var unit = russian ? row.Spec.Unit switch
                 {
-                    "cards" => "карт", "offers" => "карт в пуле", "extra copies" => "доп. копий", "minutes" => "мин.",
+                    "bosses" => "боссов", "cards" => "карт", "offers" => "карт в пуле", "extra copies" => "доп. копий", "minutes" => "мин.",
                     "initial max HP" => "начальных макс. HP", "max HP per fight" => "макс. HP за бой", "events" => "событий", "relics" => "реликвий", _ => "% золота"
                 } : row.Spec.Unit;
                 if (row.Kind == ValueKind.Primary && row.Parent.Modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)

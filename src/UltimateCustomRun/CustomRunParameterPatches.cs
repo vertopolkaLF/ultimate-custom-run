@@ -142,7 +142,7 @@ internal static class CustomRunActMapPatch
     private static void Prefix(ref ActModel __instance, RunState __0)
     {
         var values = CustomRunParameterValuesStore.From(__0.Modifiers);
-        if (values.BossesPerAct < 0 && values.FloorsPerAct < 0) return;
+        if (values.FloorsPerAct < 0) return;
 
         var act = MakeMutableForRun(__instance, __0);
         __instance = act;
@@ -150,15 +150,7 @@ internal static class CustomRunActMapPatch
         if (values.FloorsPerAct > 0)
             FloorOverrides.Add(act, new FloorOverride { Count = values.FloorsPerAct });
 
-        if (values.BossesPerAct == 1)
-        {
-            if (act.HasSecondBoss) act.SetSecondBossEncounter(null!);
-        }
-        else if (values.BossesPerAct == 2 && !act.HasSecondBoss && act.BossEncounter is { } primaryBoss)
-        {
-            var secondBoss = act.AllBossEncounters.FirstOrDefault(encounter => encounter.Id != primaryBoss.Id);
-            if (secondBoss != null) act.SetSecondBossEncounter(secondBoss);
-        }
+
     }
 
     private static ActModel MakeMutableForRun(ActModel act, RunState runState)

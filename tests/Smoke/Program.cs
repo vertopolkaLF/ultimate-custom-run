@@ -124,7 +124,7 @@ internal static class Program
             typeof(Insanity), typeof(AllStar), typeof(Flight), typeof(Vintage), typeof(CharacterCards), typeof(NeowStarterChoice),
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
-            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart), typeof(MysteryEvents), typeof(DoubleTrouble),
+            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart), typeof(MysteryEvents), typeof(DoubleTrouble), typeof(CampfiresBetweenBosses),
             typeof(MegaCrit.Sts2.Core.Models.Acts.Overgrowth),
             typeof(MegaCrit.Sts2.Core.Models.Encounters.VantomBoss),
             typeof(MegaCrit.Sts2.Core.Models.Encounters.CeremonialBeastBoss),
@@ -892,6 +892,8 @@ internal static class Program
     private static void TestCustomRunParameters()
     {
         var canonical = ModelDb.Modifier<CustomRunParameters>();
+        Check(typeof(CustomRunParameters).GetProperty("BossesPerAct") == null,
+            "Boss count is removed from Custom Run Parameters");
         foreach (var parameter in Enum.GetValues<CustomRunParameter>())
             Check(typeof(CustomRunParameters).GetProperty(parameter.ToString())?.GetCustomAttribute<
                 MegaCrit.Sts2.Core.Saves.Runs.SavedPropertyAttribute>() != null &&
@@ -901,7 +903,6 @@ internal static class Program
         foreach (var handSize in new[] { -1, 0, 5, 10, 15 })
         {
             var modifier = (CustomRunParameters)canonical.ToMutable();
-            modifier.BossesPerAct = 2;
             modifier.FloorsPerAct = 20;
             modifier.BaseHandSize = handSize;
             modifier.BaseEnergy = 6;
@@ -923,19 +924,20 @@ internal static class Program
             foreach (var restored in new[] { ModifierModel.FromSerializable(saved), ModifierModel.FromSerializable(packet),
                 (ModifierModel)modifier.MutableClone() })
                 Check(restored is CustomRunParameters parameters && CustomRunParameterValuesStore.Get(parameters) == expected,
-                    "All seven Custom Run parameters survive save, replay/network packet and clone: hand " + handSize);
+                    "All six Custom Run parameters survive save, replay/network packet and clone: hand " + handSize);
         }
         var legacy = new MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier
         {
             Id = canonical.Id,
             Props = new MegaCrit.Sts2.Core.Saves.Runs.SavedProperties { ints = [
                 new("CustomRunParameters.BossesPerAct", 2),
+                new("BossesPerAct", 1),
                 new("CustomRunParameters.FloorsPerAct", 24),
                 new("CustomRunParameters.BaseHandSize", 15),
                 new("CustomRunParameters.EnemyDamagePercent", 175)] }
         };
         var migrated = (CustomRunParameters)ModifierModel.FromSerializable(legacy);
-        Check(migrated.BossesPerAct == 2 && migrated.FloorsPerAct == 24 && migrated.BaseHandSize == 10 &&
+        Check(migrated.FloorsPerAct == 24 && migrated.BaseHandSize == 10 &&
             migrated.EnemyDamagePercent == 175 && migrated.BaseEnergy == -1,
             "Legacy dotted-key saves retain their parameters, clamp oversized hands and preserve missing defaults");
         var migrationWriter = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
@@ -1002,6 +1004,82 @@ internal static class Program
         Check(restoredMap.SecondBossMapPoint != null &&
             restoredMap.BossMapPoint.Children.Contains(restoredMap.SecondBossMapPoint),
             "Both boss nodes and their connection survive native map saves");
+        var configured = (DoubleTrouble)canonical.ToMutable();
+        foreach (var count in new[] { 2, 3 })
+        foreach (var fires in new[] { false, true })
+        {
+            ModifierValues.Set(configured, count);
+            var savedModifier = configured.ToSerializable();
+            var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+            savedModifier.Serialize(writer);
+            var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+            reader.Reset(writer.Buffer);
+            var packet = new MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier();
+            packet.Deserialize(reader);
+            Check(ModifierValues.Get(ModifierModel.FromSerializable(packet)) == count &&
+                ModifierValues.Get((ModifierModel)configured.MutableClone()) == count,
+                "Double Trouble boss count survives native save/network packets and cloning: " + count);
+            var act = NewAct(0);
+            DoubleTrouble.AddSecondBosses([act], new MegaCrit.Sts2.Core.Random.Rng(42u), count);
+            var original = new MegaCrit.Sts2.Core.Map.StandardActMap(new MegaCrit.Sts2.Core.Random.Rng(42u),
+                act, false, false, hasSecondBoss: true);
+            var expanded = new BossChainActMap(original, count, fires);
+            var saved = MegaCrit.Sts2.Core.Saves.Runs.SerializableActMap.FromActMap(expanded);
+            var mapWriter = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+            saved.Serialize(mapWriter);
+            reader.Reset(mapWriter.Buffer);
+            var mapPacket = new MegaCrit.Sts2.Core.Saves.Runs.SerializableActMap();
+            mapPacket.Deserialize(reader);
+            foreach (var chainMap in new MegaCrit.Sts2.Core.Map.ActMap[] { expanded,
+                new MegaCrit.Sts2.Core.Map.SavedActMap(saved), new MegaCrit.Sts2.Core.Map.SavedActMap(mapPacket) })
+            {
+                var chain = BossChainActMap.Chain(chainMap);
+                var expectedTypes = Enumerable.Range(0, count).SelectMany(index => index == 0 || !fires
+                    ? new[] { MegaCrit.Sts2.Core.Map.MapPointType.Boss }
+                    : new[] { MegaCrit.Sts2.Core.Map.MapPointType.RestSite, MegaCrit.Sts2.Core.Map.MapPointType.Boss });
+                Check(chain.Select(point => point.PointType).SequenceEqual(expectedTypes) &&
+                    ReferenceEquals(chain[^1], chainMap.SecondBossMapPoint) && chain[^1].Children.Count == 0 &&
+                    chain.All(point => ReferenceEquals(chainMap.GetPoint(point.coord), point)),
+                    $"Boss chain topology and final node survive save/network: {count} bosses, campfires {fires}");
+                var state = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+                AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(state, new ModifierModel[] { configured });
+                AccessTools.PropertySetter(typeof(RunState), nameof(RunState.Map)).Invoke(state, [chainMap]);
+                foreach (var point in chain)
+                {
+                    AccessTools.Field(typeof(RunState), "_visitedMapCoords").SetValue(state, new List<MegaCrit.Sts2.Core.Map.MapCoord> { point.coord });
+                    Check(MegaCrit.Sts2.Core.Map.MapTravel.GetTravelablePointsFrom(state, point).SequenceEqual(point.Children),
+                        "Boss chain travel follows required campfires and bosses");
+                    if (point.PointType == MegaCrit.Sts2.Core.Map.MapPointType.Boss)
+                        Check(BossChainRewardsProceedPatch.ContinuationPoint(chainMap.BossMapPoint, state) ==
+                            (point.Children.Count > 0 ? point : chainMap.BossMapPoint),
+                            "Only intermediate bosses continue through map after rewards");
+                }
+            }
+            var encounters = new List<ModelId>();
+            for (var index = 0; index < count; index++)
+            {
+                encounters.Add(act.PullNextEncounter(MegaCrit.Sts2.Core.Rooms.RoomType.Boss).Id);
+                act.MarkRoomVisited(MegaCrit.Sts2.Core.Rooms.RoomType.Boss);
+            }
+            Check(encounters.Distinct().Count() == count, "Configured boss chain uses distinct encounters: " + count);
+            var loaded = ActModel.FromSave(act.ToSave());
+            AccessTools.Field(typeof(ActModel), "_allBossEncounters").SetValue(loaded, bosses);
+            var loadState = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+            AccessTools.Field(typeof(RunState), "<Acts>k__BackingField").SetValue(loadState, new ActModel[] { loaded });
+            ((DoubleTrouble)ModifierModel.FromSerializable(savedModifier)).OnRunLoaded(loadState);
+            if (count == 3)
+                Check(loaded.PullNextEncounter(MegaCrit.Sts2.Core.Rooms.RoomType.Boss).Id == encounters[2] &&
+                    Harmony.GetPatchInfo(AccessTools.PropertyGetter(typeof(ActModel), nameof(ActModel.AssetPaths)))?.Owners.Contains(ModEntry.HarmonyId) == true,
+                    "Native load hook restores third boss identity and the map asset preload patch is installed");
+        }
+        var child = ModelDb.Modifier<CampfiresBetweenBosses>();
+        Check(child.HasParent(new[] { configured }) && !child.HasParent(Array.Empty<ModifierModel>()) &&
+            ModifierListPatch.IsCustomOnly(child) && ModifierModel.FromSerializable(child.ToMutable().ToSerializable()) is CampfiresBetweenBosses,
+            "Campfires is a native saved custom-only submodifier requiring Double Trouble");
+        ModifierValues.Set(configured, 1);
+        Check(ModifierValues.Get(configured) == 2, "Double Trouble clamps below its two-boss minimum");
+        ModifierValues.Set(configured, 4);
+        Check(ModifierValues.Get(configured) == 3, "Double Trouble clamps above its three-boss maximum");
         var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
         AccessTools.Field(typeof(RunState), "_currentActIndex").SetValue(run, 2);
         AccessTools.Field(typeof(RunState), "<Acts>k__BackingField").SetValue(run, new ActModel[] { NewAct(0), NewAct(1), mapAct });
@@ -1035,8 +1113,10 @@ internal static class Program
             Rewards().WithRewardsFromRoom(room);
             AccessTools.Field(combat.GetType(), "_encounter").SetValue(combat, bosses[1]);
             Rewards().WithRewardsFromRoom(room);
-            Check(_bossRewardGenerations == 2 && run.CurrentActIndex == 2,
-                "Both final-act bosses independently invoke native reward generation without changing act progression");
+            AccessTools.Field(combat.GetType(), "_encounter").SetValue(combat, bosses[2]);
+            Rewards().WithRewardsFromRoom(room);
+            Check(_bossRewardGenerations == 3 && run.CurrentActIndex == 2,
+                "Every final-act boss independently invokes native reward generation without changing act progression");
         }
         finally { fixtureHarmony.UnpatchAll(fixtureHarmony.Id); }
     }

@@ -26,7 +26,6 @@ internal static class CustomRunParametersUi
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, List<Row>> Rows = new();
     private static readonly (CustomRunParameter Parameter, string English, string Russian, int MaxIndex)[] Specs =
     [
-        (CustomRunParameter.BossesPerAct, "Bosses per act", "Боссов за акт", 2),
         (CustomRunParameter.FloorsPerAct, "Floors per act", "Этажей за акт", 23),
         (CustomRunParameter.BaseHandSize, "Base hand size", "Размер базовой руки", 11),
         (CustomRunParameter.BaseEnergy, "Base energy", "Базовая энергия", 11),
@@ -152,7 +151,6 @@ internal static class CustomRunParametersUi
         if (value < 0) return russian ? "По умолчанию" : "Vanilla";
         return parameter switch
         {
-            CustomRunParameter.BossesPerAct => value.ToString(),
             CustomRunParameter.FloorsPerAct => value.ToString(),
             CustomRunParameter.BaseHandSize => value.ToString(),
             CustomRunParameter.BaseEnergy => value.ToString(),
@@ -162,7 +160,6 @@ internal static class CustomRunParametersUi
 
     private static int IndexFor(CustomRunParameter parameter, int value) => parameter switch
     {
-        CustomRunParameter.BossesPerAct => value < 0 ? 0 : value,
         CustomRunParameter.FloorsPerAct => value < 0 ? 0 : value - 7,
         CustomRunParameter.BaseHandSize => value < 0 ? 0 : value + 1,
         CustomRunParameter.BaseEnergy => value < 0 ? 0 : value + 1,
@@ -171,7 +168,6 @@ internal static class CustomRunParametersUi
 
     private static int ValueAt(CustomRunParameter parameter, int index) => parameter switch
     {
-        CustomRunParameter.BossesPerAct => index == 0 ? -1 : index,
         CustomRunParameter.FloorsPerAct => index == 0 ? -1 : index + 7,
         CustomRunParameter.BaseHandSize => index == 0 ? -1 : index - 1,
         CustomRunParameter.BaseEnergy => index == 0 ? -1 : index - 1,

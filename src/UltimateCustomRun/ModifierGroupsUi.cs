@@ -77,7 +77,7 @@ internal static class ModifierGroupsUi
         foreach (var (group, title) in ModifierGroups.Sections)
         {
             var children = rows.Where(row => row.Modifier != null && ModifierGroups.Classify(row.Modifier, negatives) == group).ToList();
-            var visibleRows = children.Where(row => !ModifierVariantUi.IsHiddenVariant(row.Modifier)).ToList();
+            var visibleRows = children.Where(row => !ModifierVariantUi.IsHiddenVariant(row.Modifier) && row.Modifier is not SubmodifierModel).ToList();
             var sectionRoot = new VBoxContainer { Name = group.ToString(), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
             if (group == ModifierGroup.Disabled) sectionRoot.Modulate = new Color(1, 1, 1, 0.6f);
             sectionRoot.AddThemeConstantOverride("separation", 4);
@@ -211,6 +211,7 @@ internal static class ModifierGroupsUi
             header.MouseExited += () => highlight.Visible = false;
         }
 
+        SubmodifierUi.Attach(list, rows);
         if (layout.SingleplayerDisabled.Count > 0)
         {
             var first = layout.SingleplayerDisabled[0];
@@ -327,6 +328,8 @@ internal static class ModifierGroupsUi
         {
             if (!child.Visible) continue;
             if (child is NRunModifierTickbox row && row.FocusMode == Control.FocusModeEnum.All) yield return row;
+            foreach (var nested in child.FindChildren("*", "Control", true, false).OfType<NRunModifierTickbox>())
+                if (nested.IsVisibleInTree() && nested.FocusMode == Control.FocusModeEnum.All) yield return nested;
             foreach (var slider in child.FindChildren("*", "Range", true, false).OfType<Control>())
                 if (slider.FocusMode == Control.FocusModeEnum.All) yield return slider;
         }

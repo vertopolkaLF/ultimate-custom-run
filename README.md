@@ -11,11 +11,12 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 ## Features
 
 - Collapsible modifier groups: **Improved Start**, **Run Parameters**, **Modifiers**, **Card Pool**, **Ascension**, and **Negatives**. Options unavailable in singleplayer appear under **Disabled**.
-- **Run Parameters** can set bosses per act (vanilla, 1, or 2), floors per act (vanilla or 8–30), base hand size (vanilla or 0–10, capped by the engine's 10-card hand limit), base energy (vanilla or 0–10), and enemy HP, enemy damage, and player HP multipliers (25–500%, step 25%).
+- **Run Parameters** can set floors per act (vanilla or 8–30), base hand size (vanilla or 0–10, capped by the engine's 10-card hand limit), base energy (vanilla or 0–10), and enemy HP, enemy damage, and player HP multipliers (25–500%, step 25%).
 - Named modifier presets: save the current selection and slider values as a loadout, then restore it from the dropdown. **Empty** clears the selected modifiers. Delete saved loadouts with the game's remove icon beside each dropdown item; deleting a loadout preserves the current run settings. Presets are stored locally, and the built-in Empty preset cannot be overwritten or removed.
 - **Ascension** contains all ten Ascension effects as independent options, using the game's localized titles and descriptions. For example, enable Double Boss without any other Ascension penalties. Enabling an effect sets Ascension to 0; changing Ascension disables every independent Ascension option while preserving other modifiers.
 - Native sliders with live value labels and descriptions. Use the mouse or focus a slider and press left/right to change it by one step.
 - Linked mutually exclusive choices. Specialized, All Star, and Friendship keep their variants together under one checkbox.
+- Submodifiers appear beneath their parent only while it is enabled.
 - Values persist in saves and synchronize from the co-op host.
 - Custom-only modifiers stay out of the Daily Challenge pool. Vanilla Daily values are preserved.
 - No BaseLib dependency or additional PCK file.
@@ -51,8 +52,9 @@ Enable a modifier to reveal its slider. Original values remain the defaults.
 | Insanity | 5–60 cards | 5 | 30 |
 | Hoarder | 1–5 additional copies | 1 | 2 |
 | Midas | 150–300% of normal gold rewards | 5% | 200% |
+| Double Trouble | 2–3 bosses per act | 1 | 2 |
 
-Run Parameters use the game's defaults until a value is changed. The boss setting supports one or two bosses because the native act map has a primary and a second boss slot. Parameter values are saved with runs and presets, and synchronized from the co-op host.
+Run Parameters use the game's defaults until a value is changed. Parameter values are saved with runs and presets, and synchronized from the co-op host.
 
 Normal, Draft, and Pick Any share the same value within a modifier family. Sealed Deck has two sliders: cards to choose and pool size. The first slider's maximum is always the second slider's value minus 5; reducing the pool automatically clamps the chosen-card count. Both values persist in saves, co-op settings, and presets. Extra Card Choice / Card Swarm does not enlarge the configured pool. Hoarder counts copies **in addition to** the original card and still blocks Merchant card removal. Midas uses a percentage of the normal gold reward, rounded down: 200% means twice the gold. It still blocks Smithing at Rest Sites.
 
@@ -61,7 +63,8 @@ Normal, Draft, and Pick Any share the same value within a modifier family. Seale
 | Option | Effect |
 | --- | --- |
 | **Neow!!** | Restores the usual starter relic choice after the other starting effects. |
-| **Double Trouble** | Fight 2 different Bosses at the end of every Act, with separate normal boss rewards from both (including the final Act). Uses the native A10 second-boss map node, top-bar icons, boss progression, and save/co-op state. Combining it with A10 still gives exactly two bosses per Act. |
+| **Double Trouble** | Fight 2–3 different Bosses at the end of every Act (step 1, default 2), with separate normal rewards from each, including the final Act. A10 does not add another boss on top of this count. The count persists in saves, presets, and co-op settings. |
+| **Campfires between bosses** | A Double Trouble submodifier, visible only while its parent is enabled. Adds a normal Rest Site between every pair of bosses (one with 2 bosses, two with 3). Off by default. Saved with runs and presets, synchronized from the co-op host, and inactive without its parent. The boss/rest chain is preserved in native map saves. |
 | **???** | Encounter 1?10 additional Events after Neow, before entering the main map (step 1, default 3). The count persists in saves and presets. Each occupies its own extra floor, uses the native shuffled, unlocked event pool, and is guaranteed to be an Event. Events with any custom appearance conditions are excluded even when those conditions currently pass; if every eligible event has already been seen, only unconditional events may repeat. The generated map and its first three floors are unchanged. Supports saving/loading and synchronized co-op progression after all players proceed. |
 | **Headstart** | Choose 1–5 distinct relics at Neow (step 1, default 1). Uses compendium relic tiles in a searchable, scrolling selection grid with native hover tips and explicit confirmation. Includes all unlocked, character-compatible rarities, including Ancient, Event, Shop, and other available Starter relics, subject to native Neow restrictions. Circlet, Deprecated Relic, and already-owned non-stackable relics are excluded. Each co-op player chooses independently through synchronized choice indexes; normal pickup effects remain active. The count persists in saves and presets. |
 | **Ultimate Starter** | Replaces the normal basic Strikes and Defends with 3 Ultimate Strikes and 3 Ultimate Defends, preserving special starter cards such as Bash and Zap. Applies once when creating a run, for every co-op player. Draft, Sealed Deck, and Insanity replace the whole deck afterward if selected. |

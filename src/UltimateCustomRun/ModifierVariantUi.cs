@@ -329,6 +329,8 @@ internal static class ModifierVariantSelectionPatch
     {
         ModifierVariantUi.TransformSelectedModifiers(__instance, ref __result);
         ModifierGroupsUi.RemoveLockedModifiers(__instance, __result);
+        var selected = __result;
+        selected.RemoveAll(modifier => modifier is SubmodifierModel child && !child.HasParent(selected));
     }
 }
 
