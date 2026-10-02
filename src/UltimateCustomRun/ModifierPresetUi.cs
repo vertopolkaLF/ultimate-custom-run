@@ -51,14 +51,26 @@ internal static class ModifierPresetUi
         row.AddThemeConstantOverride("separation", 20);
 
         var modifierList = (NCustomRunModifiersList)AccessTools.Field(typeof(NCustomRunScreen), "_modifiersList")!.GetValue(screen)!;
+        var dropdownSlot = new Control
+        {
+            Name = "ModifierPresetSlot",
+            CustomMinimumSize = new Vector2(272, 56),
+            SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
+            MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+        row.AddChild(dropdownSlot);
+        row.MoveChild(dropdownSlot, rowIndex);
+
         var dropdown = ResourceLoader.Load<PackedScene>(DropdownScene).Instantiate<NActDropdown>();
         dropdown.Name = "ModifierPresetDropdown";
-        dropdown.CustomMinimumSize = new Vector2(272, 56);
-        dropdown.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+        dropdown.CustomMinimumSize = Vector2.Zero;
+        dropdown.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        dropdown.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         dropdown.GetNode<Control>("CurrentOption").CustomMinimumSize = new Vector2(272, 40);
         Dropdowns.Add(dropdown, new DropdownState { ModifierList = modifierList });
-        row.AddChild(dropdown);
-        row.MoveChild(dropdown, rowIndex);
+        dropdownSlot.AddChild(dropdown);
+        dropdown.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        ApplySettingsDropdownAppearance(dropdown);
         RebuildOptions(dropdown);
 
         var saveButton = CreateSaveButton();
@@ -139,6 +151,23 @@ internal static class ModifierPresetUi
         button.MouseEntered += () => style.BgColor = ButtonHoverColor;
         button.MouseExited += () => style.BgColor = ButtonColor;
         return button;
+    }
+
+    private static void ApplySettingsDropdownAppearance(NActDropdown dropdown)
+    {
+        var currentOption = dropdown.GetNode<Panel>("CurrentOption/Highlight");
+        currentOption.Modulate = Colors.White;
+        currentOption.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = Color.FromHtml("2c434f")
+        });
+
+        var optionsPanel = dropdown.GetNode<Panel>("DropdownContainer/Highlight");
+        optionsPanel.Modulate = Colors.White;
+        optionsPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = Color.FromHtml("12212a")
+        });
     }
 
     private static void RebuildOptions(NActDropdown dropdown, string? selectedName = null)
