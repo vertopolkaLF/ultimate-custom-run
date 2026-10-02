@@ -139,18 +139,22 @@ internal static class CustomRunActMapPatch
     private static readonly MethodInfo SetActs = AccessTools.Method(typeof(RunState), "set_Acts")!;
 
     [HarmonyPrefix]
-    private static void Prefix(ref ActModel __instance, RunState __0)
+    private static void Prefix(RunState __0) => Configure(__0);
+
+    internal static void Configure(RunState runState)
     {
-        var values = CustomRunParameterValuesStore.From(__0.Modifiers);
-        if (values.FloorsPerAct < 0) return;
-
-        var act = MakeMutableForRun(__instance, __0);
-        __instance = act;
-        FloorOverrides.Remove(act);
-        if (values.FloorsPerAct > 0)
-            FloorOverrides.Add(act, new FloorOverride { Count = values.FloorsPerAct });
-
-
+        var floors = CustomRunParameterValuesStore.From(runState.Modifiers).FloorsPerAct;
+        foreach (var original in runState.Acts.ToArray())
+        {
+            if (floors < 0)
+            {
+                FloorOverrides.Remove(original);
+                continue;
+            }
+            var act = MakeMutableForRun(original, runState);
+            FloorOverrides.Remove(act);
+            FloorOverrides.Add(act, new FloorOverride { Count = floors });
+        }
     }
 
     private static ActModel MakeMutableForRun(ActModel act, RunState runState)
@@ -159,22 +163,23 @@ internal static class CustomRunActMapPatch
 
         var acts = runState.Acts.ToArray();
         var index = Array.FindIndex(acts, candidate => ReferenceEquals(candidate, act));
-        if (index < 0) return (ActModel)act.MutableClone();
+        if (index < 0) return act.ToMutable();
 
-        var mutable = (ActModel)act.MutableClone();
+        var mutable = act.ToMutable();
         acts[index] = mutable;
         SetActs.Invoke(runState, [acts]);
         return mutable;
     }
 
-    [HarmonyPatch(typeof(ActModel), nameof(ActModel.GetNumberOfFloors))]
+    [HarmonyPatch(typeof(ActModel), nameof(ActModel.GetNumberOfRooms))]
     private static class FloorCountPatch
     {
         [HarmonyPostfix]
         private static void Postfix(ActModel __instance, ref int __result)
         {
             if (FloorOverrides.TryGetValue(__instance, out var floorOverride))
-                __result = floorOverride.Count;
+                // The native map and encounter pools use room count. Floors also include the Ancient and boss.
+                __result = floorOverride.Count - 2;
         }
     }
 }

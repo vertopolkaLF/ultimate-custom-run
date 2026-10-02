@@ -89,6 +89,7 @@ internal static class Program
             TestMysteryEvents();
             TestDoubleTrouble();
             TestCustomRunParameters();
+            TestCustomRunFloors();
         }
         finally
         {
@@ -125,7 +126,7 @@ internal static class Program
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
             typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart), typeof(MysteryEvents), typeof(DoubleTrouble), typeof(CampfiresBetweenBosses),
-            typeof(MegaCrit.Sts2.Core.Models.Acts.Overgrowth),
+            .. typeof(ActModel).Assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(ActModel)) && !type.IsAbstract),
             typeof(MegaCrit.Sts2.Core.Models.Encounters.VantomBoss),
             typeof(MegaCrit.Sts2.Core.Models.Encounters.CeremonialBeastBoss),
             typeof(MegaCrit.Sts2.Core.Models.Encounters.TheKinBoss),
@@ -948,6 +949,57 @@ internal static class Program
         var migrationWriter = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
         migrated.ToSerializable().Serialize(migrationWriter);
         Check(migrationWriter.Buffer.Length > 0, "Migrated Custom Run saves can be serialized into replay packets");
+    }
+
+    private static void TestCustomRunFloors()
+    {
+        var canonicalActs = ModelDb.ActsByIndex.SelectMany(acts => acts).ToArray();
+        var modifier = (CustomRunParameters)ModelDb.Modifier<CustomRunParameters>().ToMutable();
+        foreach (var floors in Enumerable.Range(8, 23).Prepend(-1))
+        foreach (var multiplayer in new[] { false, true })
+        {
+            modifier.FloorsPerAct = floors;
+            var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+            AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { modifier });
+            AccessTools.Field(typeof(RunState), "<Acts>k__BackingField").SetValue(run,
+                floors < 0 ? canonicalActs.Select(act => act.ToMutable()).ToArray() : canonicalActs);
+            AccessTools.Field(typeof(RunState), "_players").SetValue(run,
+                Enumerable.Range(0, multiplayer ? 2 : 1).Select(_ =>
+                    (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player))).ToList());
+            AccessTools.Field(typeof(RunState), "<Rng>k__BackingField").SetValue(run,
+                RuntimeHelpers.GetUninitializedObject(typeof(RunRngSet)));
+            modifier.OnRunCreated(run);
+            for (var index = 0; index < run.Acts.Count; index++)
+            {
+                AccessTools.Field(typeof(RunState), "_currentActIndex").SetValue(run, index);
+                var act = run.Act;
+                AccessTools.Field(typeof(ActModel), "_rooms").SetValue(act, new MegaCrit.Sts2.Core.Rooms.RoomSet
+                {
+                    Boss = ModelDb.Encounter<MegaCrit.Sts2.Core.Models.Encounters.VantomBoss>(),
+                    Ancient = ModelDb.Event<Neow>()
+                });
+                var expected = floors < 0 ? canonicalActs[index].GetNumberOfFloors(multiplayer) : floors;
+                Check(act.GetNumberOfRooms(multiplayer) == expected - 2 && act.GetNumberOfFloors(multiplayer) == expected,
+                    $"Room pools and floor count agree before generation: {act.Id}, {floors}, co-op={multiplayer}");
+                var map = act.CreateMap(run, false);
+                Check(map.GetRowCount() == expected - 1 && map.BossMapPoint.coord.row == expected - 1,
+                    $"Native CreateMap uses configured floors including Ancient and boss: {act.Id}, {floors}, co-op={multiplayer}");
+                var saved = MegaCrit.Sts2.Core.Saves.Runs.SerializableActMap.FromActMap(map);
+                var restored = new MegaCrit.Sts2.Core.Map.SavedActMap(saved);
+                Check(restored.GetRowCount() == map.GetRowCount() && restored.BossMapPoint.coord == map.BossMapPoint.coord,
+                    "Configured map length survives native map serialization");
+            }
+            // Loaded act instances must regain their overrides before generating a later act or replacement map.
+            AccessTools.Field(typeof(RunState), "<Acts>k__BackingField").SetValue(run,
+                canonicalActs.Select(act => act.ToMutable()).ToArray());
+            modifier.OnRunLoaded(run);
+            Check(run.Acts.All(act => act.GetNumberOfFloors(multiplayer) ==
+                (floors < 0 ? act.CanonicalInstance.GetNumberOfFloors(multiplayer) : floors)),
+                "Loaded acts regain their configured floor counts");
+            Check(canonicalActs.All(act => !act.IsMutable) && canonicalActs.All(act =>
+                act.GetNumberOfFloors(multiplayer) == act.GetNumberOfRooms(multiplayer) + 2),
+                "Configured runs leave canonical acts unchanged");
+        }
     }
 
     private static void TestDoubleTrouble()

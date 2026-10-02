@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves.Runs;
 
 namespace UltimateCustomRun;
@@ -29,6 +30,9 @@ public sealed class CustomRunParameters : ModifierModel
 
     private CustomRunParameterValues Values => CustomRunParameterValuesStore.Get(this);
     private void Set(CustomRunParameter parameter, int value) => CustomRunParameterValuesStore.Set(this, parameter, value);
+
+    protected override void AfterRunCreated(RunState runState) => CustomRunActMapPatch.Configure(runState);
+    protected override void AfterRunLoaded(RunState runState) => CustomRunActMapPatch.Configure(runState);
 }
 
 internal enum CustomRunParameter
