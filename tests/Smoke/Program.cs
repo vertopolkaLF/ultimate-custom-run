@@ -1173,6 +1173,10 @@ internal static class Program
                     AccessTools.Field(typeof(RunState), "_visitedMapCoords").SetValue(state, new List<MegaCrit.Sts2.Core.Map.MapCoord> { point.coord });
                     Check(MegaCrit.Sts2.Core.Map.MapTravel.GetTravelablePointsFrom(state, point).SequenceEqual(point.Children),
                         "Boss chain travel follows required campfires and bosses");
+                    Check(BossChainMapTravelabilityPatch.LastVisitedChainPoint(state) == (chain.Count > 2 ? point : null) &&
+                        Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.Screens.Map.NMapScreen),
+                            "RecalculateTravelability"))?.Owners.Contains(ModEntry.HarmonyId) == true,
+                        "Map UI bypasses native boss shortcuts for every expanded boss/rest chain node, including loaded maps");
                     if (point.PointType == MegaCrit.Sts2.Core.Map.MapPointType.Boss)
                         Check(BossChainRewardsProceedPatch.ContinuationPoint(chainMap.BossMapPoint, state) ==
                             (point.Children.Count > 0 ? point : chainMap.BossMapPoint),

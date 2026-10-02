@@ -192,3 +192,32 @@ internal static class BossChainTravelPatch
         return false;
     }
 }
+
+[HarmonyPatch(typeof(NMapScreen), "RecalculateTravelability")]
+internal static class BossChainMapTravelabilityPatch
+{
+    internal static MapPoint? LastVisitedChainPoint(RunState run)
+    {
+        if (!DoubleTrouble.IsEnabled(run) || run.VisitedMapCoords.Count == 0) return null;
+        var chain = BossChainActMap.Chain(run.Map);
+        if (chain.Count <= 2) return null;
+        var lastCoord = run.VisitedMapCoords[^1];
+        return chain.FirstOrDefault(point => point.coord == lastCoord);
+    }
+
+    [HarmonyPrefix]
+    private static bool Prefix(NMapScreen __instance)
+    {
+        var run = (RunState)AccessTools.Field(typeof(NMapScreen), "_runState").GetValue(__instance)!;
+        if (LastVisitedChainPoint(run) is not { } lastPoint) return true;
+        var nodes = (Dictionary<MapCoord, NMapPoint>)AccessTools.Field(typeof(NMapScreen), "_mapPointDictionary")
+            .GetValue(__instance)!;
+        // Vanilla shortcuts from the first boss to the second and from the last
+        // grid row back to the first boss. Expanded chains must follow their edges.
+        foreach (var node in nodes.Values) node.State = MapPointState.Untravelable;
+        foreach (var coord in run.VisitedMapCoords)
+            if (nodes.TryGetValue(coord, out var node)) node.State = MapPointState.Traveled;
+        foreach (var child in lastPoint.Children) nodes[child.coord].State = MapPointState.Travelable;
+        return false;
+    }
+}
