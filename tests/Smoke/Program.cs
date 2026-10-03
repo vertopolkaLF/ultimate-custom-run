@@ -26,11 +26,11 @@ internal static class Program
             var path = Path.Combine(dataPath, name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        Run(args.Contains("--ascension-only"), args.Contains("--boss-chain-only"), args.Contains("--reward-sliders-only"), args.Contains("--mystery-only"), args.Contains("--twenty-twenty-only"));
+        Run(args.Contains("--ascension-only"), args.Contains("--boss-chain-only"), args.Contains("--reward-sliders-only"), args.Contains("--mystery-only"), args.Contains("--twenty-twenty-only"), args.Contains("--draft-only"));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Run(bool ascensionOnly, bool bossChainOnly, bool rewardSlidersOnly, bool mysteryOnly, bool twentyTwentyOnly)
+    private static void Run(bool ascensionOnly, bool bossChainOnly, bool rewardSlidersOnly, bool mysteryOnly, bool twentyTwentyOnly, bool draftOnly)
     {
         var assembly = typeof(ModEntry).Assembly;
         Check(assembly.GetName().Name == "UltimateCustomRun" && typeof(ModEntry).Namespace == "UltimateCustomRun" &&
@@ -72,6 +72,15 @@ internal static class Program
                 "Both new modifiers provide their own Neow buttons");
 
             TestNeowModifier();
+            if (draftOnly)
+            {
+                TestSpecializedVariants();
+                TestModifierValues();
+                TestSuperModifiers();
+                TestTwentyTwenty();
+                Console.WriteLine("PASS: managed draft checks. Flight animation and transition timing require an in-game playtest.");
+                return;
+            }
             if (twentyTwentyOnly)
             {
                 TestTwentyTwenty();
@@ -300,13 +309,12 @@ internal static class Program
         var offers = new MegaCrit.Sts2.Core.Entities.Cards.CardCreationResult[] { new(first), new(second) };
         Check(ReferenceEquals(SpecializedDraftReward.ResolveSelection(offers, 1), second),
             "Draft grants the selected reward rather than the first offer");
-        Check(SpecializedDraftReward.ResolveSelection(offers, null) == null, "Skipped rewards do not grant cards");
-        foreach (var index in new[] { -1, 2 })
+        foreach (var index in new int?[] { null, -1, 2 })
         {
             try { SpecializedDraftReward.ResolveSelection(offers, index); throw new Exception("Expected invalid selection rejection"); }
             catch (InvalidOperationException) { }
         }
-        Check(true, "Invalid reward indices are rejected");
+        Check(true, "Starting drafts reject skipped and invalid selections");
     }
 
     private static void TestModifierValues()

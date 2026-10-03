@@ -87,16 +87,17 @@ internal static class TwentyTwentyCards
                     modifier is TwentyTwentyDraft ? SpecializedDraftReward.OfferCountFor(player) : 1, Options(player)).ToList();
                 // Show the enchantment on the actual rewards before choosing.
                 foreach (var offer in offers) Enchant(offer.Card);
-                card = modifier is TwentyTwentyDraft
-                    ? await SpecializedDraftReward.SelectReward(player, offers) : offers.Single().Card;
+                if (modifier is TwentyTwentyDraft)
+                {
+                    await SpecializedDraftReward.SelectAndObtain(player, offers);
+                    continue;
+                }
+                card = offers.Single().Card;
             }
             if (card == null) continue;
             var result = await CardPileCmd.Add(card, PileType.Deck);
-            if (modifier is not TwentyTwentyDraft)
-            {
-                CardCmd.PreviewCardPileAdd([result]);
-                await Cmd.CustomScaledWait(0.6f, 1.2f);
-            }
+            CardCmd.PreviewCardPileAdd([result]);
+            await Cmd.CustomScaledWait(0.6f, 1.2f);
         }
     }
 

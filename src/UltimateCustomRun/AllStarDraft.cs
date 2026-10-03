@@ -29,9 +29,7 @@ public sealed class AllStarDraft : ModifierModel
         {
             var offers = CardFactory.CreateForReward(player, SpecializedDraftReward.OfferCountFor(player),
                 Options(ModelDb.CardPool<ColorlessCardPool>())).ToList();
-            var selected = await SpecializedDraftReward.SelectReward(player, offers);
-            if (selected == null) continue;
-            await CardPileCmd.Add(selected, PileType.Deck);
+            await SpecializedDraftReward.SelectAndObtain(player, offers);
         }
     }
 }
