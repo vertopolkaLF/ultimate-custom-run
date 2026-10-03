@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -66,7 +68,10 @@ internal static class TwentyTwentyCards
     internal static async Task Obtain(Player player, TwentyTwentyModifier modifier)
     {
         if (!player.Relics.Any(relic => relic is PaelsGrowth))
-            await RelicCmd.Obtain<PaelsGrowth>(player);
+        {
+            var relic = (PaelsGrowth)ModelDb.Relic<PaelsGrowth>().ToMutable();
+            await TwentyTwentyRelic.WithoutInitialEnchantment(relic, async () => await RelicCmd.Obtain(relic, player));
+        }
 
         for (var i = 0; i < ModifierValues.Get(modifier); i++)
         {
@@ -127,5 +132,27 @@ internal static class TwentyTwentyCards
             options.WithFilter(card => card.Id == selected.Id && CanOffer(card))).Single().Card;
         Enchant(result);
         return result;
+    }
+}
+
+[HarmonyPatch(typeof(PaelsGrowth), nameof(PaelsGrowth.AfterObtained))]
+internal static class TwentyTwentyRelic
+{
+    private static readonly ConditionalWeakTable<PaelsGrowth, object> GrantedRelics = new();
+
+    internal static async Task WithoutInitialEnchantment(PaelsGrowth relic, Func<Task> obtain)
+    {
+        // Suppress only this modifier's pickup effect, including across asynchronous acquisition.
+        GrantedRelics.Add(relic, new object());
+        try { await obtain(); }
+        finally { GrantedRelics.Remove(relic); }
+    }
+
+    [HarmonyPrefix]
+    internal static bool Prefix(PaelsGrowth __instance, ref Task __result)
+    {
+        if (!GrantedRelics.TryGetValue(__instance, out _)) return true;
+        __result = Task.CompletedTask;
+        return false;
     }
 }

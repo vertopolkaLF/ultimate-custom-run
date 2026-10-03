@@ -893,6 +893,7 @@ internal static class Program
 
     private static void TestTwentyTwenty()
     {
+        TestTwentyTwentyRelic().GetAwaiter().GetResult();
         var models = new ModifierModel[] { ModelDb.Modifier<TwentyTwenty>(),
             ModelDb.Modifier<TwentyTwentyDraft>(), ModelDb.Modifier<TwentyTwentyAny>() };
         var custom = ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers));
@@ -964,6 +965,31 @@ internal static class Program
         options.Clear();
         relics.Add(ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.PaelsGrowth>());
         Check(!TwentyTwentyCards.AddCloneOption(player, options), "Pael's Growth supplies its own Clone action without duplicates");
+    }
+
+    private static async Task TestTwentyTwentyRelic()
+    {
+        var relic = (MegaCrit.Sts2.Core.Models.Relics.PaelsGrowth)RuntimeHelpers.GetUninitializedObject(typeof(MegaCrit.Sts2.Core.Models.Relics.PaelsGrowth));
+        var other = (MegaCrit.Sts2.Core.Models.Relics.PaelsGrowth)RuntimeHelpers.GetUninitializedObject(typeof(MegaCrit.Sts2.Core.Models.Relics.PaelsGrowth));
+        Task result = null!;
+        Check(TwentyTwentyRelic.Prefix(relic, ref result), "Normal Pael's Growth pickup keeps its enchantment selection");
+        await TwentyTwentyRelic.WithoutInitialEnchantment(relic, async () =>
+        {
+            await Task.Yield();
+            Check(TwentyTwentyRelic.Prefix(other, ref result), "20/20 suppression does not affect another relic or player");
+            // An ownerless relic would fail in the native card selector if the prefix did not skip it.
+            await relic.AfterObtained();
+            Check(!TwentyTwentyRelic.Prefix(relic, ref result) && result.IsCompletedSuccessfully,
+                "20/20 skips the native pickup enchantment across awaits");
+        });
+        Check(TwentyTwentyRelic.Prefix(relic, ref result), "20/20 clears suppression after successful acquisition");
+        try
+        {
+            await TwentyTwentyRelic.WithoutInitialEnchantment(relic, () => Task.FromException(new InvalidOperationException("test")));
+            throw new Exception("Expected acquisition failure");
+        }
+        catch (InvalidOperationException) { }
+        Check(TwentyTwentyRelic.Prefix(relic, ref result), "20/20 clears suppression after failed acquisition");
     }
 
     private static void TestDill()
