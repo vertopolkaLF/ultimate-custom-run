@@ -92,8 +92,11 @@ internal static class TwentyTwentyCards
             }
             if (card == null) continue;
             var result = await CardPileCmd.Add(card, PileType.Deck);
-            CardCmd.PreviewCardPileAdd([result]);
-            await Cmd.CustomScaledWait(0.6f, 1.2f);
+            if (modifier is not TwentyTwentyDraft)
+            {
+                CardCmd.PreviewCardPileAdd([result]);
+                await Cmd.CustomScaledWait(0.6f, 1.2f);
+            }
         }
     }
 

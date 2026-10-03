@@ -34,7 +34,7 @@ internal static class SpecializedDraftReward
         // Generate standard distinct rewards across all available non-basic rarities.
         var cards = CardFactory.CreateForReward(player, OfferCountFor(player), Options(player)).ToList();
         var selected = await SelectReward(player, cards);
-        if (selected != null) await SpecializedCardChoices.ObtainCopies(player, selected);
+        if (selected != null) await SpecializedCardChoices.ObtainCopies(player, selected, showPreview: false);
     }
 
     internal static async Task<CardModel?> SelectReward(Player player, IReadOnlyList<CardCreationResult> cards)

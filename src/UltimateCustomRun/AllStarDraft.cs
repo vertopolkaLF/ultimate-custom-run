@@ -31,9 +31,7 @@ public sealed class AllStarDraft : ModifierModel
                 Options(ModelDb.CardPool<ColorlessCardPool>())).ToList();
             var selected = await SpecializedDraftReward.SelectReward(player, offers);
             if (selected == null) continue;
-            var result = await CardPileCmd.Add(selected, PileType.Deck);
-            CardCmd.PreviewCardPileAdd([result]);
-            await Cmd.CustomScaledWait(0.6f, 1.2f);
+            await CardPileCmd.Add(selected, PileType.Deck);
         }
     }
 }

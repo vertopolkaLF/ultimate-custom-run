@@ -68,7 +68,7 @@ internal static class SpecializedCardChoices
         await ObtainCopies(player, card);
     }
 
-    internal static async Task ObtainCopies(Player player, CardModel card, int? count = null)
+    internal static async Task ObtainCopies(Player player, CardModel card, int? count = null, bool showPreview = true)
     {
         var copies = count ?? ModifierValues.SpecializedCount(player);
         var results = new List<CardPileAddResult>(copies);
@@ -77,8 +77,11 @@ internal static class SpecializedCardChoices
             var copy = player.RunState.CloneCard(card);
             results.Add(await CardPileCmd.Add(copy, PileType.Deck, CardPilePosition.Bottom));
         }
-        CardCmd.PreviewCardPileAdd(results, 1.2f, CardPreviewStyle.HorizontalLayout);
-        await Cmd.CustomScaledWait(0.6f, 1.2f);
+        if (showPreview)
+        {
+            CardCmd.PreviewCardPileAdd(results, 1.2f, CardPreviewStyle.HorizontalLayout);
+            await Cmd.CustomScaledWait(0.6f, 1.2f);
+        }
     }
 
     private static int CompareCards(CardModel left, CardModel right)
