@@ -54,6 +54,8 @@ Enable a modifier to reveal its slider. Original values remain the defaults.
 | Midas | 150–300% of normal gold rewards | 5% | 200% |
 | Double Trouble | 2–3 bosses per act | 1 | 2 |
 | Headstart | 1–5 relics | 1 | 1 |
+| Rich Loot | 1–3 extra relic choices | 1 | 1 |
+| Card Swarm | 1–3 extra card offers | 1 | 1 |
 | ??? | 1–5 additional Events | 1 | 3 |
 | Speedrun | 10–60 minutes before HP penalties | 5 | 30 |
 | Dill — initial max HP | 1–20 HP | 1 | 1 |
@@ -99,8 +101,8 @@ Normal, Draft, and Pick Any share the same value within a modifier family. Seale
 | **Friendship — Normal** | Adds the selected number of copies of a random Co-Op card from your character's pool. Co-op only. |
 | **Friendship — Draft** | Choose the selected number of Co-Op card rewards. Each accepted reward adds one card. Co-op only. |
 | **Colorless Cards** | Allows Colorless cards in card rewards through the native Dingy Rug relic. An existing copy is not granted again. |
-| **Rich Loot** | Treasure chests contain one extra relic to choose from. Empty chests remain empty. |
-| **Card Swarm** | Card rewards contain one extra offer, including standard Draft rewards and the mod's starting drafts. Fixed tutorial rewards are unchanged. |
+| **Rich Loot** | Treasure chests contain 1–3 extra relics to choose from (step 1, default 1). Empty chests remain empty. |
+| **Card Swarm** | Card rewards contain 1–3 extra offers (step 1, default 1), including standard Draft rewards and the mod's starting drafts. Fixed tutorial rewards are unchanged. |
 
 Variants within each family are mutually exclusive. Draft, Sealed Deck, and Insanity are mutually exclusive. Super Draft adds cards after deck replacement and can be combined with those options. All Star and Friendship draft rewards can be skipped unless Must Have is enabled. Standard reward-generation hooks remain active, so other effects can modify offers; Sealed Deck keeps its configured pool size.
 
