@@ -42,7 +42,8 @@ public sealed class SuperDraft : ModifierModel
                     .Where(card => card.CanBeGeneratedByModifiers))
                     ?? throw new InvalidOperationException("Super Draft has no eligible Curses.");
                 var curse = player.RunState.CreateCard(canonical, player);
-                await CardPileCmd.Add(curse, PileType.Deck);
+                // Unexpected cards need a preview; the chosen reward already uses the native card flight.
+                CardCmd.PreviewCardPileAdd(await CardPileCmd.Add(curse, PileType.Deck));
             }
         }
     }
