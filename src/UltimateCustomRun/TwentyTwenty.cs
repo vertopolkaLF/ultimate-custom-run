@@ -1,16 +1,19 @@
 using System.Runtime.CompilerServices;
+using System.Reflection.Emit;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.RestSite;
+using MegaCrit.Sts2.Core.Events;
 using MegaCrit.Sts2.Core.Factories;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Enchantments;
+using MegaCrit.Sts2.Core.Models.Events;
 using MegaCrit.Sts2.Core.Models.Relics;
 using MegaCrit.Sts2.Core.Runs;
 
@@ -154,5 +157,36 @@ internal static class TwentyTwentyRelic
         if (!GrantedRelics.TryGetValue(__instance, out _)) return true;
         __result = Task.CompletedTask;
         return false;
+    }
+}
+
+[HarmonyPatch(typeof(Pael), "GenerateInitialOptions")]
+internal static class TwentyTwentyAncientChoices
+{
+    [HarmonyTranspiler]
+    private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+    {
+        var code = instructions.ToList();
+        var growth = AccessTools.PropertyGetter(typeof(Pael), "PaelsGrowthOption");
+        var add = AccessTools.Method(typeof(List<EventOption>), nameof(List<EventOption>.Add));
+        var replacement = AccessTools.Method(typeof(TwentyTwentyAncientChoices), nameof(AddGrowthOption));
+        var matches = 0;
+        for (var i = 0; i < code.Count - 1; i++)
+        {
+            if (!code[i].Calls(growth) || !code[i + 1].Calls(add)) continue;
+            // Filter before RNG selection, preserving the native weights and three-choice layout.
+            code.Insert(i + 1, new CodeInstruction(OpCodes.Ldarg_0));
+            code[i + 2].opcode = OpCodes.Call;
+            code[i + 2].operand = replacement;
+            matches++;
+        }
+        if (matches != 1) throw new InvalidOperationException("Pael's Growth option generation changed; cannot safely exclude it for 20/20.");
+        return code;
+    }
+
+    internal static void AddGrowthOption(List<EventOption> options, EventOption growth, Pael ancient)
+    {
+        if (ancient.Owner?.RunState.Modifiers.Any(modifier => modifier is TwentyTwentyModifier) != true)
+            options.Add(growth);
     }
 }

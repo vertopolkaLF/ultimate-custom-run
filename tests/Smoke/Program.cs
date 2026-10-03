@@ -965,6 +965,23 @@ internal static class Program
         options.Clear();
         relics.Add(ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.PaelsGrowth>());
         Check(!TwentyTwentyCards.AddCloneOption(player, options), "Pael's Growth supplies its own Clone action without duplicates");
+        var pael = (Pael)RuntimeHelpers.GetUninitializedObject(typeof(Pael));
+        typeof(EventModel).GetProperty(nameof(EventModel.Owner))!.SetValue(pael, player);
+        var growthOption = (EventOption)RuntimeHelpers.GetUninitializedObject(typeof(EventOption));
+        foreach (var modifier in models)
+        {
+            AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new[] { modifier });
+            var choices = new List<EventOption> { growthOption, growthOption };
+            TwentyTwentyAncientChoices.AddGrowthOption(choices, growthOption, pael);
+            Check(choices.Count == 2, "Every 20/20 mode excludes Growth before Ancient RNG selection");
+        }
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, Array.Empty<ModifierModel>());
+        var vanillaChoices = new List<EventOption>();
+        TwentyTwentyAncientChoices.AddGrowthOption(vanillaChoices, growthOption, pael);
+        Check(vanillaChoices.Single() == growthOption, "Ancient choices retain Growth without 20/20");
+        Check(PatchProcessor.GetCurrentInstructions(AccessTools.Method(typeof(Pael), "GenerateInitialOptions"))
+            .Any(instruction => instruction.operand is MethodInfo method && method.DeclaringType == typeof(TwentyTwentyAncientChoices)),
+            "Native Pael generation uses the 20/20 candidate filter");
     }
 
     private static async Task TestTwentyTwentyRelic()
