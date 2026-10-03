@@ -29,6 +29,7 @@ internal static class ModifierValues
     {
         Specialized or SpecializedDraft or SpecializedPickAny or AllStar or AllStarDraft or Friendship or FriendshipDraft
             => new(1, 10, 1, 5, "cards"),
+        TwentyTwentyModifier => new(1, 10, 1, 1, "cards"),
         Draft => new(5, 20, 5, 10, "cards"),
         SealedDeck => new(5, GetSealedPool(modifier) - 5, 5, 10, "cards"),
         Insanity => new(5, 60, 5, 30, "cards"),

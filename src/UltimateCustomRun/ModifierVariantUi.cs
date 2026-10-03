@@ -15,16 +15,18 @@ namespace UltimateCustomRun;
 
 internal static class ModifierVariantUi
 {
+    internal const string RandomLabelKey = "ultimate_custom_run.variant.random";
+    internal const string AnyLabelKey = "ultimate_custom_run.variant.any";
     internal const string NormalLabelKey = "ultimate_custom_run.variant.normal";
     internal const string DraftLabelKey = "ultimate_custom_run.variant.draft";
     internal const string DraftDescriptionKey = "ultimate_custom_run.variant.draft_description";
     internal const string PickAnyLabelKey = "ultimate_custom_run.variant.pick_any";
     internal const string PickAnyDescriptionKey = "ultimate_custom_run.variant.pick_any_description";
 
-    internal enum Family { Specialized, AllStar, Friendship }
+    internal enum Family { Specialized, AllStar, Friendship, TwentyTwenty }
     internal enum Mode { Normal, Draft, PickAny }
 
-    internal static readonly Family[] Families = [Family.Specialized, Family.AllStar, Family.Friendship];
+    internal static readonly Family[] Families = [Family.Specialized, Family.AllStar, Family.Friendship, Family.TwentyTwenty];
 
     internal sealed class VariantRow
     {
@@ -34,6 +36,7 @@ internal static class ModifierVariantUi
 
     private sealed class State
     {
+        internal Family Family;
         internal NRunModifierTickbox? ParentRow;
         internal NRunModifierTickbox? DraftRow;
         internal NRunModifierTickbox? PickAnyRow;
@@ -50,13 +53,14 @@ internal static class ModifierVariantUi
         AccessTools.Method(typeof(NCustomRunModifiersList), "AfterModifiersChanged");
 
     internal static bool IsParent(ModifierModel? modifier) =>
-        modifier is Specialized or AllStar or Friendship;
+        modifier is Specialized or AllStar or Friendship or TwentyTwenty;
 
     internal static bool IsParent(ModifierModel? modifier, Family family) => family switch
     {
         Family.Specialized => modifier is Specialized,
         Family.AllStar => modifier is AllStar,
         Family.Friendship => modifier is Friendship,
+        Family.TwentyTwenty => modifier is TwentyTwenty,
         _ => false
     };
 
@@ -65,14 +69,16 @@ internal static class ModifierVariantUi
         Family.Specialized => modifier is SpecializedDraft,
         Family.AllStar => modifier is AllStarDraft,
         Family.Friendship => modifier is FriendshipDraft,
+        Family.TwentyTwenty => modifier is TwentyTwentyDraft,
         _ => false
     };
 
     internal static bool IsPickAny(ModifierModel? modifier, Family family) =>
-        family == Family.Specialized && modifier is SpecializedPickAny;
+        (family == Family.Specialized && modifier is SpecializedPickAny) ||
+        (family == Family.TwentyTwenty && modifier is TwentyTwentyAny);
 
     internal static bool IsHiddenVariant(ModifierModel? modifier) =>
-        modifier is SpecializedDraft or SpecializedPickAny or AllStarDraft or FriendshipDraft;
+        modifier is SpecializedDraft or SpecializedPickAny or AllStarDraft or FriendshipDraft or TwentyTwentyDraft or TwentyTwentyAny;
 
     internal static bool BelongsTo(ModifierModel? modifier, Family family) =>
         IsParent(modifier, family) || IsDraft(modifier, family) || IsPickAny(modifier, family);
@@ -86,6 +92,7 @@ internal static class ModifierVariantUi
         Action layoutChanged)
     {
         var state = GetState(list, family);
+        state.Family = family;
         state.ParentRow = parentRow;
         state.DraftRow = draftRow;
         state.PickAnyRow = pickAnyRow;
@@ -127,10 +134,10 @@ internal static class ModifierVariantUi
             ConnectChoice(list, state, choice, (Mode)i);
         }
 
-        ConfigureTooltip(state.Choices[0], NormalLabelKey, () => parentRow.Modifier!.Description);
+        ConfigureTooltip(state.Choices[0], family == Family.TwentyTwenty ? RandomLabelKey : NormalLabelKey, () => parentRow.Modifier!.Description);
         ConfigureTooltip(state.Choices[1], DraftLabelKey, new LocString("modifiers", DraftDescriptionKey));
         if (state.Choices.Length == 3)
-            ConfigureTooltip(state.Choices[2], PickAnyLabelKey, new LocString("modifiers", PickAnyDescriptionKey));
+            ConfigureTooltip(state.Choices[2], family == Family.TwentyTwenty ? AnyLabelKey : PickAnyLabelKey, new LocString("modifiers", PickAnyDescriptionKey));
         UpdateInteractionMode(list, state);
 
         return new VariantRow { ParentRow = parentRow, Container = container };
@@ -232,7 +239,8 @@ internal static class ModifierVariantUi
     private static void SetChoiceLabels(State state)
     {
         var keys = state.Choices.Length == 3
-            ? new[] { NormalLabelKey, DraftLabelKey, PickAnyLabelKey }
+            ? new[] { state.Family == Family.TwentyTwenty ? RandomLabelKey : NormalLabelKey, DraftLabelKey,
+                state.Family == Family.TwentyTwenty ? AnyLabelKey : PickAnyLabelKey }
             : new[] { NormalLabelKey, DraftLabelKey };
         for (var i = 0; i < state.Choices.Length; i++)
             state.Choices[i].GetNode<MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel>("HBoxContainer/Description").Text =

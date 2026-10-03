@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter or Dill or Headstart or MysteryEvents or DoubleTrouble or SubmodifierModel;
+        modifier is TwentyTwentyModifier or AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter or Dill or Headstart or MysteryEvents or DoubleTrouble or SubmodifierModel;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -42,6 +42,8 @@ internal static class ModifierListPatch
         ordered.Add(ModelDb.Modifier<Speedrun>().ToMutable());
         ordered.Add(ModelDb.Modifier<Dill>().ToMutable());
         ordered.Add(ModelDb.Modifier<Headstart>().ToMutable());
+        ordered.AddRange([ModelDb.Modifier<TwentyTwenty>().ToMutable(),
+            ModelDb.Modifier<TwentyTwentyDraft>().ToMutable(), ModelDb.Modifier<TwentyTwentyAny>().ToMutable()]);
         ordered.Add(ModelDb.Modifier<MysteryEvents>().ToMutable());
         ordered.Add(ModelDb.Modifier<DoubleTrouble>().ToMutable());
         ordered.Add(ModelDb.Modifier<CampfiresBetweenBosses>().ToMutable());
@@ -105,6 +107,14 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<Headstart>().Entry + ".description"] = Headstart.DisplayDescription,
             [ModelDb.GetId<CustomRunParameters>().Entry + ".title"] = CustomRunParameters.DisplayTitle,
             [ModelDb.GetId<CustomRunParameters>().Entry + ".description"] = CustomRunParameters.DisplayDescription,
+            [ModelDb.GetId<TwentyTwenty>().Entry + ".title"] = TwentyTwenty.DisplayTitle,
+            [ModelDb.GetId<TwentyTwenty>().Entry + ".description"] = TwentyTwenty.DisplayDescription,
+            [ModelDb.GetId<TwentyTwentyDraft>().Entry + ".title"] = TwentyTwentyDraft.DisplayTitle,
+            [ModelDb.GetId<TwentyTwentyDraft>().Entry + ".description"] = TwentyTwentyDraft.DisplayDescription,
+            [ModelDb.GetId<TwentyTwentyAny>().Entry + ".title"] = TwentyTwentyAny.DisplayTitle,
+            [ModelDb.GetId<TwentyTwentyAny>().Entry + ".description"] = TwentyTwentyAny.DisplayDescription,
+            [ModifierVariantUi.RandomLabelKey] = "Random",
+            [ModifierVariantUi.AnyLabelKey] = "Any",
             [ModifierVariantUi.NormalLabelKey] = "Normal",
             [ModifierVariantUi.DraftLabelKey] = "Draft",
             [ModifierVariantUi.DraftDescriptionKey] = "Card reward instead of random",
@@ -132,7 +142,8 @@ internal static class SpecializedExclusivityPatch
         selected.GetType() != other.GetType() &&
         ((IsSpecialized(selected) && IsSpecialized(other)) ||
             (IsAllStar(selected) && IsAllStar(other)) ||
-            (IsFriendship(selected) && IsFriendship(other)));
+            (IsFriendship(selected) && IsFriendship(other)) ||
+            (selected is TwentyTwentyModifier && other is TwentyTwentyModifier));
 
     private static bool IsSpecialized(ModifierModel modifier) =>
         modifier is MegaCrit.Sts2.Core.Models.Modifiers.Specialized or SpecializedPickAny or SpecializedDraft;

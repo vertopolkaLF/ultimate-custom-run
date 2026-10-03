@@ -112,6 +112,7 @@ internal static class Program
             TestUltimateStarter();
             TestDill();
             TestHeadstart();
+            TestTwentyTwenty();
             TestMysteryEvents();
             TestDoubleTrouble();
             TestCustomRunParameters();
@@ -150,6 +151,8 @@ internal static class Program
         ModelDb.Init([typeof(Draft), typeof(SealedDeck), typeof(Hoarder), typeof(Specialized),
             typeof(Insanity), typeof(AllStar), typeof(Flight), typeof(Vintage), typeof(CharacterCards), typeof(NeowStarterChoice),
             typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(AllStarDraft), typeof(ColorlessCards),
+            typeof(TwentyTwenty), typeof(TwentyTwentyDraft), typeof(TwentyTwentyAny),
+            typeof(MegaCrit.Sts2.Core.Models.Enchantments.Clone), typeof(MegaCrit.Sts2.Core.Models.Relics.PaelsGrowth), typeof(PommelStrike),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
             typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart), typeof(MysteryEvents), typeof(DoubleTrouble), typeof(CampfiresBetweenBosses),
             .. typeof(ActModel).Assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(ActModel)) && !type.IsAbstract),
@@ -464,7 +467,7 @@ internal static class Program
         Check(start.Take(3).Select(modifier => modifier.GetType()).SequenceEqual(new[] { typeof(Draft), typeof(SealedDeck), typeof(Insanity) }),
             "Draft, Sealed Deck and Insanity are adjacent for their shared chain");
         var linked = Enumerable.Range(1, start.Length - 1).Where(index => LinkedModifierChains.AreLinked(start[index - 1], start[index])).ToArray();
-        Check(linked.Length == 6, "Six adjacent mutually exclusive pairs receive chains");
+        Check(linked.Length == 8, "Eight adjacent mutually exclusive pairs receive chains");
         Check(LinkedModifierChains.AreLinked(ModelDb.Modifier<Draft>(), ModelDb.Modifier<SealedDeck>()) &&
             LinkedModifierChains.AreLinked(ModelDb.Modifier<SealedDeck>(), ModelDb.Modifier<Insanity>()), "Native deck replacement choices are linked");
         Check(LinkedModifierChains.AreLinked(ModelDb.Modifier<Specialized>(), ModelDb.Modifier<SpecializedDraft>()) &&
@@ -880,6 +883,81 @@ internal static class Program
             Harmony.GetPatchInfo(AccessTools.Method(typeof(RunState), nameof(RunState.FromSerializable)))
                 ?.Postfixes.Any(patch => patch.PatchMethod.DeclaringType == typeof(UltimateStarterNewRunPatch)) != true,
             "Ultimate Starter patches new-run creation only");
+    }
+
+    private static void TestTwentyTwenty()
+    {
+        var models = new ModifierModel[] { ModelDb.Modifier<TwentyTwenty>(),
+            ModelDb.Modifier<TwentyTwentyDraft>(), ModelDb.Modifier<TwentyTwentyAny>() };
+        var custom = ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers));
+        var neow = (Neow)RuntimeHelpers.GetUninitializedObject(typeof(Neow));
+        var player = (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player));
+        typeof(EventModel).GetProperty(nameof(EventModel.Owner))!.SetValue(neow, player);
+        foreach (var model in models)
+        {
+            Check(custom.Count(item => item.GetType() == model.GetType()) == 1 &&
+                ModifierListPatch.IsCustomOnly(model) &&
+                ModifierGroups.Classify(model, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
+                ModifierVariantUi.BelongsTo(model, ModifierVariantUi.Family.TwentyTwenty) &&
+                ModifierValues.For(model) == new ModifierValues.Spec(1, 10, 1, 1, "cards") &&
+                model.GenerateNeowOption(neow) != null && !model.ClearsPlayerDeck,
+                "20/20 modes appear once in Improved Start, with a 1..10 slider and a Neow callback");
+            foreach (var other in models.Where(other => other != model))
+                Check(SpecializedExclusivityPatch.ShouldUntick(model, other), "20/20 modes are mutually exclusive");
+            for (var count = 1; count <= 10; count++)
+            {
+                var modifier = (ModifierModel)model.ToMutable();
+                ModifierValues.Set(modifier, count);
+                var saved = modifier.ToSerializable();
+                var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+                saved.Serialize(writer);
+                var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+                reader.Reset(writer.Buffer);
+                foreach (var restored in new[] { ModifierModel.FromSerializable(saved),
+                    ModifierModel.FromSerializable(reader.Read<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>()),
+                    (ModifierModel)modifier.MutableClone() })
+                    Check(restored.GetType() == model.GetType() && ModifierValues.Get(restored) == count,
+                        "20/20 mode/count survive save, network and clone");
+            }
+        }
+        Check(ModifierVariantUi.IsParent(models[0]) && !ModifierVariantUi.IsHiddenVariant(models[0]) &&
+            ModifierVariantUi.IsDraft(models[1], ModifierVariantUi.Family.TwentyTwenty) &&
+            ModifierVariantUi.IsPickAny(models[2], ModifierVariantUi.Family.TwentyTwenty) &&
+            models.Skip(1).All(ModifierVariantUi.IsHiddenVariant), "20/20 has one parent and two hidden variant rows");
+        var preset = new ModifierPresetEntry { Id = models[2].Id.ToString(), Value = 10 };
+        var restoredPreset = System.Text.Json.JsonSerializer.Deserialize<ModifierPresetEntry>(
+            System.Text.Json.JsonSerializer.Serialize(preset))!;
+        Check(restoredPreset.Id == models[2].Id.ToString() && restoredPreset.Value == 10,
+            "20/20 Any ID and count persist in preset JSON");
+
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        AccessTools.Field(typeof(RunState), "_allCards").SetValue(run, new List<CardModel>());
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, Array.Empty<ModifierModel>());
+        AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
+        AccessTools.Field(typeof(Player), "<Deck>k__BackingField").SetValue(player, new CardPile(PileType.Deck));
+        var relics = new List<RelicModel>();
+        AccessTools.Field(typeof(Player), "_relics").SetValue(player, relics);
+        var options = new List<MegaCrit.Sts2.Core.Entities.RestSite.RestSiteOption>();
+        Check(!TwentyTwentyCards.AddCloneOption(player, options), "No Clone option appears without Clone cards");
+        var card = ModelDb.Card<PommelStrike>().ToMutable();
+        Check(TwentyTwentyCards.CanOffer(card) && !TwentyTwentyCards.CanOffer(ModelDb.Card<StrikeIronclad>()),
+            "20/20 offers reward cards and excludes basic starters");
+        run.AddCard(card, player);
+        TwentyTwentyCards.Enchant(card);
+        player.Deck.AddInternal(card, silent: true);
+        Check(card.Enchantment is MegaCrit.Sts2.Core.Models.Enchantments.Clone { Amount: 4 } &&
+            !TwentyTwentyCards.CanOffer(card), "20/20 applies Pael's native Clone amount and excludes already enchanted cards");
+        var copy = run.CloneCard(card);
+        var restoredCard = CardModel.FromSerializable(card.ToSerializable());
+        Check(copy.Enchantment is MegaCrit.Sts2.Core.Models.Enchantments.Clone &&
+            restoredCard.Enchantment is MegaCrit.Sts2.Core.Models.Enchantments.Clone &&
+            !ReferenceEquals(copy.Enchantment, card.Enchantment), "Clone enchantment survives native copying and card saves");
+        Check(TwentyTwentyCards.AddCloneOption(player, options) &&
+            options.Single() is MegaCrit.Sts2.Core.Entities.RestSite.CloneRestSiteOption &&
+            !TwentyTwentyCards.AddCloneOption(player, options), "20/20 adds the native campfire cloning action exactly once");
+        options.Clear();
+        relics.Add(ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.PaelsGrowth>());
+        Check(!TwentyTwentyCards.AddCloneOption(player, options), "Pael's Growth supplies its own Clone action without duplicates");
     }
 
     private static void TestDill()
