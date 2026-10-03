@@ -27,19 +27,19 @@ public abstract class TwentyTwentyModifier : ModifierModel
 public sealed class TwentyTwenty : TwentyTwentyModifier
 {
     internal const string DisplayTitle = "20/20";
-    internal const string DisplayDescription = "Start with [blue]1[/blue] random card enchanted with Pael's Clone. Duplicate all Clone cards at campfires.";
+    internal const string DisplayDescription = "Gain Pael's Growth and start with [blue]1[/blue] random card enchanted with Pael's Clone. Duplicate all Clone cards at campfires.";
 }
 
 public sealed class TwentyTwentyDraft : TwentyTwentyModifier
 {
     internal const string DisplayTitle = "20/20 - Draft";
-    internal const string DisplayDescription = "Choose [blue]1[/blue] card reward enchanted with Pael's Clone. Duplicate all Clone cards at campfires.";
+    internal const string DisplayDescription = "Gain Pael's Growth and choose [blue]1[/blue] card reward enchanted with Pael's Clone. Duplicate all Clone cards at campfires.";
 }
 
 public sealed class TwentyTwentyAny : TwentyTwentyModifier
 {
     internal const string DisplayTitle = "20/20 - Any";
-    internal const string DisplayDescription = "Choose [blue]1[/blue] card from your character's pool enchanted with Pael's Clone. Duplicate all Clone cards at campfires.";
+    internal const string DisplayDescription = "Gain Pael's Growth and choose [blue]1[/blue] card from your character's pool enchanted with Pael's Clone. Duplicate all Clone cards at campfires.";
 }
 
 internal static class TwentyTwentyCards
@@ -65,6 +65,9 @@ internal static class TwentyTwentyCards
 
     internal static async Task Obtain(Player player, TwentyTwentyModifier modifier)
     {
+        if (!player.Relics.Any(relic => relic is PaelsGrowth))
+            await RelicCmd.Obtain<PaelsGrowth>(player);
+
         for (var i = 0; i < ModifierValues.Get(modifier); i++)
         {
             CardModel? card;

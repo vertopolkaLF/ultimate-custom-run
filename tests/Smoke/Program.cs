@@ -26,11 +26,11 @@ internal static class Program
             var path = Path.Combine(dataPath, name.Name + ".dll");
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
-        Run(args.Contains("--ascension-only"), args.Contains("--boss-chain-only"), args.Contains("--reward-sliders-only"), args.Contains("--mystery-only"));
+        Run(args.Contains("--ascension-only"), args.Contains("--boss-chain-only"), args.Contains("--reward-sliders-only"), args.Contains("--mystery-only"), args.Contains("--twenty-twenty-only"));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Run(bool ascensionOnly, bool bossChainOnly, bool rewardSlidersOnly, bool mysteryOnly)
+    private static void Run(bool ascensionOnly, bool bossChainOnly, bool rewardSlidersOnly, bool mysteryOnly, bool twentyTwentyOnly)
     {
         var assembly = typeof(ModEntry).Assembly;
         Check(assembly.GetName().Name == "UltimateCustomRun" && typeof(ModEntry).Namespace == "UltimateCustomRun" &&
@@ -72,6 +72,12 @@ internal static class Program
                 "Both new modifiers provide their own Neow buttons");
 
             TestNeowModifier();
+            if (twentyTwentyOnly)
+            {
+                TestTwentyTwenty();
+                Console.WriteLine("PASS: managed 20/20 checks. Relic acquisition and campfire visuals require an in-game playtest.");
+                return;
+            }
             if (mysteryOnly)
             {
                 TestMysteryEvents();
