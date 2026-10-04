@@ -370,8 +370,13 @@ internal static class ModifierVariantInitializePatch
 internal static class ModifierVariantSetTickedPatch
 {
     [HarmonyPrefix]
-    private static void Prefix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0) =>
+    private static void Prefix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0)
+    {
         ModifierValueUi.ApplyIncoming(__instance, __0);
+        // The native method emits ModifiersChanged before our postfix runs.
+        // Restore the variant choices first so listeners receive the incoming mode.
+        ModifierVariantUi.ApplyIncomingModifiers(__instance, __0);
+    }
 
     [HarmonyPostfix]
     private static void Postfix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0)

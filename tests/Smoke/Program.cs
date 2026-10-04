@@ -13,6 +13,10 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using UltimateCustomRun;
+using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
+using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
+using MegaCrit.Sts2.Core.Nodes.CommonUi;
+using System.Reflection.Emit;
 using Friendship = UltimateCustomRun.Friendship;
 
 internal static class Program
@@ -72,6 +76,7 @@ internal static class Program
                 "Both new modifiers provide their own Neow buttons");
 
             TestNeowModifier();
+            TestPresetApplication();
             if (draftOnly)
             {
                 TestSpecializedVariants();
@@ -775,6 +780,127 @@ internal static class Program
             "Pending penalties stop as soon as the run ends");
         Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.TopBar.NRunTimer), "OnTimerTimeout"))
             ?.Owners.Contains(ModEntry.HarmonyId) == true, "Native one-second run timer is patched");
+    }
+
+    private static List<ModifierModel>? _presetNotification;
+    private static readonly Dictionary<NTickbox, bool> HeadlessTicks = new(ReferenceEqualityComparer.Instance);
+
+    private static void CapturePresetNotification(NCustomRunModifiersList list) =>
+        _presetNotification = list.GetModifiersTickedOn().Select(model => (ModifierModel)model.MutableClone()).ToList();
+
+    private static IEnumerable<CodeInstruction> HeadlessPresetSignal(IEnumerable<CodeInstruction> instructions)
+    {
+        var code = instructions.ToList();
+        for (var i = 0; i < code.Count; i++)
+        {
+            // Keep native selection logic and all mod patches; replace only the Godot signal boundary.
+            if (i + 5 < code.Count && code[i].opcode == OpCodes.Ldarg_0 &&
+                code[i + 1].operand is FieldInfo { Name: "ModifiersChanged" })
+            {
+                yield return code[i];
+                yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(Program), nameof(CapturePresetNotification)));
+                i += 4;
+            }
+            else yield return code[i];
+        }
+    }
+
+    private static bool HeadlessTickbox(NTickbox __instance, bool value)
+    {
+        HeadlessTicks[__instance] = value;
+        return false;
+    }
+
+    private static bool HeadlessTickboxGet(NTickbox __instance, ref bool __result)
+    {
+        __result = HeadlessTicks.GetValueOrDefault(__instance);
+        return false;
+    }
+
+    private static void TestPresetApplication()
+    {
+        var headless = new Harmony("ucr.smoke.preset-ui");
+        headless.Patch(AccessTools.PropertySetter(typeof(NTickbox), nameof(NTickbox.IsTicked)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(HeadlessTickbox)));
+        headless.Patch(AccessTools.PropertyGetter(typeof(NTickbox), nameof(NTickbox.IsTicked)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(HeadlessTickboxGet)));
+        headless.Patch(AccessTools.Method(typeof(NCustomRunModifiersList), "SetTickedModifiers"),
+            transpiler: new HarmonyMethod(typeof(Program), nameof(HeadlessPresetSignal)));
+        try
+        {
+            var list = (NCustomRunModifiersList)RuntimeHelpers.GetUninitializedObject(typeof(NCustomRunModifiersList));
+            AccessTools.Field(typeof(NCustomRunModifiersList), "_mode").SetValue(list, MegaCrit.Sts2.Core.Entities.UI.MultiplayerUiMode.Singleplayer);
+            NRunModifierTickbox Row(ModifierModel model)
+            {
+                var row = (NRunModifierTickbox)RuntimeHelpers.GetUninitializedObject(typeof(NRunModifierTickbox));
+                AccessTools.Field(typeof(NRunModifierTickbox), "<Modifier>k__BackingField").SetValue(row, model);
+                return row;
+            }
+            var normal = Row(ModelDb.Modifier<Specialized>().ToMutable());
+            var draft = Row(ModelDb.Modifier<SpecializedDraft>().ToMutable());
+            var any = Row(ModelDb.Modifier<SpecializedPickAny>().ToMutable());
+            var sealedDeck = Row(ModelDb.Modifier<SealedDeck>().ToMutable());
+            var parameters = Row(ModelDb.Modifier<CustomRunParameters>().ToMutable());
+            var dill = Row(ModelDb.Modifier<Dill>().ToMutable());
+            AccessTools.Field(typeof(NCustomRunModifiersList), "_modifierTickboxes").SetValue(list,
+                new List<NRunModifierTickbox> { normal, draft, any, sealedDeck, parameters, dill });
+            var state = AccessTools.Method(typeof(ModifierVariantUi), "GetState").Invoke(null, [list, ModifierVariantUi.Family.Specialized])!;
+            AccessTools.Field(state.GetType(), "ParentRow").SetValue(state, normal);
+            AccessTools.Field(state.GetType(), "DraftRow").SetValue(state, draft);
+            AccessTools.Field(state.GetType(), "PickAnyRow").SetValue(state, any);
+            var choices = new[] { Row(normal.Modifier!), Row(draft.Modifier!), Row(any.Modifier!) };
+            AccessTools.Field(state.GetType(), "Choices").SetValue(state, choices);
+            AccessTools.Field(state.GetType(), "ChoicesReady").SetValue(state, true);
+            choices[0].IsTicked = true;
+            var savedDraft = ModelDb.Modifier<SpecializedDraft>().ToMutable();
+            ModifierValues.Set(savedDraft, 8);
+            var savedSealed = ModelDb.Modifier<SealedDeck>().ToMutable();
+            ModifierValues.SetSealedPool(savedSealed, 60);
+            ModifierValues.Set(savedSealed, 45);
+            var savedParameters = (CustomRunParameters)ModelDb.Modifier<CustomRunParameters>().ToMutable();
+            savedParameters.FloorsPerAct = 22;
+            savedParameters.BaseHandSize = 7;
+            savedParameters.BaseEnergy = 5;
+            savedParameters.EnemyHpPercent = 150;
+            savedParameters.EnemyDamagePercent = 175;
+            savedParameters.PlayerHpPercent = 125;
+            var savedDill = (Dill)ModelDb.Modifier<Dill>().ToMutable();
+            ModifierValues.Set(savedDill, 17);
+            savedDill.MaxHpPerFight = 4;
+            var preset = System.Text.Json.JsonSerializer.Deserialize<ModifierPreset>(System.Text.Json.JsonSerializer.Serialize(
+                ModifierPresetStore.Capture("Regression", [savedDraft, savedSealed, savedParameters, savedDill])))!;
+            AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null, [list, preset]);
+            Check(list.GetModifiersTickedOn().Any(model => model is SpecializedDraft) && choices[1].IsTicked,
+                "Loadout visually selects the saved Draft variant");
+            Check(_presetNotification?.Any(model => model is SpecializedDraft && ModifierValues.Get(model) == 8) == true,
+                "Loadout change notification delivers Draft and its saved slider value to the run");
+            var deliveredSealed = _presetNotification!.OfType<SealedDeck>().Single();
+            Check(ModifierValues.Get(deliveredSealed) == 45 && ModifierValues.GetSealedPool(deliveredSealed) == 60,
+                "Loadout change notification delivers both saved Sealed Deck sliders");
+            Check(CustomRunParameterValuesStore.From(_presetNotification) == CustomRunParameterValuesStore.Get(savedParameters),
+                "Loadout JSON round-trip delivers all six saved Custom Run Parameters to the run");
+            Check(_presetNotification!.OfType<Dill>().Single() is { MaxHpPerFight: 4 } deliveredDill &&
+                ModifierValues.Get(deliveredDill) == 17, "Loadout JSON round-trip delivers both Dill sliders");
+            foreach (var mode in new[] { any.Modifier!, normal.Modifier!, draft.Modifier! })
+            {
+                var selected = (ModifierModel)mode.MutableClone();
+                ModifierValues.Set(selected, 3);
+                var next = ModifierPresetStore.Capture("Switch mode", [selected]);
+                AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null, [list, next]);
+                Check(_presetNotification is { Count: 1 } && _presetNotification[0].GetType() == mode.GetType() &&
+                    ModifierValues.Get(_presetNotification[0]) == 3,
+                    "Changing loadouts delivers the new mode and value immediately: " + mode.GetType().Name);
+            }
+            var legacy = System.Text.Json.JsonSerializer.Deserialize<ModifierPreset>(
+                "{\"Name\":\"Legacy\",\"Modifiers\":[{\"Id\":\"" + parameters.Modifier!.Id + "\"}]}")!;
+            AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null, [list, legacy]);
+            Check(CustomRunParameterValuesStore.From(_presetNotification) == CustomRunParameterValues.Default,
+                "Legacy loadouts without parameters restore defaults instead of inheriting the previous loadout");
+            AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null, [list, ModifierPresetStore.Empty]);
+            Check(_presetNotification is { Count: 0 } && list.GetModifiersTickedOn().Count == 0,
+                "Empty loadout clears both the run notification and visual selection");
+        }
+        finally { headless.UnpatchAll(headless.Id); HeadlessTicks.Clear(); }
     }
 
     private static void TestPresetManagement()

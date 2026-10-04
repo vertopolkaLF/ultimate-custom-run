@@ -17,6 +17,7 @@ internal sealed class ModifierPresetEntry
     public int? Value { get; set; }
     public int? SealedPoolSize { get; set; }
     public int? MaxHpPerFight { get; set; }
+    public CustomRunParameterValues? Parameters { get; set; }
 }
 
 internal static class ModifierPresetStore
@@ -39,6 +40,17 @@ internal static class ModifierPresetStore
 
     internal static void Save(string name, IEnumerable<ModifierModel> modifiers)
     {
+        var preset = Capture(name, modifiers);
+        var presets = Read();
+        var existing = presets.FindIndex(item => string.Equals(item.Name, preset.Name, StringComparison.OrdinalIgnoreCase));
+        if (existing >= 0) presets[existing] = preset;
+        else presets.Add(preset);
+
+        Write(presets);
+    }
+
+    internal static ModifierPreset Capture(string name, IEnumerable<ModifierModel> modifiers)
+    {
         if (string.IsNullOrWhiteSpace(name) || IsReservedName(name))
             throw new ArgumentException("Choose a non-empty preset name other than Empty.", nameof(name));
         var preset = new ModifierPreset { Name = name.Trim() };
@@ -49,15 +61,12 @@ internal static class ModifierPresetStore
             if (modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
                 entry.SealedPoolSize = ModifierValues.GetSealedPool(modifier);
             if (modifier is Dill dill) entry.MaxHpPerFight = dill.MaxHpPerFight;
+            if (modifier is CustomRunParameters parameters)
+                entry.Parameters = CustomRunParameterValuesStore.Get(parameters);
             preset.Modifiers.Add(entry);
         }
 
-        var presets = Read();
-        var existing = presets.FindIndex(item => string.Equals(item.Name, preset.Name, StringComparison.OrdinalIgnoreCase));
-        if (existing >= 0) presets[existing] = preset;
-        else presets.Add(preset);
-
-        Write(presets);
+        return preset;
     }
 
     internal static void Delete(string name)

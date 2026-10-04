@@ -326,6 +326,12 @@ internal static class ModifierPresetUi
             if (source == null) continue;
 
             var modifier = (ModifierModel)source.MutableClone();
+            if (modifier is CustomRunParameters parameters)
+            {
+                var values = entry.Parameters ?? CustomRunParameterValues.Default;
+                foreach (var parameter in Enum.GetValues<CustomRunParameter>())
+                    CustomRunParameterValuesStore.Set(parameters, parameter, values.Get(parameter));
+            }
             if (modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
                 ModifierValues.SetSealedPool(modifier, entry.SealedPoolSize ?? ModifierValues.SealedPoolSpec.Default);
             if (modifier is Dill dill) dill.MaxHpPerFight = entry.MaxHpPerFight ?? Dill.GrowthSpec.Default;
