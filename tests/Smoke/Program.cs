@@ -1249,6 +1249,36 @@ internal static class Program
     private static void TestCustomRunParameters()
     {
         var canonical = ModelDb.Modifier<CustomRunParameters>();
+        var damageModifier = (CustomRunParameters)canonical.ToMutable();
+        damageModifier.EnemyDamagePercent = 200;
+        var damageRun = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(damageRun,
+            new ModifierModel[] { damageModifier });
+        MegaCrit.Sts2.Core.Entities.Creatures.Creature DamageCreature(MegaCrit.Sts2.Core.Combat.CombatSide side)
+        {
+            var creature = (MegaCrit.Sts2.Core.Entities.Creatures.Creature)RuntimeHelpers.GetUninitializedObject(
+                typeof(MegaCrit.Sts2.Core.Entities.Creatures.Creature));
+            AccessTools.Field(creature.GetType(), "<Monster>k__BackingField").SetValue(creature,
+                RuntimeHelpers.GetUninitializedObject(typeof(MegaCrit.Sts2.Core.Models.Monsters.Osty)));
+            AccessTools.Field(creature.GetType(), "<Side>k__BackingField").SetValue(creature, side);
+            return creature;
+        }
+        var ally = DamageCreature(MegaCrit.Sts2.Core.Combat.CombatSide.Player);
+        var enemy = DamageCreature(MegaCrit.Sts2.Core.Combat.CombatSide.Enemy);
+        var damage = 6m;
+        CustomRunEnemyDamagePatch.Postfix(damageRun, ally, null, ref damage);
+        CustomRunEnemyDamagePatch.Postfix(damageRun, ally, enemy, ref damage);
+        Check(damage == 6m, "Osty previews without a target and attacks never receive enemy damage scaling");
+        CustomRunEnemyDamagePatch.Postfix(damageRun, enemy, null, ref damage);
+        Check(damage == 12m, "Enemy previews without a target safely receive enemy damage scaling");
+        damage = 6m;
+        CustomRunEnemyDamagePatch.Postfix(damageRun, enemy, ally, ref damage);
+        Check(damage == 12m, "Enemy attacks against players retain configured damage scaling");
+        damage = 6m;
+        CustomRunEnemyDamagePatch.Postfix(damageRun, enemy, enemy, ref damage);
+        CustomRunEnemyDamagePatch.Postfix(damageRun, null, ally, ref damage);
+        CustomRunEnemyDamagePatch.Postfix(null, enemy, ally, ref damage);
+        Check(damage == 6m, "Friendly fire, source-less damage and previews without a run remain unchanged");
         Check(typeof(CustomRunParameters).GetProperty("BossesPerAct") == null,
             "Boss count is removed from Custom Run Parameters");
         foreach (var parameter in Enum.GetValues<CustomRunParameter>())
