@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Commands;
@@ -83,7 +84,12 @@ internal static class BlitzMerchantRoom
             throw new InvalidOperationException("MerchantRoom does not support room stack reconstruction.");
         var synchronizer = RunManager.Instance.MerchantSynchronizer;
         synchronizer.OnMerchantEntered([]);
-        foreach (var player in state.Players) synchronizer.SetMerchantInventory(player, CreateInventory(player, picks));
+        foreach (var player in state.Players)
+        {
+            var inventory = CreateInventory(player, picks);
+            if (IsMapMerchant(state)) BlitzMerchantPrices.RollSale(inventory, state, player.NetId);
+            synchronizer.SetMerchantInventory(player, inventory);
+        }
         if (!TestMode.IsOn)
         {
             var backgroundAssets = state.Act.GenerateBackgroundAssets(NCombatRoom.GenerateBackgroundRngForCurrentPoint(state));
@@ -147,10 +153,35 @@ internal static class BlitzMerchantPrices
         AscensionHelper.GetValueIfAscension(AscensionLevel.Inflation, 100, 75) +
         AscensionHelper.GetValueIfAscension(AscensionLevel.Inflation, 50, 25) * removalsUsed;
 
+    internal const int MinSalePercent = 15;
+    internal const int MaxSalePercent = 50;
+
+    private sealed class Sale { internal required int Percent; }
+    private static readonly ConditionalWeakTable<BlitzMerchantEntry, Sale> Sales = new();
+
+    internal static int? SalePercent(BlitzMerchantEntry entry) => Sales.TryGetValue(entry, out var sale) ? sale.Percent : null;
+
+    // One random offer per map Merchant is on sale. The roll uses only shared run state and the owner's id,
+    // so every co-op peer computes the same sale without touching the native shop RNG.
+    internal static (int Index, int Percent) RollSale(ulong seed, int actIndex, int totalFloor, ulong playerId, int offerCount)
+    {
+        var rng = new Rng(seed + (ulong)actIndex * 1_000_003UL + (ulong)totalFloor * 7_919UL + playerId * 104_729UL,
+            "ultimate_blitz_merchant_sale");
+        return (rng.NextInt(offerCount), rng.NextInt(MinSalePercent, MaxSalePercent + 1));
+    }
+
+    internal static void RollSale(MerchantInventory inventory, IRunState state, ulong playerId)
+    {
+        if (inventory.BlitzEntries.Count == 0) return;
+        var (index, percent) = RollSale(state.Rng.Seed, state.CurrentActIndex, state.TotalFloor, playerId, inventory.BlitzEntries.Count);
+        Sales.AddOrUpdate(inventory.BlitzEntries[index], new Sale { Percent = percent });
+    }
+
     internal static int Price(BlitzMerchantEntry entry)
     {
         var player = entry.Player;
         var price = (decimal)BasePrice(entry.MerchantEntryType, player);
+        if (Sales.TryGetValue(entry, out var sale)) price = Math.Round(price * (100 - sale.Percent) / 100m);
         // Native discounts and surcharges, such as Membership Card, apply as at the normal Merchant.
         if (player.RunState.CurrentRoom is MerchantRoom)
             price = Hook.ModifyMerchantPrice(player.RunState, player, entry, price);
@@ -202,8 +233,9 @@ internal static class BlitzMerchantSlotPricePatch
         var available = entry.Status == BlitzMerchantEntry.BlitzEntryStatus.Available;
         ____costLabel.Visible = available;
         if (!available) return;
-        ____costLabel.SetTextAutoSize(entry.Cost.ToString());
-        ____costLabel.Modulate = entry.EnoughGold ? StsColors.cream : StsColors.red;
+        var sale = BlitzMerchantPrices.SalePercent(entry);
+        ____costLabel.SetTextAutoSize(sale is { } percent ? $"{entry.Cost} (-{percent}%)" : entry.Cost.ToString());
+        ____costLabel.Modulate = !entry.EnoughGold ? StsColors.red : sale != null ? StsColors.green : StsColors.cream;
         // The Blitz slot scene may hide the price container because native Blitz offers are free.
         for (var node = ____costLabel.GetParent(); node != null && node != __instance; node = node.GetParent())
             if (node is Godot.CanvasItem item) item.Visible = true;

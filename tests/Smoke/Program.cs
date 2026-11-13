@@ -563,6 +563,11 @@ internal static class Program
             BlitzMerchantPrices.BasePrice(MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntryType.RareCardReward, null!) >
             BlitzMerchantPrices.BasePrice(MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntryType.CardUpgrade, null!),
             "Blitz Merchant prices follow offer value");
+        var sales = Enumerable.Range(0, 300).Select(floor => BlitzMerchantPrices.RollSale(987654321UL, floor % 3, floor, (ulong)(floor % 4), 6)).ToArray();
+        Check(sales.SequenceEqual(Enumerable.Range(0, 300).Select(floor => BlitzMerchantPrices.RollSale(987654321UL, floor % 3, floor, (ulong)(floor % 4), 6))) &&
+            sales.All(sale => sale.Index is >= 0 and < 6 && sale.Percent is >= BlitzMerchantPrices.MinSalePercent and <= BlitzMerchantPrices.MaxSalePercent) &&
+            sales.Select(sale => sale.Index).Distinct().Count() == 6 && sales.Select(sale => sale.Percent).Distinct().Count() > 20,
+            "Map Merchant sale picks one deterministic offer at 15-50% off");
         Check(BlitzMerchantPurchasePatch.Charge(Task.FromResult((false, 0)), null!, 100).Result == (false, 0),
             "Cancelled Blitz Merchant offers cost nothing");
         AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { always.ToMutable() });
