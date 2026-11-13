@@ -55,6 +55,12 @@ internal static class LinkedModifierChains
             void Update()
             {
                 if (!GodotObject.IsInstanceValid(overlay) || !GodotObject.IsInstanceValid(upper) || !GodotObject.IsInstanceValid(lower)) return;
+                // A row moved to the Disabled section (singleplayer or Blitz) breaks the pair.
+                if (!body.IsAncestorOf(previous) || !body.IsAncestorOf(next))
+                {
+                    foreach (var tile in tiles) tile.Visible = false;
+                    return;
+                }
                 var toOverlay = overlay.GetGlobalTransform().AffineInverse();
                 var upperCenter = toOverlay * (upper.GetGlobalTransform() * (upper.Size / 2));
                 var lowerCenter = toOverlay * (lower.GetGlobalTransform() * (lower.Size / 2));
@@ -78,6 +84,8 @@ internal static class LinkedModifierChains
             void ScheduleUpdate() => Callable.From(Update).CallDeferred();
             previous.ItemRectChanged += ScheduleUpdate;
             next.ItemRectChanged += ScheduleUpdate;
+            previous.TreeEntered += ScheduleUpdate;
+            next.TreeEntered += ScheduleUpdate;
             overlay.Resized += ScheduleUpdate;
             ScheduleUpdate();
         }

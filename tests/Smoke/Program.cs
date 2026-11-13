@@ -136,6 +136,7 @@ internal static class Program
             TestMysteryEvents();
             TestDoubleTrouble();
             TestBlitzMerchant();
+            TestBlitzCompatibility();
             TestCustomRunParameters();
             TestCustomRunFloors();
         }
@@ -540,6 +541,40 @@ internal static class Program
         Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Rooms.MerchantRoom),
             nameof(MegaCrit.Sts2.Core.Rooms.MerchantRoom.EnterInternal)))?.Owners.Contains(ModEntry.HarmonyId) == true,
             "Merchant room entry is patched for shop and ? rooms");
+    }
+
+    private static void TestBlitzCompatibility()
+    {
+        var custom = ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers.Concat(ModelDb.BadModifiers)).ToList();
+        var disabled = custom.Where(BlitzCompatibility.IsDisabled).Select(modifier => modifier.GetType()).ToHashSet();
+        Check(disabled.SetEquals(new[] { typeof(Flight), typeof(DeadlyEvents), typeof(BigGameHunter), typeof(SwarmingElites),
+                typeof(Midas), typeof(UltimateCustomRun.Poverty), typeof(UltimateCustomRun.Inflation), typeof(UltimateCustomRun.Scarcity),
+                typeof(BlitzMerchantRandom) }),
+            "Only map, gold, card-odds, and random-merchant modifiers are disabled in Blitz: " + string.Join(", ", disabled.Select(type => type.Name)));
+        Check(custom.Where(BlitzCompatibility.IsForced).Select(modifier => modifier.GetType()).SequenceEqual(new[] { typeof(BlitzMerchant) }),
+            "Only Blitz Merchant is forced on in Blitz");
+        Check(!custom.Any(modifier => BlitzCompatibility.IsDisabled(modifier) && BlitzCompatibility.IsForced(modifier)),
+            "No modifier is both forced and disabled");
+        IReadOnlyList<ModifierModel> selected = [ModelDb.Modifier<Midas>().ToMutable(), ModelDb.Modifier<BlitzMerchant>().ToMutable(),
+            ModelDb.Modifier<BlitzMerchantRandom>().ToMutable(), ModelDb.Modifier<Hoarder>().ToMutable()];
+        Check(BlitzCompatibility.ForRun(selected, GameMode.Blitz).Select(modifier => modifier.GetType())
+                .SequenceEqual(new[] { typeof(BlitzMerchant), typeof(Hoarder) }) &&
+            ReferenceEquals(BlitzCompatibility.ForRun(selected, GameMode.Standard), selected),
+            "Blitz runs drop disabled modifiers while other modes keep the selection");
+        Check(BlitzCompatibility.IsParameterDisabled(CustomRunParameter.FloorsPerAct) &&
+            !BlitzCompatibility.IsParameterDisabled(CustomRunParameter.BaseEnergy), "Only the floor count parameter is locked in Blitz");
+        foreach (var (type, name) in new[] {
+            (typeof(RunState), nameof(RunState.CreateForNewRun)),
+            (typeof(MegaCrit.Sts2.Core.Entities.Merchant.MerchantInventory), nameof(MegaCrit.Sts2.Core.Entities.Merchant.MerchantInventory.CreateForBlitzMerchant)),
+            (typeof(NCustomRunScreen), nameof(NCustomRunScreen.GameModeChanged)) })
+            Check(Harmony.GetPatchInfo(AccessTools.Method(type, name))?.Owners.Contains(ModEntry.HarmonyId) == true,
+                $"Blitz compatibility patch is installed: {type.Name}.{name}");
+        var neowCode = PatchProcessor.GetCurrentInstructions(AccessTools.Method(typeof(Neow), "GenerateInitialOptions"));
+        var usesBlitz = AccessTools.Method(typeof(NeowRelicChoice), nameof(NeowRelicChoice.UsesBlitzOption));
+        Check(neowCode.Any(instruction => instruction.Calls(usesBlitz)), "Neow!! can bypass the Blitz Neow option for its relic choices");
+        var neow = (Neow)ModelDb.Event<Neow>().ToMutable();
+        Check(NeowRelicChoice.UsesBlitzOption(true, neow) && !NeowRelicChoice.UsesBlitzOption(false, neow),
+            "Blitz Neow keeps its card option outside relic generation");
     }
 
     private static void TestAscensionModifiers()
@@ -1571,6 +1606,32 @@ internal static class Program
                         Check(BossChainRewardsProceedPatch.ContinuationPoint(chainMap.BossMapPoint, state) ==
                             (point.Children.Count > 0 ? point : chainMap.BossMapPoint),
                             "Only intermediate bosses continue through map after rewards");
+                }
+            }
+            var blitzState = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+            AccessTools.Field(typeof(RunState), "<Acts>k__BackingField").SetValue(blitzState, new ActModel[] { act });
+            AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(blitzState, fires
+                ? new ModifierModel[] { configured, ModelDb.Modifier<CampfiresBetweenBosses>().ToMutable() }
+                : new ModifierModel[] { configured });
+            var blitzMap = new MegaCrit.Sts2.Core.Map.BlitzActMap(blitzState);
+            Check(ReferenceEquals(configured.ModifyGeneratedMapLate(blitzState, blitzMap, 0), blitzMap),
+                "Double Trouble keeps the native Blitz map type for Blitz progression");
+            if (count == 3 || fires)
+            {
+                var savedBlitz = MegaCrit.Sts2.Core.Saves.Runs.SerializableActMap.FromActMap(blitzMap);
+                var loadedBlitz = new MegaCrit.Sts2.Core.Map.BlitzActMap(savedBlitz, blitzState);
+                foreach (var linear in new[] { blitzMap, loadedBlitz,
+                    (MegaCrit.Sts2.Core.Map.BlitzActMap)configured.ModifyGeneratedMapLate(blitzState, loadedBlitz, 0) })
+                {
+                    var points = linear.GetMapPoints();
+                    var tail = points.Skip(MegaCrit.Sts2.Core.Map.BlitzActMap.pointTypes.Length + 1).ToList();
+                    var expectedTail = Enumerable.Range(0, count).SelectMany(index => index == 0 || !fires
+                        ? new[] { MegaCrit.Sts2.Core.Map.MapPointType.Boss }
+                        : new[] { MegaCrit.Sts2.Core.Map.MapPointType.RestSite, MegaCrit.Sts2.Core.Map.MapPointType.Boss });
+                    Check(tail.Select(point => point.PointType).SequenceEqual(expectedTail) &&
+                        ReferenceEquals(points[^1], linear.SecondBossMapPoint) &&
+                        points.All(point => ReferenceEquals(linear.GetPoint(point.coord), point)),
+                        $"Blitz boss chain survives saves and reloads: {count} bosses, campfires {fires}");
                 }
             }
             var encounters = new List<ModelId>();

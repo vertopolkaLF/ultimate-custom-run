@@ -92,14 +92,14 @@ internal static class CustomRunParametersUi
             slider.Ready += () => Refresh(list);
             slider.ValueChanged += position =>
             {
-                if (row.Applying || !Editable(list) || parent.Modifier is not CustomRunParameters modifier) return;
+                if (row.Applying || !Editable(list, spec.Parameter) || parent.Modifier is not CustomRunParameters modifier) return;
                 CustomRunParameterValuesStore.Set(modifier, spec.Parameter, ValueAt(spec.Parameter, (int)Math.Round(position)));
                 Refresh(list);
                 list.EmitSignal(NCustomRunModifiersList.SignalName.ModifiersChanged);
             };
             slider.GuiInput += input =>
             {
-                if (!Editable(list)) return;
+                if (!Editable(list, spec.Parameter)) return;
                 if (input.IsActionPressed(MegaInput.left)) { slider.Value--; slider.AcceptEvent(); }
                 if (input.IsActionPressed(MegaInput.right)) { slider.Value++; slider.AcceptEvent(); }
             };
@@ -126,9 +126,12 @@ internal static class CustomRunParametersUi
             try
             {
                 row.Root.Visible = row.Parent.IsTicked;
-                var editable = Editable(list) && row.Parent.Modifier is CustomRunParameters;
+                var editable = Editable(list, row.Parameter) && row.Parent.Modifier is CustomRunParameters;
                 row.Slider.MouseFilter = editable ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
                 row.Slider.FocusMode = editable ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
+                // Blitz has a fixed map, so its floor count cannot change; dim the setting instead of hiding it.
+                row.Root.Modulate = BlitzCompatibility.IsParameterDisabled(row.Parameter) && BlitzCompatibility.IsBlitz(list)
+                    ? new Color(1, 1, 1, 0.45f) : Colors.White;
                 var actual = CustomRunParameterValuesStore.Get((CustomRunParameters)row.Parent.Modifier!).Get(row.Parameter);
                 row.Value.Text = ValueText(row.Parameter, actual, russian);
                 var index = IndexFor(row.Parameter, actual);
@@ -142,6 +145,9 @@ internal static class CustomRunParametersUi
     private static bool Editable(NCustomRunModifiersList list) =>
         (MultiplayerUiMode)AccessTools.Field(typeof(NCustomRunModifiersList), "_mode").GetValue(list)!
             is MultiplayerUiMode.Singleplayer or MultiplayerUiMode.Host;
+
+    private static bool Editable(NCustomRunModifiersList list, CustomRunParameter parameter) =>
+        Editable(list) && !(BlitzCompatibility.IsParameterDisabled(parameter) && BlitzCompatibility.IsBlitz(list));
 
     private static string Title((CustomRunParameter Parameter, string English, string Russian, int MaxIndex) spec) =>
         LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru" ? spec.Russian : spec.English;

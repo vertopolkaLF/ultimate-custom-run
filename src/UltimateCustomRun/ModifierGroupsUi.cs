@@ -24,14 +24,21 @@ internal static class ModifierGroupsUi
         internal required List<NRunModifierTickbox> Rows;
         internal bool Expanded = true;
     }
+    private sealed class LockEntry
+    {
+        internal required NRunModifierTickbox Row;
+        internal required List<Control> Nodes;
+        internal Section Home = null!;
+    }
     private sealed class Layout
     {
         internal required VBoxContainer Content;
         internal List<Section> Sections = [];
-        internal List<Control> SingleplayerDisabled = [];
-        internal Section? DisabledHome;
-        internal int HomeChildIndex;
-        internal int HomeRowIndex;
+        internal List<LockEntry> Lockable = [];
+        internal Dictionary<Section, List<Node>> OriginalChildren = [];
+        internal Dictionary<Section, List<NRunModifierTickbox>> OriginalRows = [];
+        // Forced rows and their tick state from before the game mode forced them.
+        internal Dictionary<NRunModifierTickbox, bool> Forced = [];
     }
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, Layout> Layouts = new();
     private static readonly Color NegativeColor = Color.FromHtml("ff6b64");
@@ -165,8 +172,9 @@ internal static class ModifierGroupsUi
             {
                 row.Reparent(childList);
                 row.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-                var singleplayerDisabled = ModifierGroups.IsSingleplayerDisabled(row.Modifier);
-                if (singleplayerDisabled) layout.SingleplayerDisabled.Add(row);
+                var lockEntry = ModifierGroups.IsSingleplayerDisabled(row.Modifier) || BlitzCompatibility.IsDisabled(row.Modifier)
+                    ? new LockEntry { Row = row, Nodes = [row] } : null;
+                if (lockEntry != null) layout.Lockable.Add(lockEntry);
                 if (ModifierVariantUi.IsHiddenVariant(row.Modifier))
                 {
                     row.Visible = false;
@@ -188,12 +196,12 @@ internal static class ModifierGroupsUi
                 foreach (var variantRow in variantRows.Where(variantRow => ReferenceEquals(row, variantRow.ParentRow)))
                 {
                     childList.AddChild(variantRow.Container);
-                    if (singleplayerDisabled) layout.SingleplayerDisabled.Add(variantRow.Container);
+                    lockEntry?.Nodes.Add(variantRow.Container);
                 }
                 if (ModifierValueUi.Create(list, row) is { } valueRow)
                 {
                     childList.AddChild(valueRow);
-                    if (singleplayerDisabled) layout.SingleplayerDisabled.Add(valueRow);
+                    lockEntry?.Nodes.Add(valueRow);
                 }
                 if (CustomRunParametersUi.Create(list, row) is { } parameterRows)
                     childList.AddChild(parameterRows);
@@ -212,13 +220,13 @@ internal static class ModifierGroupsUi
         }
 
         SubmodifierUi.Attach(list, rows);
-        if (layout.SingleplayerDisabled.Count > 0)
+        foreach (var section in layout.Sections)
         {
-            var first = layout.SingleplayerDisabled[0];
-            layout.DisabledHome = layout.Sections.FirstOrDefault(section => section.ChildList == first.GetParent());
-            layout.HomeChildIndex = first.GetIndex();
-            layout.HomeRowIndex = layout.DisabledHome?.Rows.FindIndex(row => layout.SingleplayerDisabled.Contains(row)) ?? 0;
+            layout.OriginalChildren[section] = [.. section.ChildList.GetChildren()];
+            layout.OriginalRows[section] = [.. section.Rows];
         }
+        foreach (var entry in layout.Lockable)
+            entry.Home = layout.Sections.First(section => section.ChildList == entry.Row.GetParent());
         content.MinimumSizeChanged += () => Callable.From(() => ResizeContent(content)).CallDeferred();
         ApplyMode(list, layout);
         ModifierValueUi.Refresh(list);
@@ -237,46 +245,98 @@ internal static class ModifierGroupsUi
     private static void ApplyMode(NCustomRunModifiersList list, Layout layout)
     {
         var disabled = layout.Sections.FirstOrDefault(section => section.Group == ModifierGroup.Disabled);
-        var home = layout.DisabledHome;
         if (disabled == null) return;
-        if (home != null && layout.SingleplayerDisabled.Count > 0)
+        var moved = false;
+        var unticked = false;
+        foreach (var entry in layout.Lockable)
         {
-            var locked = IsSingleplayer(list);
-            var target = locked ? disabled : home;
-            var source = target == home ? disabled : home;
-            if (layout.SingleplayerDisabled[0].GetParent() != target.ChildList)
+            var row = entry.Row;
+            var locked = IsLocked(list, row.Modifier);
+            var target = locked ? disabled : entry.Home;
+            if (row.GetParent() != target.ChildList)
             {
+                var source = target == disabled ? entry.Home : disabled;
                 var focus = layout.Content.GetViewport()?.GuiGetFocusOwner();
-                if (focus != null && layout.SingleplayerDisabled.Any(node => node == focus || node.IsAncestorOf(focus)))
+                if (focus != null && entry.Nodes.Any(node => node == focus || node.IsAncestorOf(focus)))
                     source.Header.GrabFocus();
-                var childIndex = target == home ? layout.HomeChildIndex : target.ChildList.GetChildCount();
-                foreach (var node in layout.SingleplayerDisabled)
-                {
-                    node.Reparent(target.ChildList, false);
-                    target.ChildList.MoveChild(node, Math.Min(childIndex++, target.ChildList.GetChildCount() - 1));
-                }
-                var rowIndex = target == home ? layout.HomeRowIndex : target.Rows.Count;
-                foreach (var row in layout.SingleplayerDisabled.OfType<NRunModifierTickbox>().Where(row => source.Rows.Remove(row)))
-                    target.Rows.Insert(Math.Min(rowIndex++, target.Rows.Count), row);
+                foreach (var node in entry.Nodes) node.Reparent(target.ChildList, false);
+                moved = true;
             }
-            foreach (var row in layout.SingleplayerDisabled.OfType<NRunModifierTickbox>())
-            {
-                if (locked) row.IsTicked = false;
-                row.FocusMode = locked || ModifierVariantUi.IsHiddenVariant(row.Modifier)
-                    ? Control.FocusModeEnum.None
-                    : Control.FocusModeEnum.All;
-            }
-            if (locked) ModifierVariantUi.RefreshFromTickboxes(list);
+            if (locked && row.IsTicked) { row.IsTicked = false; unticked = true; }
+            row.FocusMode = locked || ModifierVariantUi.IsHiddenVariant(row.Modifier)
+                ? Control.FocusModeEnum.None
+                : Control.FocusModeEnum.All;
         }
+        if (moved)
+            foreach (var section in layout.Sections) Reorder(layout, section);
+        var forcedChanged = ApplyForced(list, layout);
+        if (unticked || forcedChanged) ModifierVariantUi.RefreshFromTickboxes(list);
         disabled.Root.Visible = disabled.Rows.Count > 0;
+    }
+
+    // Lockable nodes return to their original positions; nodes moved in from other sections follow in build order.
+    private static void Reorder(Layout layout, Section section)
+    {
+        var original = layout.OriginalChildren.GetValueOrDefault(section) ?? [];
+        var current = section.ChildList.GetChildren().ToHashSet();
+        var incoming = layout.Lockable.Where(entry => entry.Home != section)
+            .SelectMany(entry => entry.Nodes).Where(current.Contains);
+        var order = original.Where(current.Contains).Concat(incoming).Distinct().ToList();
+        for (var i = 0; i < order.Count; i++) section.ChildList.MoveChild(order[i], i);
+        var rows = order.OfType<NRunModifierTickbox>().ToHashSet();
+        var originalRows = layout.OriginalRows.GetValueOrDefault(section) ?? [];
+        section.Rows = originalRows.Where(rows.Contains)
+            .Concat(layout.Lockable.Where(entry => entry.Home != section && rows.Contains(entry.Row) &&
+                !ModifierVariantUi.IsHiddenVariant(entry.Row.Modifier)).Select(entry => entry.Row))
+            .Distinct().ToList();
+    }
+
+    // In Blitz, Blitz Merchant is always on: the mode already uses it for every Merchant, and its slider sets the picks.
+    private static bool ApplyForced(NCustomRunModifiersList list, Layout layout)
+    {
+        var editable = IsEditable(list);
+        var blitz = BlitzCompatibility.IsBlitz(list);
+        var changed = false;
+        var forcedRows = layout.Sections.SelectMany(section => section.Rows)
+            .Where(row => BlitzCompatibility.IsForced(row.Modifier)).ToList();
+        foreach (var row in forcedRows)
+        {
+            if (blitz)
+            {
+                if (!layout.Forced.ContainsKey(row)) layout.Forced[row] = row.IsTicked;
+                // Clients mirror the host selection, which already contains the forced modifier.
+                if (editable && !row.IsTicked) { row.IsTicked = true; changed = true; }
+                row.MouseFilter = Control.MouseFilterEnum.Ignore;
+                row.FocusMode = Control.FocusModeEnum.None;
+            }
+            else if (layout.Forced.Remove(row, out var previous))
+            {
+                if (editable && row.IsTicked != previous) { row.IsTicked = previous; changed = true; }
+                row.MouseFilter = Control.MouseFilterEnum.Stop;
+                row.FocusMode = row.IsEnabled ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
+            }
+        }
+        return changed;
     }
 
     internal static bool IsSingleplayer(NCustomRunModifiersList list) =>
         (MultiplayerUiMode)AccessTools.Field(typeof(NCustomRunModifiersList), "_mode").GetValue(list)! == MultiplayerUiMode.Singleplayer;
 
+    private static bool IsEditable(NCustomRunModifiersList list) =>
+        (MultiplayerUiMode)AccessTools.Field(typeof(NCustomRunModifiersList), "_mode").GetValue(list)!
+            is MultiplayerUiMode.Singleplayer or MultiplayerUiMode.Host;
+
+    internal static bool IsLocked(NCustomRunModifiersList list, ModifierModel? modifier) =>
+        (ModifierGroups.IsSingleplayerDisabled(modifier) && IsSingleplayer(list)) ||
+        (BlitzCompatibility.IsDisabled(modifier) && BlitzCompatibility.IsBlitz(list));
+
     internal static void RemoveLockedModifiers(NCustomRunModifiersList list, List<ModifierModel> modifiers)
     {
-        if (IsSingleplayer(list)) modifiers.RemoveAll(ModifierGroups.IsSingleplayerDisabled);
+        modifiers.RemoveAll(modifier => IsLocked(list, modifier));
+        if (!BlitzCompatibility.IsBlitz(list)) return;
+        var tickboxes = (List<NRunModifierTickbox>)AccessTools.Field(typeof(NCustomRunModifiersList), "_modifierTickboxes").GetValue(list)!;
+        foreach (var forced in tickboxes.Select(row => row.Modifier).OfType<ModifierModel>().Where(BlitzCompatibility.IsForced))
+            if (!modifiers.Any(modifier => modifier.GetType() == forced.GetType())) modifiers.Add(forced);
     }
 
     private static void Toggle(VBoxContainer content, Layout layout, Section section)

@@ -5,6 +5,7 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Events;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Blitz;
 using MegaCrit.Sts2.Core.Models.Events;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
@@ -176,6 +177,10 @@ internal static class NeowRelicChoice
     internal static int ModifierCount(int actualCount, Neow neow) =>
         ReferenceEquals(_generatingRelicsFor, neow) ? 0 : actualCount;
 
+    // Blitz Neow normally offers only its card pick; generating the restored relic choices must skip that branch.
+    internal static bool UsesBlitzOption(bool isBlitz, Neow neow) =>
+        isBlitz && !ReferenceEquals(_generatingRelicsFor, neow);
+
     internal static IReadOnlyList<EventOption> GenerateRelicChoices(Neow neow)
     {
         var state = States.GetOrCreateValue(neow);
@@ -218,6 +223,12 @@ internal static class NeowInitialOptionsPatch
             break;
         }
         if (!changed) throw new InvalidOperationException("Neow modifier-count check changed; cannot safely restore relic choices.");
+        var blitzAny = code.FindIndex(instruction => instruction.operand is MethodInfo { Name: "Any", IsGenericMethod: true } any &&
+            any.GetGenericArguments().SingleOrDefault() == typeof(BlitzRunModel));
+        // Without this the relic choices cannot be restored in Blitz, but the rest of Neow!! still works.
+        if (blitzAny >= 0)
+            code.InsertRange(blitzAny + 1, [new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(NeowRelicChoice), nameof(NeowRelicChoice.UsesBlitzOption)))]);
         return code;
     }
 

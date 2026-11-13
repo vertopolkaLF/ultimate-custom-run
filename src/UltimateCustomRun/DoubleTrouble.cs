@@ -25,9 +25,15 @@ public sealed class DoubleTrouble : ModifierModel
 
     protected override void AfterRunLoaded(RunState runState) => ConfigureThirdBosses(runState.Acts, ModifierValues.Get(this));
 
-    public override ActMap ModifyGeneratedMapLate(IRunState runState, ActMap map, int actIndex) =>
-        ModifierValues.Get(this) == 3 || CampfiresBetweenBosses.IsEnabled(runState)
-            ? new BossChainActMap(map, ModifierValues.Get(this), CampfiresBetweenBosses.IsEnabled(runState)) : map;
+    public override ActMap ModifyGeneratedMapLate(IRunState runState, ActMap map, int actIndex)
+    {
+        var count = ModifierValues.Get(this);
+        var campfires = CampfiresBetweenBosses.IsEnabled(runState);
+        if (count != 3 && !campfires) return map;
+        return map is BlitzActMap blitz
+            ? BossChainActMap.ExtendInPlace(blitz, count, campfires)
+            : new BossChainActMap(map, count, campfires);
+    }
 
     internal static EncounterModel ThirdEncounter(ActModel act) => act.AllBossEncounters
         .Where(boss => boss.Id != act.BossEncounter.Id && boss.Id != act.SecondBossEncounter?.Id)

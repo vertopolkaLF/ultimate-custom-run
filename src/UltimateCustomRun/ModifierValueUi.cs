@@ -149,8 +149,7 @@ internal static class ModifierValueUi
                 row.Root.Visible = row.Parent.IsTicked;
                 if (row.Root.GetParent() is VBoxContainer group && (group.Name == "SealedDeckValues" || group.Name == "DillValues"))
                     group.Visible = row.Parent.IsTicked;
-                var editable = Editable(list) && !
-                    (ModifierGroupsUi.IsSingleplayer(list) && ModifierGroups.IsSingleplayerDisabled(row.Parent.Modifier));
+                var editable = Editable(list) && !ModifierGroupsUi.IsLocked(list, row.Parent.Modifier);
                 row.Spec = SpecFor(row.Parent.Modifier, row.Kind)!;
                 editable &= row.Spec.Max > row.Spec.Min;
                 row.Slider.MouseFilter = editable ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
@@ -163,7 +162,7 @@ internal static class ModifierValueUi
                 {
                     "bosses" => "боссов", "cards" => "карт", "offers" => "карт в пуле", "extra copies" => "доп. копий", "minutes" => "мин.",
                     "initial max HP" => "начальных макс. HP", "max HP per fight" => "макс. HP за бой", "events" => "событий", "relics" => "реликвий",
-                    "extra relics" => "доп. реликвий", "extra cards" => "доп. карт", _ => "% золота"
+                    "extra relics" => "доп. реликвий", "extra cards" => "доп. карт", "picks" => "выборов", _ => "% золота"
                 } : row.Spec.Unit;
                 if (row.Kind == ValueKind.Primary && row.Parent.Modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
                     unit = russian ? "карт в колоду" : "cards to choose";
