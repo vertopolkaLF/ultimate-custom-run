@@ -21,6 +21,8 @@ For feature requests, describe the gameplay problem and the desired behavior. In
 ```powershell
 .\build.ps1
 dotnet run --project tests/Smoke -c Release
+# The slow floor-count map generation check runs separately (over 10 minutes):
+# dotnet run --project tests/Smoke -c Release -- --floors-only
 ```
 
 The default Steam library is `C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2`. For another installation:

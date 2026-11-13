@@ -105,6 +105,12 @@ internal static class Program
                 Console.WriteLine("PASS: managed reward slider checks. Slider and relic layout visuals require an in-game playtest.");
                 return;
             }
+            if (Environment.GetCommandLineArgs().Contains("--floors-only"))
+            {
+                TestCustomRunFloors();
+                Console.WriteLine("PASS: managed floor-count map generation checks.");
+                return;
+            }
             if (Environment.GetCommandLineArgs().Contains("--blitz-only"))
             {
                 TestBlitzMerchant();
@@ -145,13 +151,13 @@ internal static class Program
             TestBlitzMerchant();
             TestBlitzCompatibility();
             TestCustomRunParameters();
-            TestCustomRunFloors();
+            // Map generation for every floor count takes over 10 minutes; run it with --floors-only.
         }
         finally
         {
             harmony.UnpatchAll(ModEntry.HarmonyId);
         }
-        Console.WriteLine("PASS: managed integration smoke checks. UI/deck acquisition require an in-game playtest.");
+        Console.WriteLine("PASS: managed integration smoke checks (floor-count generation skipped; use --floors-only). UI/deck acquisition require an in-game playtest.");
     }
 
     private static void TestGroups()

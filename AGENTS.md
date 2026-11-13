@@ -5,7 +5,7 @@
 - Do not publish to Workshop or run ModUploader without an explicit user request.
 - Preserve unrelated uncommitted changes. Do not reset or stash another contributor's work.
 - Always commit after finishing the task, including only the files belonging to the task.
-- Do not run the full smoke suite (`dotnet run --project tests/Smoke -c Release` without a filter). Its final `TestCustomRunFloors` check generates maps for every floor count and takes well over 10 minutes. Run only the focused flag for the changed area: `--blitz-only`, `--boss-chain-only`, `--reward-sliders-only`, `--ascension-only`, `--mystery-only`, `--twenty-twenty-only`, or `--draft-only` (append after `--`). Add a new focused flag when no existing one covers the change. Run the full suite only when the user explicitly asks.
+- The default smoke run (`dotnet run --project tests/Smoke -c Release`) skips the slow floor-count map generation check, so run it after implementation changes. Run `-- --floors-only` (over 10 minutes) only when changing floors per act or map length, or when the user asks. Focused flags for quicker iteration: `--blitz-only`, `--boss-chain-only`, `--reward-sliders-only`, `--ascension-only`, `--mystery-only`, `--twenty-twenty-only`, `--draft-only`.
 - Use English for repository documentation and code comments. Preserve intentional in-game localization.
 
 ## Local installation
