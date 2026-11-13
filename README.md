@@ -4,7 +4,7 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3811713944) · [Report a bug](https://github.com/vertopolkaLF/ultimate-custom-run/issues/new/choose) · [Contributing](CONTRIBUTING.md) · [GPL-3.0 license](LICENSE)
 
-**Version 1.7.1 · Pre-release · Built against game v0.111.0.** Available publicly on Steam Workshop and GitHub.
+**Version 1.8.0 · Pre-release · Built against game v0.113.0.** Available publicly on Steam Workshop and GitHub.
 
 ![Ultimate Custom Run artwork](image.png)
 
@@ -195,7 +195,7 @@ Run PowerShell from the repository root:
 .\build.ps1 -GamePath 'E:\SteamLibrary\steamapps\common\Slay the Spire 2' -Install
 ```
 
-The default game path is `C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2`. Outputs are `content/UltimateCustomRun/` and `artifacts/UltimateCustomRun-1.7.1.zip`.
+The default game path is `C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2`. Outputs are `content/UltimateCustomRun/` and `artifacts/UltimateCustomRun-1.8.0.zip`.
 
 An open game can lock the installed DLL. Close the game before a manual update, or use the staged replacement procedure in [AGENTS.md](AGENTS.md). Updating files is not hot reload: a full restart is required to load the new code.
 

@@ -10,7 +10,7 @@ $package = Join-Path $PSScriptRoot 'content\UltimateCustomRun'
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'src\UltimateCustomRun\bin\Release\net9.0\UltimateCustomRun.dll') -Destination $package
 $artifacts = Join-Path $PSScriptRoot 'artifacts'
 New-Item -ItemType Directory -Path $artifacts -Force | Out-Null
-Compress-Archive -LiteralPath $package -DestinationPath (Join-Path $artifacts 'UltimateCustomRun-1.7.1.zip') -Force
+Compress-Archive -LiteralPath $package -DestinationPath (Join-Path $artifacts 'UltimateCustomRun-1.8.0.zip') -Force
 if ($Install) {
     $destination = Join-Path $GamePath 'mods\UltimateCustomRun'
     New-Item -ItemType Directory -Path $destination -Force | Out-Null
@@ -20,4 +20,4 @@ if ($Install) {
     Write-Host "Installed: $destination"
 }
 Write-Host "Workshop content: $package"
-Write-Host "ZIP: $(Join-Path $artifacts 'UltimateCustomRun-1.7.1.zip')"
+Write-Host "ZIP: $(Join-Path $artifacts 'UltimateCustomRun-1.8.0.zip')"
