@@ -1,5 +1,11 @@
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
+using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Entities.Ascension;
+using MegaCrit.Sts2.Core.Entities.Gold;
+using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Nodes.Screens.Shops;
+using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Hooks;
@@ -34,7 +40,7 @@ public sealed class BlitzMerchant : BlitzMerchantModifier
 {
     internal const string DisplayTitle = "Blitz Merchant";
     internal const string DisplayDescription =
-        "Every Merchant, including those found in [gold]?[/gold] rooms, is replaced by the Blitz Merchant. Choose [blue]3[/blue] of its 6 offers.";
+        "Every Merchant, including those found in [gold]?[/gold] rooms, is replaced by the Blitz Merchant. Choose [blue]3[/blue] of its 6 offers. Outside Blitz mode, offers cost gold.";
 
     internal override bool UsesBlitzMerchant(IRunState state) => true;
 }
@@ -43,7 +49,7 @@ public sealed class BlitzMerchantRandom : BlitzMerchantModifier
 {
     internal const string DisplayTitle = "Blitz Merchant - Random";
     internal const string DisplayDescription =
-        "Every Merchant, including those found in [gold]?[/gold] rooms, has a 50% chance to be the Blitz Merchant. Choose [blue]3[/blue] of its 6 offers.";
+        "Every Merchant, including those found in [gold]?[/gold] rooms, has a 50% chance to be the Blitz Merchant. Choose [blue]3[/blue] of its 6 offers. Outside Blitz mode, offers cost gold.";
 
     internal override bool UsesBlitzMerchant(IRunState state) => Roll(state.Rng.Seed, state.CurrentActIndex, state.TotalFloor);
 
@@ -94,5 +100,106 @@ internal static class BlitzMerchantRoomPatch
         if (!BlitzMerchantRoom.ShouldReplace(__0)) return true;
         __result = BlitzMerchantRoom.Enter(__instance, __0!, __1, BlitzMerchantModifier.For(__0)!.Picks);
         return false;
+    }
+}
+
+// Outside Blitz the replaced Merchant is the only gold sink, so its offers cost gold.
+// Base prices follow the normal Merchant: cards 50/75/150 by rarity (Colorless +15%), relics 175-275,
+// potions 50-100, and card removal 75 + 25 per removal. Cursed offers are discounted for their Curse.
+internal static class BlitzMerchantPrices
+{
+    internal static bool IsActive(IRunState state) =>
+        state.GameMode != GameMode.Blitz && BlitzMerchantModifier.For(state) != null;
+
+    internal static int BasePrice(BlitzMerchantEntryType type, Player player) => type switch
+    {
+        BlitzMerchantEntryType.CardUpgrade => 75,
+        BlitzMerchantEntryType.UpgradedCardReward => 100,
+        BlitzMerchantEntryType.RandomUpgrades => 100,
+        BlitzMerchantEntryType.CardTransform => 75,
+        BlitzMerchantEntryType.CardRemoval => RemovalPrice(player.ExtraFields.CardShopRemovalsUsed),
+        BlitzMerchantEntryType.CardRewards => 125,
+        BlitzMerchantEntryType.ColorlessCardReward => 85,
+        BlitzMerchantEntryType.Potions => 125,
+        BlitzMerchantEntryType.CardEnchant => 100,
+        BlitzMerchantEntryType.EnchantedCardReward => 100,
+        BlitzMerchantEntryType.PrismaticCardReward => 125,
+        BlitzMerchantEntryType.RareCardReward => 150,
+        BlitzMerchantEntryType.UpgradedRareCard => 150,
+        BlitzMerchantEntryType.Relic => 200,
+        BlitzMerchantEntryType.Glam => 75,
+        BlitzMerchantEntryType.TwoMoreChoices => 50,
+        BlitzMerchantEntryType.CardRewardOfEachRarity => 175,
+        BlitzMerchantEntryType.UpgradedRareCardReward => 150,
+        BlitzMerchantEntryType.TwoRelics => 300,
+        BlitzMerchantEntryType.FullHealAndMaxHp => 100,
+        _ => 100
+    };
+
+    // Same formula as the normal Merchant's card removal, including Inflation.
+    internal static int RemovalPrice(int removalsUsed) =>
+        AscensionHelper.GetValueIfAscension(AscensionLevel.Inflation, 100, 75) +
+        AscensionHelper.GetValueIfAscension(AscensionLevel.Inflation, 50, 25) * removalsUsed;
+
+    internal static int Price(BlitzMerchantEntry entry)
+    {
+        var player = entry.Player;
+        var price = (decimal)BasePrice(entry.MerchantEntryType, player);
+        // Native discounts and surcharges, such as Membership Card, apply as at the normal Merchant.
+        if (player.RunState.CurrentRoom is MerchantRoom)
+            price = Hook.ModifyMerchantPrice(player.RunState, player, entry, price);
+        return Math.Max(0, (int)price);
+    }
+}
+
+[HarmonyPatch(typeof(BlitzMerchantEntry), nameof(BlitzMerchantEntry.Cost), MethodType.Getter)]
+internal static class BlitzMerchantCostPatch
+{
+    [HarmonyPostfix]
+    private static void Postfix(BlitzMerchantEntry __instance, ref int __result)
+    {
+        if (BlitzMerchantPrices.IsActive(__instance.Player.RunState)) __result = BlitzMerchantPrices.Price(__instance);
+    }
+}
+
+// The base purchase flow already refuses offers the player cannot afford; this charges for accepted ones.
+[HarmonyPatch(typeof(BlitzMerchantEntry), "OnTryPurchaseInternal")]
+internal static class BlitzMerchantPurchasePatch
+{
+    [HarmonyPrefix]
+    private static void Prefix(BlitzMerchantEntry __instance, out int __state) =>
+        // Card removal raises its own future price during selection, so read the price first.
+        __state = BlitzMerchantPrices.IsActive(__instance.Player.RunState) ? __instance.Cost : 0;
+
+    [HarmonyPostfix]
+    private static void Postfix(BlitzMerchantEntry __instance, bool __1, int __state, ref Task<(bool, int)> __result)
+    {
+        if (__state > 0 && !__1) __result = Charge(__result, __instance.Player, __state);
+    }
+
+    internal static async Task<(bool, int)> Charge(Task<(bool, int)> purchase, Player player, int price)
+    {
+        var (success, _) = await purchase;
+        if (!success) return (false, 0);
+        await PlayerCmd.LoseGold(price, player, GoldLossType.Spent);
+        return (true, price);
+    }
+}
+
+[HarmonyPatch(typeof(NBlitzMerchantSlot), "UpdateVisual")]
+internal static class BlitzMerchantSlotPricePatch
+{
+    [HarmonyPostfix]
+    private static void Postfix(NBlitzMerchantSlot __instance, MegaLabel ____costLabel)
+    {
+        if (__instance.Entry is not BlitzMerchantEntry entry || !BlitzMerchantPrices.IsActive(entry.Player.RunState)) return;
+        var available = entry.Status == BlitzMerchantEntry.BlitzEntryStatus.Available;
+        ____costLabel.Visible = available;
+        if (!available) return;
+        ____costLabel.SetTextAutoSize(entry.Cost.ToString());
+        ____costLabel.Modulate = entry.EnoughGold ? StsColors.cream : StsColors.red;
+        // The Blitz slot scene may hide the price container because native Blitz offers are free.
+        for (var node = ____costLabel.GetParent(); node != null && node != __instance; node = node.GetParent())
+            if (node is Godot.CanvasItem item) item.Visible = true;
     }
 }

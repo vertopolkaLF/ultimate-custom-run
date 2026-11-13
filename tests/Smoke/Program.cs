@@ -105,6 +105,13 @@ internal static class Program
                 Console.WriteLine("PASS: managed reward slider checks. Slider and relic layout visuals require an in-game playtest.");
                 return;
             }
+            if (Environment.GetCommandLineArgs().Contains("--blitz-only"))
+            {
+                TestBlitzMerchant();
+                TestBlitzCompatibility();
+                Console.WriteLine("PASS: managed Blitz checks. Merchant visuals require an in-game playtest.");
+                return;
+            }
             if (bossChainOnly)
             {
                 TestDoubleTrouble();
@@ -541,6 +548,25 @@ internal static class Program
         Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Rooms.MerchantRoom),
             nameof(MegaCrit.Sts2.Core.Rooms.MerchantRoom.EnterInternal)))?.Owners.Contains(ModEntry.HarmonyId) == true,
             "Merchant room entry is patched for shop and ? rooms");
+        var entryTypes = Enum.GetValues<MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntryType>()
+            .Where(type => type != MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntryType.CardRemoval).ToArray();
+        Check(entryTypes.All(type => BlitzMerchantPrices.BasePrice(type, null!) is >= 50 and <= 300),
+            "Every Blitz Merchant offer has a price in the normal Merchant range");
+        Check(BlitzMerchantPrices.BasePrice(MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntryType.TwoRelics, null!) >
+            BlitzMerchantPrices.BasePrice(MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntryType.Relic, null!) &&
+            BlitzMerchantPrices.BasePrice(MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntryType.RareCardReward, null!) >
+            BlitzMerchantPrices.BasePrice(MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntryType.CardUpgrade, null!),
+            "Blitz Merchant prices follow offer value");
+        Check(BlitzMerchantPurchasePatch.Charge(Task.FromResult((false, 0)), null!, 100).Result == (false, 0),
+            "Cancelled Blitz Merchant offers cost nothing");
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { always.ToMutable() });
+        Check(BlitzMerchantPrices.IsActive(run), "Replaced Merchants charge gold outside Blitz");
+        foreach (var (type, name) in new[] {
+            (typeof(MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntry), "get_Cost"),
+            (typeof(MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntry), "OnTryPurchaseInternal"),
+            (typeof(MegaCrit.Sts2.Core.Nodes.Screens.Shops.NBlitzMerchantSlot), "UpdateVisual") })
+            Check(Harmony.GetPatchInfo(AccessTools.Method(type, name))?.Owners.Contains(ModEntry.HarmonyId) == true,
+                $"Blitz Merchant price patch is installed: {type.Name}.{name}");
     }
 
     private static void TestBlitzCompatibility()
