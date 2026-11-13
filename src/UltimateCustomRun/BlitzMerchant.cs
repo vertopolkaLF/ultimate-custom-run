@@ -234,7 +234,7 @@ internal static class BlitzMerchantSlotPricePatch
         ____costLabel.Visible = available;
         if (!available) return;
         var sale = BlitzMerchantPrices.SalePercent(entry);
-        ____costLabel.SetTextAutoSize(sale is { } percent ? $"{entry.Cost} (-{percent}%)" : entry.Cost.ToString());
+        ____costLabel.SetTextAutoSize(entry.Cost.ToString());
         ____costLabel.Modulate = !entry.EnoughGold ? StsColors.red : sale != null ? StsColors.green : StsColors.cream;
         // The Blitz slot scene may hide the price container because native Blitz offers are free.
         for (var node = ____costLabel.GetParent(); node != null && node != __instance; node = node.GetParent())
