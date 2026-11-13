@@ -57,6 +57,7 @@ Enable a modifier to reveal its slider. Original values remain the defaults.
 | Headstart | 1–5 relics | 1 | 1 |
 | Rich Loot | 1–3 extra relic choices | 1 | 1 |
 | Card Swarm | 1–3 extra card offers | 1 | 1 |
+| Blitz Merchant / Blitz Merchant — Random | 1–6 picks out of 6 offers | 1 | 3 |
 | ??? | 1–5 additional Events | 1 | 3 |
 | Speedrun | 10–60 minutes before HP penalties | 5 | 30 |
 | Dill — initial max HP | 1–20 HP | 1 | 1 |
@@ -105,6 +106,8 @@ Normal, Draft, and Pick Any share the same value within a modifier family. Seale
 | **Colorless Cards** | Allows Colorless cards in card rewards through the native Dingy Rug relic. An existing copy is not granted again. |
 | **Rich Loot** | Treasure chests contain 1–3 extra relics to choose from (step 1, default 1). Empty chests remain empty. |
 | **Card Swarm** | Card rewards contain 1–3 extra offers (step 1, default 1), including standard Draft rewards and the mod's starting drafts. Fixed tutorial rewards are unchanged. |
+| **Blitz Merchant** | Every Merchant, including Merchants rolled in ? rooms, becomes the Blitz Merchant from Blitz mode: 6 free offers, choose 1–6 of them (step 1, default 3). The native "two more choices" offer still adds picks. |
+| **Blitz Merchant — Random** | Every Merchant, including Merchants rolled in ? rooms, has a 50% chance to become the Blitz Merchant, with the same pick slider. The roll uses the run seed and floor, so co-op players see the same Merchant. Mutually exclusive with Blitz Merchant. |
 
 Variants within each family are mutually exclusive. Draft, Sealed Deck, and Insanity are mutually exclusive. Super Draft adds cards after deck replacement and can be combined with those options. All Star and Friendship draft rewards can be skipped unless Must Have is enabled. Standard reward-generation hooks remain active, so other effects can modify offers; Sealed Deck keeps its configured pool size.
 

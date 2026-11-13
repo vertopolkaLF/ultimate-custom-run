@@ -135,6 +135,7 @@ internal static class Program
             TestTwentyTwenty();
             TestMysteryEvents();
             TestDoubleTrouble();
+            TestBlitzMerchant();
             TestCustomRunParameters();
             TestCustomRunFloors();
         }
@@ -175,6 +176,7 @@ internal static class Program
             typeof(MegaCrit.Sts2.Core.Models.Enchantments.Clone), typeof(MegaCrit.Sts2.Core.Models.Relics.PaelsGrowth), typeof(PommelStrike),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
             typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart), typeof(MysteryEvents), typeof(DoubleTrouble), typeof(CampfiresBetweenBosses),
+            typeof(BlitzMerchant), typeof(BlitzMerchantRandom),
             .. typeof(ActModel).Assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(ActModel)) && !type.IsAbstract),
             typeof(MegaCrit.Sts2.Core.Models.Encounters.VantomBoss),
             typeof(MegaCrit.Sts2.Core.Models.Encounters.CeremonialBeastBoss),
@@ -341,7 +343,9 @@ internal static class Program
             (ModelDb.Modifier<Hoarder>(), 1, 5, 1, 2),
             (ModelDb.Modifier<Midas>(), 150, 300, 5, 200),
             (ModelDb.Modifier<RichLoot>(), 1, 3, 1, 1),
-            (ModelDb.Modifier<CardSwarm>(), 1, 3, 1, 1)
+            (ModelDb.Modifier<CardSwarm>(), 1, 3, 1, 1),
+            (ModelDb.Modifier<BlitzMerchant>(), 1, 6, 1, 3),
+            (ModelDb.Modifier<BlitzMerchantRandom>(), 1, 6, 1, 3)
         };
         foreach (var (canonical, min, max, step, defaultValue) in cases)
         {
@@ -495,6 +499,47 @@ internal static class Program
         Check(LinkedModifierChains.AreLinked(ModelDb.Modifier<AllStar>(), ModelDb.Modifier<AllStarDraft>()), "All Star choices are linked");
         Check(!LinkedModifierChains.AreLinked(ModelDb.Modifier<Insanity>(), ModelDb.Modifier<Specialized>()) &&
             !LinkedModifierChains.AreLinked(ModelDb.Modifier<AllStarDraft>(), ModelDb.Modifier<NeowStarterChoice>()), "Independent modifiers are not visually linked");
+    }
+
+    private static void TestBlitzMerchant()
+    {
+        var always = ModelDb.Modifier<BlitzMerchant>();
+        var random = ModelDb.Modifier<BlitzMerchantRandom>();
+        Check(ModifierListPatch.IsCustomOnly(always) && ModifierListPatch.IsCustomOnly(random) &&
+            ModifierGroups.Classify(always, new HashSet<Type>()) == ModifierGroup.Modifiers &&
+            ModifierGroups.Classify(random, new HashSet<Type>()) == ModifierGroup.Modifiers,
+            "Blitz Merchant modifiers are custom-only and belong to Modifiers");
+        var custom = ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers).ToList();
+        var index = custom.FindIndex(modifier => modifier is BlitzMerchant);
+        Check(index >= 0 && custom[index + 1] is BlitzMerchantRandom && custom.OfType<BlitzMerchantModifier>().Count() == 2,
+            "Blitz Merchant variants appear once and adjacent");
+        Check(LinkedModifierChains.AreLinked(always, random) && SpecializedExclusivityPatch.ShouldUntick(always, random) &&
+            SpecializedExclusivityPatch.ShouldUntick(random, always) && !SpecializedExclusivityPatch.ShouldUntick(always, always) &&
+            !LinkedModifierChains.AreLinked(always, ModelDb.Modifier<RichLoot>()),
+            "Blitz Merchant variants are mutually exclusive and chained");
+        foreach (var canonical in new ModifierModel[] { always, random })
+            Check(ModifierModel.FromSerializable(canonical.ToMutable().ToSerializable()).GetType() == canonical.GetType(),
+                canonical.GetType().Name + " survives serialization");
+        var configured = always.ToMutable();
+        ModifierValues.Set(configured, 5);
+        Check(((BlitzMerchantModifier)configured).Picks == 5 &&
+            new[] { BlitzMerchant.DisplayDescription, BlitzMerchantRandom.DisplayDescription }.All(text =>
+                System.Text.RegularExpressions.Regex.Matches(text, @"\[blue\]\d+%?\[/blue\]").Count == 1 && text.Contains("[blue]3[/blue]")),
+            "Blitz Merchant pick count follows the slider and only the pick count is slider-highlighted");
+        var rolls = Enumerable.Range(0, 400).Select(floor => BlitzMerchantRandom.Roll(123456789UL, floor % 3, floor)).ToArray();
+        Check(rolls.SequenceEqual(Enumerable.Range(0, 400).Select(floor => BlitzMerchantRandom.Roll(123456789UL, floor % 3, floor))),
+            "Random Blitz Merchant roll is deterministic for shared run state");
+        var blitzCount = rolls.Count(roll => roll);
+        Check(blitzCount is > 140 and < 260, $"Random Blitz Merchant rolls are roughly even ({blitzCount}/400)");
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { always.ToMutable() });
+        Check(BlitzMerchantModifier.For(run) is BlitzMerchant && BlitzMerchantRoom.ShouldReplace(run),
+            "Blitz Merchant always replaces Merchants in non-Blitz runs");
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, Array.Empty<ModifierModel>());
+        Check(!BlitzMerchantRoom.ShouldReplace(run), "Merchants are unchanged without the modifier");
+        Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Rooms.MerchantRoom),
+            nameof(MegaCrit.Sts2.Core.Rooms.MerchantRoom.EnterInternal)))?.Owners.Contains(ModEntry.HarmonyId) == true,
+            "Merchant room entry is patched for shop and ? rooms");
     }
 
     private static void TestAscensionModifiers()

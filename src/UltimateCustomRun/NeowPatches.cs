@@ -14,7 +14,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is TwentyTwentyModifier or AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter or Dill or Headstart or MysteryEvents or DoubleTrouble or SubmodifierModel;
+        modifier is TwentyTwentyModifier or AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter or Dill or Headstart or MysteryEvents or DoubleTrouble or BlitzMerchantModifier or SubmodifierModel;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -35,6 +35,7 @@ internal static class ModifierListPatch
         ordered.InsertRange(allStarDraftIndex < 0 ? ordered.Count : allStarDraftIndex + 1,
             [ModelDb.Modifier<Friendship>().ToMutable(), ModelDb.Modifier<FriendshipDraft>().ToMutable()]);
         ordered.AddRange([ModelDb.Modifier<RichLoot>().ToMutable(), ModelDb.Modifier<CardSwarm>().ToMutable()]);
+        ordered.AddRange([ModelDb.Modifier<BlitzMerchant>().ToMutable(), ModelDb.Modifier<BlitzMerchantRandom>().ToMutable()]);
         var startIndex = ordered.FindIndex(modifier => modifier is MegaCrit.Sts2.Core.Models.Modifiers.Insanity);
         ordered.InsertRange(startIndex < 0 ? ordered.Count : startIndex + 1,
             [ModelDb.Modifier<UltimateStarter>().ToMutable(), ModelDb.Modifier<SuperDraft>().ToMutable()]);
@@ -87,6 +88,10 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<RichLoot>().Entry + ".description"] = RichLoot.DisplayDescription,
             [ModelDb.GetId<CardSwarm>().Entry + ".title"] = CardSwarm.DisplayTitle,
             [ModelDb.GetId<CardSwarm>().Entry + ".description"] = CardSwarm.DisplayDescription,
+            [ModelDb.GetId<BlitzMerchant>().Entry + ".title"] = BlitzMerchant.DisplayTitle,
+            [ModelDb.GetId<BlitzMerchant>().Entry + ".description"] = BlitzMerchant.DisplayDescription,
+            [ModelDb.GetId<BlitzMerchantRandom>().Entry + ".title"] = BlitzMerchantRandom.DisplayTitle,
+            [ModelDb.GetId<BlitzMerchantRandom>().Entry + ".description"] = BlitzMerchantRandom.DisplayDescription,
             [ModelDb.GetId<SuperDraft>().Entry + ".title"] = SuperDraft.DisplayTitle,
             [ModelDb.GetId<SuperDraft>().Entry + ".description"] = SuperDraft.DisplayDescription,
             [ModelDb.GetId<UltimateStarter>().Entry + ".title"] = UltimateStarter.DisplayTitle,
@@ -143,7 +148,8 @@ internal static class SpecializedExclusivityPatch
         ((IsSpecialized(selected) && IsSpecialized(other)) ||
             (IsAllStar(selected) && IsAllStar(other)) ||
             (IsFriendship(selected) && IsFriendship(other)) ||
-            (selected is TwentyTwentyModifier && other is TwentyTwentyModifier));
+            (selected is TwentyTwentyModifier && other is TwentyTwentyModifier) ||
+            (selected is BlitzMerchantModifier && other is BlitzMerchantModifier));
 
     private static bool IsSpecialized(ModifierModel modifier) =>
         modifier is MegaCrit.Sts2.Core.Models.Modifiers.Specialized or SpecializedPickAny or SpecializedDraft;

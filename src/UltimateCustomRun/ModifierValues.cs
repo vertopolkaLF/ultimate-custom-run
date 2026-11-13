@@ -42,6 +42,7 @@ internal static class ModifierValues
         RichLoot => new(1, 3, 1, 1, "extra relics"),
         CardSwarm => new(1, 3, 1, 1, "extra cards"),
         MysteryEvents => new(1, 5, 1, MysteryEvents.EventCount, "events"),
+        BlitzMerchantModifier => BlitzMerchantModifier.PicksSpec,
         _ => null
     };
 
