@@ -27,12 +27,12 @@ public sealed class RichLoot : ModifierModel
 internal static class RichLootChestPatch
 {
     [HarmonyPostfix]
-    internal static void Postfix(List<RelicModel>? ____currentRelics, IPlayerCollection ____playerCollection,
+    internal static void Postfix(List<RelicModel>? ____currentRelics, IRunState ____runState,
         RelicGrabBag ____sharedGrabBag, Rng ____rng)
     {
         // An empty chest (e.g. Silver Crucible) has already ended relic picking.
         if (____currentRelics is not { Count: > 0 } relics) return;
-        var runState = ____playerCollection.Players[0].RunState;
+        var runState = ____runState;
         if (runState.Modifiers.OfType<RichLoot>().FirstOrDefault() is not { } modifier) return;
         // Same shared bag and RNG as vanilla, so every co-op peer rolls identical extra relics.
         for (var i = 0; i < ModifierValues.Get(modifier); i++)
@@ -46,35 +46,56 @@ internal static class RichLootChestPatch
 [HarmonyPatch(typeof(NTreasureRoomRelicCollection), nameof(NTreasureRoomRelicCollection.InitializeRelics))]
 internal static class RichLootHolderPatch
 {
-    internal static Vector2 PositionFor(int index, int count, Vector2 top, Vector2 bottom, Vector2 left)
+    // Native holders are 136px wide; the six-relic layout spaces neighbors 224px apart and rows 220px apart.
+    private const float Spacing = 224f;
+    private const float RowOffset = 110f;
+
+    /// <summary>Center of a holder, relative to the screen center, in a two-row arrangement.</summary>
+    internal static Vector2 PositionFor(int index, int count)
     {
         var topCount = (count + 1) / 2;
         var isTop = index < topCount;
         var columns = isTop ? topCount : count - topCount;
         var column = isTop ? index : index - topCount;
-        var spacing = Math.Abs(top.X - left.X);
-        return new Vector2((top.X + bottom.X) / 2 + (column - (columns - 1) / 2f) * spacing,
-            isTop ? top.Y : bottom.Y);
+        return new Vector2((column - (columns - 1) / 2f) * Spacing, isTop ? -RowOffset : RowOffset);
     }
 
     [HarmonyPrefix]
-    private static void Prefix(List<NTreasureRoomRelicHolder> ____multiplayerHolders)
+    private static void Prefix(List<Control> ____holderLayouts)
     {
         var relics = RunManager.Instance.TreasureRoomRelicSynchronizer.CurrentRelics;
-        // The scene only has four holders; a full lobby can now offer up to seven relics.
-        if (relics == null || ____multiplayerHolders.Count is < 4 || relics.Count <= ____multiplayerHolders.Count) return;
-        var top = ____multiplayerHolders[0].Position;
-        var bottom = ____multiplayerHolders[1].Position;
-        var left = ____multiplayerHolders[2].Position;
-        var template = ____multiplayerHolders[3];
-        while (____multiplayerHolders.Count < relics.Count)
+        // The scene has hand-placed layouts for one to six relics, and the game shows layout[count - 1].
+        // A full lobby with Rich Loot can offer seven, so add generated layouts for the missing counts.
+        if (relics == null || ____holderLayouts.Count == 0) return;
+        while (____holderLayouts.Count < relics.Count)
         {
-            var holder = (NTreasureRoomRelicHolder)template.Duplicate();
-            holder.Name = "MultiplayerRelicHolder" + (____multiplayerHolders.Count + 1);
-            template.GetParent().AddChild(holder);
-            ____multiplayerHolders.Add(holder);
+            var template = ____holderLayouts[^1];
+            var layout = (Control)template.Duplicate();
+            var count = ____holderLayouts.Count + 1;
+            layout.Name = "Layout" + count;
+            layout.Visible = false;
+            var holders = layout.GetChildren().OfType<NTreasureRoomRelicHolder>().ToList();
+            if (holders.Count == 0) return;
+            while (holders.Count < count)
+            {
+                var holder = (NTreasureRoomRelicHolder)holders[^1].Duplicate();
+                holder.Name = (holders.Count + 1).ToString();
+                layout.AddChild(holder);
+                holders.Add(holder);
+            }
+            for (var i = 0; i < holders.Count; i++)
+            {
+                var holder = holders[i];
+                var halfWidth = (holder.OffsetRight - holder.OffsetLeft) / 2f;
+                var halfHeight = (holder.OffsetBottom - holder.OffsetTop) / 2f;
+                var center = PositionFor(i, holders.Count);
+                holder.OffsetLeft = center.X - halfWidth;
+                holder.OffsetRight = center.X + halfWidth;
+                holder.OffsetTop = center.Y - halfHeight;
+                holder.OffsetBottom = center.Y + halfHeight;
+            }
+            template.GetParent().AddChild(layout);
+            ____holderLayouts.Add(layout);
         }
-        for (var i = 0; i < relics.Count; i++)
-            ____multiplayerHolders[i].Position = PositionFor(i, relics.Count, top, bottom, left);
     }
 }

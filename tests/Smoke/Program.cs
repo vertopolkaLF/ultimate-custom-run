@@ -185,6 +185,7 @@ internal static class Program
             typeof(StrikeRegent), typeof(DefendRegent), typeof(FallingStar), typeof(Venerate),
             typeof(StrikeNecrobinder), typeof(DefendNecrobinder), typeof(Bodyguard), typeof(Unleash),
             typeof(StrikeDefect), typeof(DefendDefect), typeof(Zap), typeof(Dualcast),
+            typeof(StrikeFool), typeof(DefendFool), typeof(FoolishShot),
             typeof(MegaCrit.Sts2.Core.Models.Relics.DingyRug),
             typeof(MegaCrit.Sts2.Core.Models.Relics.Mango), typeof(MegaCrit.Sts2.Core.Models.Relics.JewelryBox),
             typeof(MegaCrit.Sts2.Core.Models.Relics.BurningBlood), typeof(MegaCrit.Sts2.Core.Models.Relics.Circlet),
@@ -192,6 +193,7 @@ internal static class Program
             typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents), typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Ironclad), typeof(MegaCrit.Sts2.Core.Models.Characters.Silent),
             typeof(MegaCrit.Sts2.Core.Models.Characters.Regent), typeof(MegaCrit.Sts2.Core.Models.Characters.Necrobinder), typeof(MegaCrit.Sts2.Core.Models.Characters.Defect),
+            typeof(MegaCrit.Sts2.Core.Models.Characters.Fool),
             typeof(MegaCrit.Sts2.Core.Models.CardPools.ColorlessCardPool), typeof(Neow),
             typeof(TabletOfTruth), typeof(AromaOfChaos), typeof(SunkenStatue), typeof(DenseVegetation), typeof(UnrestSite),
             typeof(SwarmingElites), typeof(WearyTraveler), typeof(Poverty), typeof(TightBelt), typeof(UltimateCustomRun.AscendersBane),
@@ -440,8 +442,7 @@ internal static class Program
             "Runs without the reward modifiers retain their original counts");
         for (var count = 5; count <= 7; count++)
         {
-            var positions = Enumerable.Range(0, count).Select(index => RichLootHolderPatch.PositionFor(index, count,
-                new Godot.Vector2(-148, -180), new Godot.Vector2(12, 44), new Godot.Vector2(-388, -68))).ToArray();
+            var positions = Enumerable.Range(0, count).Select(index => RichLootHolderPatch.PositionFor(index, count)).ToArray();
             Check(positions.Distinct().Count() == count && positions.All(position => positions.All(other =>
                 position == other || Math.Abs(position.X - other.X) >= 136 || Math.Abs(position.Y - other.Y) >= 136)),
                 $"All {count} relic holders have distinct, non-overlapping positions");
@@ -520,7 +521,7 @@ internal static class Program
                 effect.GetType().Name + " survives save and network serialization");
             var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
             AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { restored });
-            var manager = new MegaCrit.Sts2.Core.Entities.Ascension.AscensionManager(0);
+            var manager = new MegaCrit.Sts2.Core.Entities.Ascension.AscensionManager(MegaCrit.Sts2.Core.Runs.GameMode.Standard, 0);
             IndependentAscensionPatch.Bind(manager, run);
             foreach (var level in levels)
                 Check(manager.HasLevel(level) == (level == effect.Level), effect.GetType().Name + " activates only " + level);
@@ -545,7 +546,7 @@ internal static class Program
         Check(AccessTools.Field(typeof(MegaCrit.sts2.Core.Nodes.TopBar.NTopBarModifier), "_modifier")?.FieldType == typeof(ModifierModel) &&
             AccessTools.Field(typeof(MegaCrit.sts2.Core.Nodes.TopBar.NTopBarModifier), "_hoverTip")?.FieldType == typeof(MegaCrit.Sts2.Core.HoverTips.HoverTip),
             "Installed game supports native modifier icons and grouped hover tips");
-        var vanilla = new MegaCrit.Sts2.Core.Entities.Ascension.AscensionManager(10);
+        var vanilla = new MegaCrit.Sts2.Core.Entities.Ascension.AscensionManager(MegaCrit.Sts2.Core.Runs.GameMode.Standard, 10);
         Check(levels.All(vanilla.HasLevel), "Unbound vanilla Ascension 10 still enables every level");
         foreach (var target in new[] { "OnModifiersListChanged", "AscensionChanged" })
             Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.Screens.CustomRun.NCustomRunScreen), target))?.Owners.Contains(ModEntry.HarmonyId) == true,
@@ -972,7 +973,8 @@ internal static class Program
             ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Silent>(),
             ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Regent>(),
             ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Necrobinder>(),
-            ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Defect>()
+            ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Defect>(),
+            ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Fool>()
         };
         foreach (var character in characters)
         {
@@ -1386,36 +1388,25 @@ internal static class Program
     private static void TestDoubleTrouble()
     {
         foreach (var lastNormalRow in new[] { 9, 14, 19, 29 })
-        foreach (var halfHeights in new[] { new[] { 91.8f, 46f, 91.8f },
-            new[] { 91.8f, 91.8f, 91.8f }, new[] { 91.8f, 46f, 91.8f, 46f, 91.8f } })
-        foreach (var finalTop in new[] { -2013.75f, -2093.75f })
+        foreach (var chainHeights in new[] { new[] { 183.6f, 92f, 183.6f },
+            new[] { 183.6f, 183.6f, 183.6f }, new[] { 183.6f, 92f, 183.6f, 92f, 183.6f } })
+        foreach (var finalTop in new[] { -1013.75f, -1093.75f, -2093.75f })
         {
-            var distance = BossChainMapUiPatch.FitRowDistance(lastNormalRow, halfHeights, finalTop);
-            var center = 768f - lastNormalRow * distance;
-            var previousHalfHeight = 46f;
-            foreach (var halfHeight in halfHeights)
-            {
-                center = BossChainMapUiPatch.NextCenterY(center, previousHalfHeight, halfHeight, distance);
-                previousHalfHeight = halfHeight;
-            }
-            Check(distance > 0f && Math.Abs(center - halfHeights[^1] - finalTop) < 0.002f,
+            var normalHeights = Enumerable.Range(0, lastNormalRow + 1).Select(row => row % 3 == 0 ? 104f : 92f).ToArray();
+            var (normalGap, chainGap, centers) = BossChainMapUiPatch.FitChain(1280f, normalHeights, chainHeights, finalTop);
+            var lastTop = BossChainMapUiPatch.RowCenter(1280f, normalHeights, normalGap, lastNormalRow) - normalHeights[^1] * 0.5f;
+            Check(Math.Abs(centers[^1] - chainHeights[^1] * 0.5f - finalTop) < 0.01f || chainGap == 0f,
                 "Boss chains preserve the native top margin across floor counts and campfires");
+            Check(chainGap >= 0f && Math.Abs(lastTop - (centers[0] + chainHeights[0] * 0.5f) - chainGap) < 0.01f,
+                "The first chain node keeps the fitted gap above the last ordinary row");
+            for (var i = 1; i < centers.Length; i++)
+                Check(Math.Abs((centers[i - 1] - chainHeights[i - 1] * 0.5f) - (centers[i] + chainHeights[i] * 0.5f) - chainGap) < 0.01f,
+                    "Every boss/rest gap matches the fitted spacing without overlap");
         }
-        foreach (var rowDistance in new[] { 70f, 116.25f, 149.4643f, 232.5f })
-        foreach (var halfHeights in new[] { new[] { 91.8f, 91.8f, 91.8f }, new[] { 91.8f, 46f, 91.8f, 46f, 91.8f } })
-        {
-            var center = 0f;
-            var previousHalfHeight = 46f;
-            foreach (var halfHeight in halfHeights)
-            {
-                var next = BossChainMapUiPatch.NextCenterY(center, previousHalfHeight, halfHeight, rowDistance);
-                var visibleGap = (center - previousHalfHeight) - (next + halfHeight);
-                Check(Math.Abs(visibleGap - Math.Max(0f, rowDistance - 92f)) < 0.001f,
-                    "Every boss/rest gap matches ordinary map icon spacing without overlap: " + rowDistance);
-                center = next;
-                previousHalfHeight = halfHeight;
-            }
-        }
+        var nativeRows = Enumerable.Repeat(92f, 16).ToArray();
+        Check(Math.Abs(BossChainMapUiPatch.NativeRowGap(nativeRows, false) - (2325f - 92f * 16) / 15f) < 0.001f &&
+            Math.Abs(BossChainMapUiPatch.NativeRowGap(nativeRows, true) - (2325f * 0.9f - 92f * 16) / 15f) < 0.001f,
+            "Native row gap matches the game's variable-height map layout");
         foreach (var viewport in new[] { new Godot.Vector2(1280, 720), new Godot.Vector2(1920, 1080), new Godot.Vector2(2560, 1440) })
         foreach (var offset in new[] { new Godot.Vector2(-200, -1782), new Godot.Vector2(-80, -1900), new Godot.Vector2(-200, -2052) })
         {
@@ -1569,6 +1560,9 @@ internal static class Program
         AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
         var fixtureHarmony = new Harmony("UltimateCustomRun.Smoke.DoubleTrouble");
         fixtureHarmony.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Rewards.RewardsSet), "TryGenerateTutorialRewards"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(NoTutorialRewards)));
+        // The fixture player has no deck or relics for the native reward-replacement hook to iterate.
+        fixtureHarmony.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Hooks.Hook), nameof(MegaCrit.Sts2.Core.Hooks.Hook.TryReplaceDefaultRoomRewards)),
             prefix: new HarmonyMethod(typeof(Program), nameof(NoTutorialRewards)));
         fixtureHarmony.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Rewards.RewardsSet), "GenerateRewardsFor"),
             prefix: new HarmonyMethod(typeof(Program), nameof(TrackBossRewardGeneration)));

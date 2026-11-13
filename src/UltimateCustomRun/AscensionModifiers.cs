@@ -13,8 +13,8 @@ namespace UltimateCustomRun;
 public abstract class AscensionModifier : ModifierModel
 {
     public abstract AscensionLevel Level { get; }
-    public override LocString Title => AscensionHelper.GetTitle((int)Level);
-    public override LocString Description => AscensionHelper.GetDescription((int)Level);
+    public override LocString Title => AscensionHelper.GetTitle((int)Level, GameMode.Standard);
+    public override LocString Description => AscensionHelper.GetDescription((int)Level, GameMode.Standard);
     protected override string IconPath => ImageHelper.GetImagePath("packed/modifiers/murderous.png");
 }
 
