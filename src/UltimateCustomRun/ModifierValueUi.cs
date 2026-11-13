@@ -134,6 +134,7 @@ internal static class ModifierValueUi
             if (ModifierValues.For(modifier) != null) SetFamilyValue(list, modifier, ModifierValues.Get(modifier));
         }
         CustomRunParametersUi.ApplyIncoming(list, modifiers);
+        CoopHandicapUi.ApplyIncoming(list, modifiers);
         Refresh(list);
     }
 
@@ -174,6 +175,7 @@ internal static class ModifierValueUi
             finally { row.Applying = false; }
         }
         CustomRunParametersUi.Refresh(list);
+        CoopHandicapUi.Refresh(list);
         ModifierGroupsUi.Refresh(list);
     }
 
@@ -181,7 +183,7 @@ internal static class ModifierValueUi
         (MultiplayerUiMode)AccessTools.Field(typeof(NCustomRunModifiersList), "_mode").GetValue(list)!
             is MultiplayerUiMode.Singleplayer or MultiplayerUiMode.Host;
 
-    private static void UpdateDescription(NRunModifierTickbox row)
+    internal static void UpdateDescription(NRunModifierTickbox row)
     {
         var modifier = row.Modifier!;
         var text = new LocString("main_menu_ui", "CUSTOM_RUN_SCREEN.MODIFIER_LABEL");

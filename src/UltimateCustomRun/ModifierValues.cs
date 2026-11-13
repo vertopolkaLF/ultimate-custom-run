@@ -178,6 +178,16 @@ internal static class ModifierValues
                 __result = new LocString(__result.LocTable, key);
                 return;
             }
+            if (__instance is CoopHandicap handicap)
+            {
+                var russian = LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
+                var key = __result.LocEntryKey + ".ultimate_handicap_" +
+                    string.Join("_", handicap.DamageDealtPercents.Concat(handicap.DamageTakenPercents)) + (russian ? "_ru" : "");
+                LocManager.Instance.GetTable(__result.LocTable).MergeWith(new Dictionary<string, string>
+                    { [key] = handicap.DescriptionText(russian) });
+                __result = new LocString(__result.LocTable, key);
+                return;
+            }
             if (__instance is RichLoot or CardSwarm)
             {
                 var count = Get(__instance);

@@ -45,46 +45,7 @@ internal static class CustomRunParametersUi
         container.AddThemeConstantOverride("separation", 2);
         foreach (var spec in Specs)
         {
-            var root = new HBoxContainer
-            {
-                Name = spec.Parameter + "Setting",
-                CustomMinimumSize = new Vector2(0, 58),
-                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-                Visible = parent.IsTicked
-            };
-            root.AddThemeConstantOverride("separation", 12);
-            root.AddChild(new Control { CustomMinimumSize = new Vector2(52, 0), MouseFilter = Control.MouseFilterEnum.Ignore });
-            var label = new Label
-            {
-                Text = Title(spec), CustomMinimumSize = new Vector2(220, 0),
-                VerticalAlignment = VerticalAlignment.Center, SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin,
-                MouseFilter = Control.MouseFilterEnum.Ignore
-            };
-            label.AddThemeFontOverride("font", ResourceLoader.Load<Font>("res://themes/kreon_regular_shared.tres"));
-            label.AddThemeFontSizeOverride("font_size", 22);
-            root.AddChild(label);
-
-            var slider = ResourceLoader.Load<PackedScene>("res://scenes/ui/volume_slider.tscn").Instantiate<NSlider>();
-            slider.Name = "ParameterSlider";
-            slider.MinValue = 0;
-            slider.MaxValue = spec.MaxIndex;
-            slider.Step = 1;
-            slider.Rounded = true;
-            slider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-            slider.CustomMinimumSize = new Vector2(150, 58);
-            slider.FocusMode = Control.FocusModeEnum.All;
-            foreach (var child in slider.FindChildren("*", "Control", true, false).OfType<Control>())
-                child.MouseFilter = Control.MouseFilterEnum.Ignore;
-            root.AddChild(slider);
-
-            var value = new Label
-            {
-                CustomMinimumSize = new Vector2(120, 0), VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Right, MouseFilter = Control.MouseFilterEnum.Ignore
-            };
-            value.AddThemeFontOverride("font", ResourceLoader.Load<Font>("res://themes/kreon_regular_shared.tres"));
-            value.AddThemeFontSizeOverride("font_size", 22);
-            root.AddChild(value);
+            var (root, _, slider, value) = BuildSliderRow(spec.Parameter + "Setting", Title(spec), spec.MaxIndex, parent.IsTicked);
             container.AddChild(root);
 
             var row = new Row { Parent = parent, Parameter = spec.Parameter, Root = root, Slider = slider, Value = value };
@@ -105,6 +66,52 @@ internal static class CustomRunParametersUi
             };
         }
         return container;
+    }
+
+    internal static (HBoxContainer Root, Label Title, NSlider Slider, Label Value) BuildSliderRow(
+        string name, string title, int maxIndex, bool visible)
+    {
+        var root = new HBoxContainer
+        {
+            Name = name,
+            CustomMinimumSize = new Vector2(0, 58),
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            Visible = visible
+        };
+        root.AddThemeConstantOverride("separation", 12);
+        root.AddChild(new Control { CustomMinimumSize = new Vector2(52, 0), MouseFilter = Control.MouseFilterEnum.Ignore });
+        var label = new Label
+        {
+            Text = title, CustomMinimumSize = new Vector2(220, 0),
+            VerticalAlignment = VerticalAlignment.Center, SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin,
+            MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+        label.AddThemeFontOverride("font", ResourceLoader.Load<Font>("res://themes/kreon_regular_shared.tres"));
+        label.AddThemeFontSizeOverride("font_size", 22);
+        root.AddChild(label);
+
+        var slider = ResourceLoader.Load<PackedScene>("res://scenes/ui/volume_slider.tscn").Instantiate<NSlider>();
+        slider.Name = "ParameterSlider";
+        slider.MinValue = 0;
+        slider.MaxValue = maxIndex;
+        slider.Step = 1;
+        slider.Rounded = true;
+        slider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        slider.CustomMinimumSize = new Vector2(150, 58);
+        slider.FocusMode = Control.FocusModeEnum.All;
+        foreach (var child in slider.FindChildren("*", "Control", true, false).OfType<Control>())
+            child.MouseFilter = Control.MouseFilterEnum.Ignore;
+        root.AddChild(slider);
+
+        var value = new Label
+        {
+            CustomMinimumSize = new Vector2(120, 0), VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right, MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+        value.AddThemeFontOverride("font", ResourceLoader.Load<Font>("res://themes/kreon_regular_shared.tres"));
+        value.AddThemeFontSizeOverride("font_size", 22);
+        root.AddChild(value);
+        return (root, label, slider, value);
     }
 
     internal static void ApplyIncoming(NCustomRunModifiersList list, IReadOnlyCollection<ModifierModel> modifiers)

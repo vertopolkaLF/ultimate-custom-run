@@ -205,6 +205,11 @@ internal static class ModifierGroupsUi
                 }
                 if (CustomRunParametersUi.Create(list, row) is { } parameterRows)
                     childList.AddChild(parameterRows);
+                if (CoopHandicapUi.Create(list, row) is { } handicapRows)
+                {
+                    childList.AddChild(handicapRows);
+                    lockEntry?.Nodes.Add(handicapRows);
+                }
             }
             if (variantRows.Count > 0) ModifierVariantUi.InitializeChoices(list);
             LinkedModifierChains.Attach(body, visibleRows);

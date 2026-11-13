@@ -10,9 +10,12 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 ## Features
 
-- Collapsible modifier groups: **Improved Start**, **Run Parameters**, **Modifiers**, **Card Pool**, **Ascension**, and **Negatives**. Options unavailable in singleplayer appear under **Disabled**.
+- Collapsible modifier groups: **Improved Start**, **Run Parameters**, **Modifiers**, **Card Pool**, **Ascension**, **Negatives**, and **Co-op**. Options unavailable in singleplayer appear under **Disabled**.
 - **Blitz** custom runs move modifiers that cannot affect Blitz to **Disabled** and drop them from the run: Flight, Deadly Events, Big Game Hunter, Midas, Blitz Merchant — Random, and the independent Swarming Elites, Poverty, Inflation, and Scarcity Ascension effects. Blitz has a fixed linear map, no gold, no normal Merchant, and fixed-rarity rewards. **Blitz Merchant** is shown enabled and locked in Blitz; its slider sets the native Blitz Merchant's picks (default 3). The Floors per act parameter is locked. Double Trouble (including 3 bosses and Campfires between bosses) and Neow!! work in Blitz. Switching to another mode restores the previous Blitz Merchant selection.
 - **Run Parameters** can set floors per act (vanilla or 8–30), base hand size (vanilla or 0–10, capped by the engine's 10-card hand limit), base energy (vanilla or 0–10), and enemy HP, enemy damage, and player HP multipliers (25–500%, step 25%).
+- **Co-op** modifiers:
+  - **Shared Gold**: all players share one wallet. It starts with everyone's starting gold combined, and every player's income and spending use it.
+  - **Handicap**: per-player damage dealt and damage taken sliders (25-500%, step 25%), labeled with lobby player names. Pets such as Osty use their owner's values; friendly fire is never scaled.
 - Named modifier presets: save the current selection and slider values as a loadout, then restore it from the dropdown. **Empty** clears the selected modifiers. Delete saved loadouts with the game's remove icon beside each dropdown item; deleting a loadout preserves the current run settings. Presets are stored locally, and the built-in Empty preset cannot be overwritten or removed.
 - **Ascension** contains all ten Ascension effects as independent options, using the game's localized titles and descriptions. For example, enable Double Boss without any other Ascension penalties. Enabling an effect sets Ascension to 0; changing Ascension disables every independent Ascension option while preserving other modifiers.
 - Native sliders with live value labels and descriptions. Use the mouse or focus a slider and press left/right to change it by one step.

@@ -15,7 +15,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is TwentyTwentyModifier or AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter or Dill or Headstart or MysteryEvents or DoubleTrouble or BlitzMerchantModifier or SubmodifierModel;
+        modifier is TwentyTwentyModifier or AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter or Dill or Headstart or MysteryEvents or DoubleTrouble or BlitzMerchantModifier or SubmodifierModel or SharedGold or CoopHandicap;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -52,6 +52,7 @@ internal static class ModifierListPatch
         ordered.Add(ModelDb.Modifier<NeowStarterChoice>().ToMutable());
         ordered.Add(ModelDb.Modifier<CustomRunParameters>().ToMutable());
         ordered.AddRange(AscensionModifiers.Create());
+        ordered.AddRange([ModelDb.Modifier<SharedGold>().ToMutable(), ModelDb.Modifier<CoopHandicap>().ToMutable()]);
         // Its relic must be granted before start-of-run card reward modifiers resolve.
         ordered.Insert(0, ModelDb.Modifier<ColorlessCards>().ToMutable());
         return ordered;
@@ -119,6 +120,10 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<TwentyTwentyDraft>().Entry + ".description"] = TwentyTwentyDraft.DisplayDescription,
             [ModelDb.GetId<TwentyTwentyAny>().Entry + ".title"] = TwentyTwentyAny.DisplayTitle,
             [ModelDb.GetId<TwentyTwentyAny>().Entry + ".description"] = TwentyTwentyAny.DisplayDescription,
+            [ModelDb.GetId<SharedGold>().Entry + ".title"] = SharedGold.DisplayTitle,
+            [ModelDb.GetId<SharedGold>().Entry + ".description"] = SharedGold.DisplayDescription,
+            [ModelDb.GetId<CoopHandicap>().Entry + ".title"] = CoopHandicap.DisplayTitle,
+            [ModelDb.GetId<CoopHandicap>().Entry + ".description"] = CoopHandicap.DisplayDescription,
             [ModifierVariantUi.RandomLabelKey] = "Random",
             [ModifierVariantUi.AnyLabelKey] = "Any",
             [ModifierVariantUi.NormalLabelKey] = "Normal",

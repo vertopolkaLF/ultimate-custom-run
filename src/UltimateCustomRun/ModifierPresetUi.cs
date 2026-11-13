@@ -334,6 +334,11 @@ internal static class ModifierPresetUi
             }
             if (modifier is MegaCrit.Sts2.Core.Models.Modifiers.SealedDeck)
                 ModifierValues.SetSealedPool(modifier, entry.SealedPoolSize ?? ModifierValues.SealedPoolSpec.Default);
+            if (modifier is CoopHandicap handicap)
+            {
+                handicap.DamageDealtPercents = entry.DamageDealtPercents ?? [];
+                handicap.DamageTakenPercents = entry.DamageTakenPercents ?? [];
+            }
             if (modifier is Dill dill) dill.MaxHpPerFight = entry.MaxHpPerFight ?? Dill.GrowthSpec.Default;
             if (entry.Value is { } value && ModifierValues.For(modifier) != null)
                 ModifierValues.Set(modifier, value);

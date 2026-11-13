@@ -18,6 +18,8 @@ internal sealed class ModifierPresetEntry
     public int? SealedPoolSize { get; set; }
     public int? MaxHpPerFight { get; set; }
     public CustomRunParameterValues? Parameters { get; set; }
+    public int[]? DamageDealtPercents { get; set; }
+    public int[]? DamageTakenPercents { get; set; }
 }
 
 internal static class ModifierPresetStore
@@ -63,6 +65,11 @@ internal static class ModifierPresetStore
             if (modifier is Dill dill) entry.MaxHpPerFight = dill.MaxHpPerFight;
             if (modifier is CustomRunParameters parameters)
                 entry.Parameters = CustomRunParameterValuesStore.Get(parameters);
+            if (modifier is CoopHandicap handicap)
+            {
+                entry.DamageDealtPercents = handicap.DamageDealtPercents;
+                entry.DamageTakenPercents = handicap.DamageTakenPercents;
+            }
             preset.Modifiers.Add(entry);
         }
 

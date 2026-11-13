@@ -151,6 +151,7 @@ internal static class Program
             TestBlitzMerchant();
             TestBlitzCompatibility();
             TestCustomRunParameters();
+            TestCoopModifiers();
             // Map generation for every floor count takes over 10 minutes; run it with --floors-only.
         }
         finally
@@ -163,7 +164,7 @@ internal static class Program
     private static void TestGroups()
     {
         Check(ModifierGroups.Sections.Select(s => s.Title).SequenceEqual(
-            new[] { "Improved Start", "Run Parameters", "Modifiers", "Card Pool", "Ascension", "Negatives", "Disabled" }), "Group titles and order match the requested layout");
+            new[] { "Improved Start", "Run Parameters", "Modifiers", "Card Pool", "Ascension", "Negatives", "Co-op", "Disabled" }), "Group titles and order match the requested layout");
         var negatives = new HashSet<Type> { typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents),
             typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal) };
         foreach (var type in new[] { typeof(NeowStarterChoice), typeof(Specialized), typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(Draft),
@@ -190,7 +191,7 @@ internal static class Program
             typeof(MegaCrit.Sts2.Core.Models.Enchantments.Clone), typeof(MegaCrit.Sts2.Core.Models.Relics.PaelsGrowth), typeof(PommelStrike),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
             typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart), typeof(MysteryEvents), typeof(DoubleTrouble), typeof(CampfiresBetweenBosses),
-            typeof(BlitzMerchant), typeof(BlitzMerchantRandom),
+            typeof(BlitzMerchant), typeof(BlitzMerchantRandom), typeof(SharedGold), typeof(CoopHandicap),
             .. typeof(ActModel).Assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(ActModel)) && !type.IsAbstract),
             typeof(MegaCrit.Sts2.Core.Models.Encounters.VantomBoss),
             typeof(MegaCrit.Sts2.Core.Models.Encounters.CeremonialBeastBoss),
@@ -1462,6 +1463,137 @@ internal static class Program
         var migrationWriter = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
         migrated.ToSerializable().Serialize(migrationWriter);
         Check(migrationWriter.Buffer.Length > 0, "Migrated Custom Run saves can be serialized into replay packets");
+    }
+
+    private static void TestCoopModifiers()
+    {
+        var negatives = new HashSet<Type>();
+        var customList = ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers));
+        foreach (var canonical in new ModifierModel[] { ModelDb.Modifier<SharedGold>(), ModelDb.Modifier<CoopHandicap>() })
+            Check(ModifierGroups.Classify(canonical, negatives) == ModifierGroup.Coop &&
+                ModifierGroups.IsSingleplayerDisabled(canonical) && ModifierListPatch.IsCustomOnly(canonical) &&
+                customList.Count(modifier => modifier.GetType() == canonical.GetType()) == 1,
+                canonical.GetType().Name + " appears once under Co-op, is locked in singleplayer and stays out of Daily pools");
+
+        // Handicap values: defaults, clamping, save, replay/network packet and clone.
+        var handicapCanonical = ModelDb.Modifier<CoopHandicap>();
+        Check(handicapCanonical.IsDefault && CoopHandicap.PercentSpec == new ModifierValues.Spec(25, 500, 25, 100, "%"),
+            "Handicap defaults every player to 100% damage dealt and taken");
+        foreach (var name in new[] { nameof(CoopHandicap.DamageDealtPercents), nameof(CoopHandicap.DamageTakenPercents) })
+            Check(MegaCrit.Sts2.Core.Multiplayer.Serialization.ModelIdSerializationCache.GetNetIdForPropertyName(name) >= 0,
+                "Native startup discovers a replay/network ID for " + name);
+        var handicap = (CoopHandicap)handicapCanonical.ToMutable();
+        handicap.Set(HandicapStat.DamageDealt, 0, 50);
+        handicap.Set(HandicapStat.DamageDealt, 3, 9999);
+        handicap.Set(HandicapStat.DamageTaken, 1, 210);
+        handicap.Set(HandicapStat.DamageTaken, 2, 1);
+        Check(handicap.DamageDealtPercents.SequenceEqual(new[] { 50, 100, 100, 500 }) &&
+            handicap.DamageTakenPercents.SequenceEqual(new[] { 100, 200, 25, 100 }) && handicapCanonical.IsDefault,
+            "Handicap values snap to 25% steps, clamp to 25-500% and leave the canonical model unchanged");
+        var saved = handicap.ToSerializable();
+        var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
+        writer.WriteList(new List<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier> { saved });
+        var reader = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketReader();
+        reader.Reset(writer.Buffer);
+        var packet = reader.ReadList<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier>().Single();
+        var clone = (CoopHandicap)handicap.MutableClone();
+        foreach (var restored in new[] { ModifierModel.FromSerializable(saved), ModifierModel.FromSerializable(packet), clone })
+            Check(restored is CoopHandicap copy &&
+                copy.DamageDealtPercents.SequenceEqual(handicap.DamageDealtPercents) &&
+                copy.DamageTakenPercents.SequenceEqual(handicap.DamageTakenPercents),
+                "Handicap values survive save, replay/network packet and clone");
+        clone.Set(HandicapStat.DamageDealt, 1, 300);
+        Check(handicap.Get(HandicapStat.DamageDealt, 1) == 100, "Cloned Handicap models do not share value arrays");
+        var shortSave = handicap.ToSerializable();
+        shortSave.Props!.intArrays!.RemoveAll(property => property.name == nameof(CoopHandicap.DamageTakenPercents));
+        shortSave.Props.intArrays.Add(new(nameof(CoopHandicap.DamageTakenPercents), [150]));
+        Check(ModifierModel.FromSerializable(shortSave) is CoopHandicap shortened &&
+            shortened.DamageTakenPercents.SequenceEqual(new[] { 150, 100, 100, 100 }),
+            "Short Handicap arrays fill the remaining players with 100%");
+        var preset = new ModifierPresetEntry { Id = handicapCanonical.Id.ToString(),
+            DamageDealtPercents = handicap.DamageDealtPercents, DamageTakenPercents = handicap.DamageTakenPercents };
+        var restoredPreset = System.Text.Json.JsonSerializer.Deserialize<ModifierPresetEntry>(System.Text.Json.JsonSerializer.Serialize(preset))!;
+        Check(restoredPreset.DamageDealtPercents!.SequenceEqual(handicap.DamageDealtPercents) &&
+            restoredPreset.DamageTakenPercents!.SequenceEqual(handicap.DamageTakenPercents),
+            "Presets preserve every Handicap slider");
+        var description = handicap.DescriptionText(false);
+        Check(description.Contains("Player 1: deals [gold]50%[/gold], takes [gold]100%[/gold]") &&
+            description.Contains("Player 4: deals [gold]500%[/gold]") && description.Split('\n').Length == 4 &&
+            handicapCanonical.DescriptionText(false) == CoopHandicap.DisplayDescription,
+            "Handicap description lists changed players and falls back to the default text");
+
+        // Shared run fixture with three players.
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        var players = new List<Player>();
+        AccessTools.Field(typeof(RunState), "_players").SetValue(run, players);
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, Array.Empty<ModifierModel>());
+        MegaCrit.Sts2.Core.Entities.Creatures.Creature NewCreature(MegaCrit.Sts2.Core.Combat.CombatSide side)
+        {
+            var creature = (MegaCrit.Sts2.Core.Entities.Creatures.Creature)RuntimeHelpers.GetUninitializedObject(
+                typeof(MegaCrit.Sts2.Core.Entities.Creatures.Creature));
+            AccessTools.Field(creature.GetType(), "<Side>k__BackingField").SetValue(creature, side);
+            return creature;
+        }
+        for (var index = 0; index < 3; index++)
+        {
+            var player = (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player));
+            var creature = NewCreature(MegaCrit.Sts2.Core.Combat.CombatSide.Player);
+            AccessTools.Field(creature.GetType(), "<Player>k__BackingField").SetValue(creature, player);
+            AccessTools.Field(typeof(Player), "<Creature>k__BackingField").SetValue(player, creature);
+            AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
+            players.Add(player);
+        }
+
+        // Handicap damage scaling.
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { handicap });
+        var enemy = NewCreature(MegaCrit.Sts2.Core.Combat.CombatSide.Enemy);
+        var pet = NewCreature(MegaCrit.Sts2.Core.Combat.CombatSide.Player);
+        pet.PetOwner = players[0];
+        decimal Damage(MegaCrit.Sts2.Core.Entities.Creatures.Creature? dealer, MegaCrit.Sts2.Core.Entities.Creatures.Creature? target)
+        {
+            var damage = 10m;
+            CoopHandicapDamagePatch.Postfix(run, dealer, target, ref damage);
+            return damage;
+        }
+        Check(Damage(players[0].Creature, enemy) == 5m && Damage(players[0].Creature, null) == 5m && Damage(pet, enemy) == 5m,
+            "Player 1 attacks, previews and pet attacks deal the configured 50%");
+        Check(Damage(players[2].Creature, enemy) == 10m, "Players at 100% deal unchanged damage");
+        Check(Damage(enemy, players[1].Creature) == 20m && Damage(null, players[1].Creature) == 20m &&
+            Damage(enemy, players[2].Creature) == 2.5m,
+            "Each player takes their own configured enemy and source-less damage");
+        Check(Damage(players[0].Creature, players[1].Creature) == 10m && Damage(enemy, enemy) == 10m,
+            "Friendly fire and enemy-on-enemy damage are never scaled");
+        var noRun = 10m;
+        CoopHandicapDamagePatch.Postfix(null, players[0].Creature, enemy, ref noRun);
+        Check(noRun == 10m, "Damage without a run is unchanged");
+
+        // Shared Gold pool.
+        var sharedGold = (SharedGold)ModelDb.Modifier<SharedGold>().ToMutable();
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { sharedGold });
+        players[0].Gold = 99; players[1].Gold = 120; players[2].Gold = 75;
+        Check(players.Select(player => player.Gold).SequenceEqual(new[] { 99, 120, 75 }),
+            "Shared Gold does not mirror wallets before the run finishes setup");
+        SharedGold.InitializePool(run);
+        Check(players.All(player => player.Gold == 294), "Shared Gold starts with every player's starting gold combined");
+        players[1].Gold += 25;
+        Check(players.All(player => player.Gold == 319), "Any player's income goes into the shared wallet");
+        players[2].Gold -= 300;
+        Check(players.All(player => player.Gold == 19), "Any player's spending comes out of the shared wallet");
+        var loaded = (SharedGold)ModelDb.Modifier<SharedGold>().ToMutable();
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { loaded });
+        players[0].Gold = 40;
+        Check(players[1].Gold == 19, "A fresh Shared Gold model waits for setup or load before mirroring");
+        loaded.OnRunLoaded(run);
+        players[0].Gold = 41;
+        Check(players.All(player => player.Gold == 41), "Loaded Shared Gold runs resume mirroring");
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, Array.Empty<ModifierModel>());
+        players[0].Gold = 7;
+        Check(players[1].Gold == 41, "Runs without Shared Gold keep separate wallets");
+        Check(Harmony.GetPatchInfo(AccessTools.PropertySetter(typeof(Player), nameof(Player.Gold)))
+                ?.Postfixes.Any(patch => patch.PatchMethod.DeclaringType == typeof(SharedGoldMirrorPatch)) == true &&
+            Harmony.GetPatchInfo(AccessTools.Method(typeof(RunManager), "InitializeNewRun"))
+                ?.Postfixes.Any(patch => patch.PatchMethod.DeclaringType == typeof(SharedGoldStartPatch)) == true,
+            "Shared Gold patches the installed game's gold setter and new-run setup");
     }
 
     private static void TestCustomRunFloors()
