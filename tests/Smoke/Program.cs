@@ -566,7 +566,20 @@ internal static class Program
         Check(BlitzMerchantPurchasePatch.Charge(Task.FromResult((false, 0)), null!, 100).Result == (false, 0),
             "Cancelled Blitz Merchant offers cost nothing");
         AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { always.ToMutable() });
-        Check(BlitzMerchantPrices.IsActive(run), "Replaced Merchants charge gold outside Blitz");
+        var mapAct = (MegaCrit.Sts2.Core.Models.Acts.Overgrowth)ModelDb.Act<MegaCrit.Sts2.Core.Models.Acts.Overgrowth>().ToMutable();
+        AccessTools.Field(typeof(ActModel), "_rooms").SetValue(mapAct, new MegaCrit.Sts2.Core.Rooms.RoomSet());
+        AccessTools.Field(typeof(RunState), "<Acts>k__BackingField").SetValue(run, new ActModel[] { mapAct });
+        var merchantMap = new MegaCrit.Sts2.Core.Map.BlitzActMap(run);
+        AccessTools.PropertySetter(typeof(RunState), nameof(RunState.Map)).Invoke(run, [merchantMap]);
+        var shopPoint = merchantMap.GetMapPoints().First(point => point.PointType == MegaCrit.Sts2.Core.Map.MapPointType.Shop);
+        var unknownPoint = merchantMap.GetMapPoints().First(point => point.PointType == MegaCrit.Sts2.Core.Map.MapPointType.Monster);
+        unknownPoint.PointType = MegaCrit.Sts2.Core.Map.MapPointType.Unknown;
+        AccessTools.Field(typeof(RunState), "_visitedMapCoords").SetValue(run, new List<MegaCrit.Sts2.Core.Map.MapCoord> { shopPoint.coord });
+        Check(BlitzMerchantPrices.IsActive(run) && BlitzMerchantRoom.IsMapMerchant(run),
+            "Map Merchants charge gold outside Blitz and are not pick-limited");
+        AccessTools.Field(typeof(RunState), "_visitedMapCoords").SetValue(run, new List<MegaCrit.Sts2.Core.Map.MapCoord> { unknownPoint.coord });
+        Check(!BlitzMerchantPrices.IsActive(run) && !BlitzMerchantRoom.IsMapMerchant(run),
+            "? room Merchants are free and use the pick limit");
         foreach (var (type, name) in new[] {
             (typeof(MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntry), "get_Cost"),
             (typeof(MegaCrit.Sts2.Core.Entities.Merchant.BlitzMerchantEntry), "OnTryPurchaseInternal"),

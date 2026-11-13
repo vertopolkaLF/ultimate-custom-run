@@ -9,6 +9,7 @@ using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Entities.Merchant;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Hooks;
+using MegaCrit.Sts2.Core.Map;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
@@ -40,7 +41,7 @@ public sealed class BlitzMerchant : BlitzMerchantModifier
 {
     internal const string DisplayTitle = "Blitz Merchant";
     internal const string DisplayDescription =
-        "Every Merchant, including those found in [gold]?[/gold] rooms, is replaced by the Blitz Merchant. Choose [blue]3[/blue] of its 6 offers. Outside Blitz mode, offers cost gold.";
+        "Every Merchant, including those found in [gold]?[/gold] rooms, is replaced by the Blitz Merchant. Map Merchants sell all 6 offers for gold; in [gold]?[/gold] rooms, choose [blue]3[/blue] free offers.";
 
     internal override bool UsesBlitzMerchant(IRunState state) => true;
 }
@@ -49,7 +50,7 @@ public sealed class BlitzMerchantRandom : BlitzMerchantModifier
 {
     internal const string DisplayTitle = "Blitz Merchant - Random";
     internal const string DisplayDescription =
-        "Every Merchant, including those found in [gold]?[/gold] rooms, has a 50% chance to be the Blitz Merchant. Choose [blue]3[/blue] of its 6 offers. Outside Blitz mode, offers cost gold.";
+        "Every Merchant, including those found in [gold]?[/gold] rooms, has a 50% chance to be the Blitz Merchant. Map Merchants sell all 6 offers for gold; in [gold]?[/gold] rooms, choose [blue]3[/blue] free offers.";
 
     internal override bool UsesBlitzMerchant(IRunState state) => Roll(state.Rng.Seed, state.CurrentActIndex, state.TotalFloor);
 
@@ -61,6 +62,9 @@ public sealed class BlitzMerchantRandom : BlitzMerchantModifier
 
 internal static class BlitzMerchantRoom
 {
+    // A Merchant rolled in a ? room keeps the Unknown map point; every other Merchant is a map Merchant.
+    internal static bool IsMapMerchant(IRunState state) => state.CurrentMapPoint?.PointType != MapPointType.Unknown;
+
     internal static bool ShouldReplace(IRunState? state) =>
         state != null && state.GameMode != GameMode.Blitz && BlitzMerchantModifier.For(state)?.UsesBlitzMerchant(state) == true;
 
@@ -98,18 +102,20 @@ internal static class BlitzMerchantRoomPatch
     private static bool Prefix(MerchantRoom __instance, IRunState? __0, bool __1, ref Task __result)
     {
         if (!BlitzMerchantRoom.ShouldReplace(__0)) return true;
-        __result = BlitzMerchantRoom.Enter(__instance, __0!, __1, BlitzMerchantModifier.For(__0)!.Picks);
+        // Map Merchants charge gold instead of limiting picks; ? room Merchants are free with limited picks.
+        var picks = BlitzMerchantRoom.IsMapMerchant(__0!) ? BlitzMerchantModifier.OfferCount : BlitzMerchantModifier.For(__0)!.Picks;
+        __result = BlitzMerchantRoom.Enter(__instance, __0!, __1, picks);
         return false;
     }
 }
 
-// Outside Blitz the replaced Merchant is the only gold sink, so its offers cost gold.
+// Outside Blitz a replaced map Merchant is the only gold sink, so its offers cost gold. ? room Merchants stay free.
 // Base prices follow the normal Merchant: cards 50/75/150 by rarity (Colorless +15%), relics 175-275,
 // potions 50-100, and card removal 75 + 25 per removal. Cursed offers are discounted for their Curse.
 internal static class BlitzMerchantPrices
 {
     internal static bool IsActive(IRunState state) =>
-        state.GameMode != GameMode.Blitz && BlitzMerchantModifier.For(state) != null;
+        state.GameMode != GameMode.Blitz && BlitzMerchantModifier.For(state) != null && BlitzMerchantRoom.IsMapMerchant(state);
 
     internal static int BasePrice(BlitzMerchantEntryType type, Player player) => type switch
     {
