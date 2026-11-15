@@ -118,24 +118,21 @@ internal sealed class RangeSlider
         }
     }
 
-    // A dragged handle stops at the other one instead of swapping.
+    // The dragged handle follows the cursor and pushes the other one along when it passes it.
+    // Stacked handles: the drag direction picks which one moves, so both ends stay reachable.
     private void Drag(int value)
     {
-        // Stacked handles: the drag direction picks which one moves, so both ends stay reachable.
-        if (Low == High && value != Low)
-        {
-            dragging = value > High;
-            highActive = dragging.Value;
-        }
-        if (dragging == true) SetValues(Low, Math.Max(value, Low), notify: true);
-        else SetValues(Math.Min(value, High), High, notify: true);
+        if (Low == High && value != Low) dragging = value > High;
+        highActive = dragging == true;
+        if (dragging == true) SetValues(Math.Min(Low, value), value, notify: true);
+        else SetValues(value, Math.Max(High, value), notify: true);
     }
 
     private void Step(int delta)
     {
         if (Low == High) highActive = delta > 0;
-        if (highActive) SetValues(Low, Math.Max(Low, High + delta), notify: true);
-        else SetValues(Math.Min(High, Low + delta), High, notify: true);
+        if (highActive) SetValues(Math.Min(Low, High + delta), High + delta, notify: true);
+        else SetValues(Low + delta, Math.Max(High, Low + delta), notify: true);
     }
 
     // Root coordinates mapped onto the track, the same space the handles are placed in.
