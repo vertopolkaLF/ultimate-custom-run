@@ -77,6 +77,7 @@ internal static class Program
 
             TestNeowModifier();
             TestPresetApplication();
+            TestRandomizer();
             if (draftOnly)
             {
                 TestSpecializedVariants();
@@ -164,7 +165,7 @@ internal static class Program
     private static void TestGroups()
     {
         Check(ModifierGroups.Sections.Select(s => s.Title).SequenceEqual(
-            new[] { "Improved Start", "Run Parameters", "Modifiers", "Card Pool", "Ascension", "Negatives", "Co-op", "Disabled" }), "Group titles and order match the requested layout");
+            new[] { "Randomize", "Improved Start", "Run Parameters", "Modifiers", "Card Pool", "Ascension", "Negatives", "Co-op", "Disabled" }), "Group titles and order match the requested layout");
         var negatives = new HashSet<Type> { typeof(BigGameHunter), typeof(CursedRun), typeof(DeadlyEvents),
             typeof(Midas), typeof(Murderous), typeof(NightTerrors), typeof(Terminal) };
         foreach (var type in new[] { typeof(NeowStarterChoice), typeof(Specialized), typeof(SpecializedPickAny), typeof(SpecializedDraft), typeof(Draft),
@@ -947,6 +948,64 @@ internal static class Program
     {
         __result = HeadlessTicks.GetValueOrDefault(__instance);
         return false;
+    }
+
+    private static void TestRandomizer()
+    {
+        var start = new ModifierModel[]
+        {
+            ModelDb.Modifier<Specialized>().ToMutable(), ModelDb.Modifier<AllStar>().ToMutable(),
+            ModelDb.Modifier<Draft>().ToMutable(), ModelDb.Modifier<SealedDeck>().ToMutable(),
+            ModelDb.Modifier<Insanity>().ToMutable(), ModelDb.Modifier<UltimateStarter>().ToMutable()
+        };
+        var negatives = ModelDb.BadModifiers.Take(4).Select(modifier => modifier.ToMutable()).ToArray();
+        var candidates = new Dictionary<ModifierGroup, IReadOnlyList<ModifierModel>>
+        {
+            [ModifierGroup.ImprovedStart] = start, [ModifierGroup.Negatives] = negatives
+        };
+        var ranges = new Dictionary<ModifierGroup, (int, int)>
+        {
+            [ModifierGroup.ImprovedStart] = (1, 3), [ModifierGroup.Negatives] = (2, 2)
+        };
+        var rng = new Random(1234);
+        var valid = true;
+        var startCounts = new HashSet<int>();
+        for (var i = 0; i < 300; i++)
+        {
+            var picked = ModifierRandomizer.Pick(candidates, group => ranges.GetValueOrDefault(group, (0, 0)), rng);
+            var fromStart = picked.Count(start.Contains);
+            startCounts.Add(fromStart);
+            valid &= picked.Distinct().Count() == picked.Count && fromStart is >= 1 and <= 3 &&
+                picked.Count(negatives.Contains) == 2 &&
+                !picked.Any(first => picked.Any(second => !ReferenceEquals(first, second) && LinkedModifierChains.AreLinked(first, second)));
+        }
+        Check(valid, "Randomizer rolls stay in each group range without mutually exclusive pairs");
+        Check(startCounts.Contains(1) && startCounts.Max() >= 2, "Randomizer rolls vary the count inside a range");
+        var empty = ModifierRandomizer.Pick(candidates, _ => (0, 0), rng);
+        var clamped = ModifierRandomizer.Pick(candidates, group => group == ModifierGroup.Negatives ? (9, 9) : (0, 0), rng);
+        Check(empty.Count == 0 && clamped.Count == negatives.Length, "Randomizer clamps ranges to the available modifiers");
+        Check(Enumerable.Range(0, 200).Select(_ => ModifierRandomizer.RandomRange(5, rng))
+            .All(range => range.Min >= 0 && range.Min <= range.Max && range.Max <= 5), "Chaos ranges stay ordered and inside the group size");
+
+        var valuesValid = true;
+        for (var i = 0; i < 100; i++)
+        {
+            var sealedDeck = ModelDb.Modifier<SealedDeck>().ToMutable();
+            ModifierRandomizer.RandomizeValues(sealedDeck, rng, blitz: false);
+            var pool = ModifierValues.GetSealedPool(sealedDeck);
+            var chosen = ModifierValues.Get(sealedDeck);
+            var dill = (Dill)ModelDb.Modifier<Dill>().ToMutable();
+            ModifierRandomizer.RandomizeValues(dill, rng, blitz: false);
+            var parameters = (CustomRunParameters)ModelDb.Modifier<CustomRunParameters>().ToMutable();
+            ModifierRandomizer.RandomizeValues(parameters, rng, blitz: true);
+            var values = CustomRunParameterValuesStore.Get(parameters);
+            valuesValid &= pool is >= 10 and <= 60 && chosen >= 5 && chosen <= pool - 5 &&
+                ModifierValues.Get(dill) is >= 1 and <= 20 && dill.MaxHpPerFight is >= 1 and <= 5 &&
+                values.FloorsPerAct == CustomRunParameterValues.Default.FloorsPerAct &&
+                values.BaseHandSize != 0 && values.BaseEnergy != 0 &&
+                values.EnemyHpPercent is >= 25 and <= 500 && values.EnemyHpPercent % 25 == 0;
+        }
+        Check(valuesValid, "Randomized values stay valid; Blitz keeps floors and hand size or energy never roll zero");
     }
 
     private static void TestPresetApplication()

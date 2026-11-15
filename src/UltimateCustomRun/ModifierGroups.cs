@@ -3,12 +3,13 @@ using MegaCrit.Sts2.Core.Models.Modifiers;
 
 namespace UltimateCustomRun;
 
-internal enum ModifierGroup { ImprovedStart, RunParameters, Modifiers, CardPool, Ascension, Negatives, Coop, Disabled }
+internal enum ModifierGroup { Randomizer, ImprovedStart, RunParameters, Modifiers, CardPool, Ascension, Negatives, Coop, Disabled }
 
 internal static class ModifierGroups
 {
     internal static readonly (ModifierGroup Group, string Title)[] Sections =
     [
+        (ModifierGroup.Randomizer, "Randomize"),
         (ModifierGroup.ImprovedStart, "Improved Start"),
         (ModifierGroup.RunParameters, "Run Parameters"),
         (ModifierGroup.Modifiers, "Modifiers"),

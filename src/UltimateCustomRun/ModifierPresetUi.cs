@@ -104,12 +104,15 @@ internal static class ModifierPresetUi
         state.SaveButton.FocusMode = editable ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
     }
 
-    private static NButton CreateSaveButton()
+    private static NButton CreateSaveButton() =>
+        CreateButton("SaveModifierPresetButton", IsRussian() ? "Сохранить" : "Save", 136);
+
+    internal static NButton CreateButton(string name, string text, float width)
     {
         var button = new NButton
         {
-            Name = "SaveModifierPresetButton",
-            CustomMinimumSize = new Vector2(136, 56),
+            Name = name,
+            CustomMinimumSize = new Vector2(width, 56),
             SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
             FocusMode = Control.FocusModeEnum.All,
             MouseFilter = Control.MouseFilterEnum.Stop
@@ -139,7 +142,7 @@ internal static class ModifierPresetUi
         var label = new Label
         {
             Name = "Label",
-            Text = IsRussian() ? "Сохранить" : "Save",
+            Text = text,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             MouseFilter = Control.MouseFilterEnum.Ignore,
@@ -153,8 +156,18 @@ internal static class ModifierPresetUi
         label.AddThemeConstantOverride("shadow_offset_y", 2);
         button.AddChild(label);
         label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        button.MouseEntered += () => style.BgColor = ButtonHoverColor;
-        button.MouseExited += () => style.BgColor = ButtonColor;
+        var hovered = false;
+        var focused = false;
+        void Update() => style.BgColor = hovered || focused ? ButtonHoverColor : ButtonColor;
+        button.MouseEntered += () => { hovered = true; Update(); };
+        button.MouseExited += () => { hovered = false; Update(); };
+        button.Connect(NClickableControl.SignalName.Focused, Callable.From<NClickableControl>(_ =>
+        {
+            // Mouse clicks also focus the button; show focus only for keyboard or controller navigation.
+            focused = NControllerManager.Instance?.IsUsingDirectionalNavigation == true;
+            Update();
+        }));
+        button.Connect(NClickableControl.SignalName.Unfocused, Callable.From<NClickableControl>(_ => { focused = false; Update(); }));
         return button;
     }
 

@@ -67,7 +67,7 @@ internal static class ModifierGroupsUi
     }
 
     internal static Control? DefaultFocus(NCustomRunModifiersList list) =>
-        Layouts.TryGetValue(list, out var layout) ? layout.Sections.FirstOrDefault()?.Header : null;
+        Layouts.TryGetValue(list, out var layout) ? layout.Sections.FirstOrDefault(section => section.Root.Visible)?.Header : null;
 
     private static void Build(NCustomRunModifiersList list)
     {
@@ -152,6 +152,7 @@ internal static class ModifierGroupsUi
             sectionRoot.AddChild(header);
             sectionRoot.AddChild(body);
             content.AddChild(sectionRoot);
+            if (group == ModifierGroup.Randomizer) ModifierRandomizerUi.Create(list, childList);
             var variantRows = new List<ModifierVariantUi.VariantRow>();
             try
             {
@@ -218,6 +219,7 @@ internal static class ModifierGroupsUi
                 Group = group, Root = sectionRoot, Header = header, Body = body,
                 ChildList = childList, Arrow = arrow, Rows = visibleRows
             };
+            if (group == ModifierGroup.Randomizer) SetExpanded(section, ModifierRandomizer.Settings.Expanded);
             layout.Sections.Add(section);
             header.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => Toggle(content, layout, section)));
             header.MouseEntered += () => highlight.Visible = true;
@@ -249,6 +251,12 @@ internal static class ModifierGroupsUi
 
     private static void ApplyMode(NCustomRunModifiersList list, Layout layout)
     {
+        // Only the player who sets the modifiers can roll them.
+        if (layout.Sections.FirstOrDefault(section => section.Group == ModifierGroup.Randomizer) is { } randomizer)
+        {
+            randomizer.Root.Visible = IsEditable(list);
+            ModifierRandomizerUi.Refresh(list);
+        }
         var disabled = layout.Sections.FirstOrDefault(section => section.Group == ModifierGroup.Disabled);
         if (disabled == null) return;
         var moved = false;
@@ -348,11 +356,21 @@ internal static class ModifierGroupsUi
     {
         var focus = content.GetViewport().GuiGetFocusOwner();
         if (section.Expanded && focus != null && section.Body.IsAncestorOf(focus)) section.Header.GrabFocus();
-        section.Expanded = !section.Expanded;
-        section.Body.Visible = section.Expanded;
-        section.Arrow.Rotation = section.Expanded ? Mathf.Pi / 2 : 0;
+        SetExpanded(section, !section.Expanded);
+        if (section.Group == ModifierGroup.Randomizer)
+        {
+            ModifierRandomizer.Settings.Expanded = section.Expanded;
+            ModifierRandomizer.Save();
+        }
         UpdateFocus(layout);
         Callable.From(() => ResizeContent(content)).CallDeferred();
+    }
+
+    private static void SetExpanded(Section section, bool expanded)
+    {
+        section.Expanded = expanded;
+        section.Body.Visible = expanded;
+        section.Arrow.Rotation = expanded ? Mathf.Pi / 2 : 0;
     }
 
     private static void ResizeContent(VBoxContainer content)
@@ -397,6 +415,9 @@ internal static class ModifierGroupsUi
                 if (nested.IsVisibleInTree() && nested.FocusMode == Control.FocusModeEnum.All) yield return nested;
             foreach (var slider in child.FindChildren("*", "Range", true, false).OfType<Control>())
                 if (slider.FocusMode == Control.FocusModeEnum.All) yield return slider;
+            if (section.Group == ModifierGroup.Randomizer)
+                foreach (var button in child.FindChildren("*", "Control", true, false).OfType<NButton>())
+                    if (button.FocusMode == Control.FocusModeEnum.All) yield return button;
         }
     }
 }

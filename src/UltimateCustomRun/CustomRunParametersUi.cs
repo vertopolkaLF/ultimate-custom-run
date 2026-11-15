@@ -179,6 +179,16 @@ internal static class CustomRunParametersUi
         };
     }
 
+    // Any slider position, except a zero hand size or zero energy, which leaves no playable turn.
+    internal static int RandomValue(CustomRunParameter parameter, Random rng)
+    {
+        var maxIndex = Specs.First(spec => spec.Parameter == parameter).MaxIndex;
+        var indices = Enumerable.Range(0, maxIndex + 1)
+            .Where(index => parameter is not (CustomRunParameter.BaseHandSize or CustomRunParameter.BaseEnergy) || ValueAt(parameter, index) != 0)
+            .ToArray();
+        return ValueAt(parameter, indices[rng.Next(indices.Length)]);
+    }
+
     private static int IndexFor(CustomRunParameter parameter, int value) => parameter switch
     {
         CustomRunParameter.FloorsPerAct => value < 0 ? 0 : value - 7,

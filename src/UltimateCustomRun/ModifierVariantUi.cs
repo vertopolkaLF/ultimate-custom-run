@@ -184,6 +184,24 @@ internal static class ModifierVariantUi
         }
     }
 
+    // The modifiers a family parent can resolve to, and the one its current choice selects.
+    internal static (IReadOnlyList<ModifierModel> All, ModifierModel Current)? Variants(NCustomRunModifiersList list, ModifierModel parent)
+    {
+        var state = GetStates(list).Values.FirstOrDefault(state => ReferenceEquals(state.ParentRow?.Modifier, parent));
+        if (state?.ParentRow?.Modifier == null) return null;
+        var all = new[] { state.ParentRow, state.DraftRow, state.PickAnyRow }
+            .Select(row => row?.Modifier).OfType<ModifierModel>().ToList();
+        var selectedChoice = Array.FindIndex(state.Choices, choice => choice.IsTicked);
+        var mode = selectedChoice >= 0 ? (Mode)selectedChoice : state.Selected;
+        var current = mode switch
+        {
+            Mode.Draft => state.DraftRow?.Modifier,
+            Mode.PickAny => state.PickAnyRow?.Modifier,
+            _ => null
+        } ?? state.ParentRow.Modifier;
+        return (all, current);
+    }
+
     internal static void UpdateInteractionMode(NCustomRunModifiersList list)
     {
         foreach (var state in GetStates(list).Values) UpdateInteractionMode(list, state);
