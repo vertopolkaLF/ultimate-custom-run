@@ -357,6 +357,8 @@ internal static class ModifierVariantSelectionPatch
         ModifierGroupsUi.RemoveLockedModifiers(__instance, __result);
         var selected = __result;
         selected.RemoveAll(modifier => modifier is SubmodifierModel child && !child.HasParent(selected));
+        // Neow runs start bonuses in this list's order.
+        StartOrder.Apply(__instance, selected);
     }
 }
 
@@ -391,6 +393,7 @@ internal static class ModifierVariantSetTickedPatch
     private static void Prefix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0)
     {
         ModifierValueUi.ApplyIncoming(__instance, __0);
+        StartOrder.ApplyIncoming(__instance, __0);
         // The native method emits ModifiersChanged before our postfix runs.
         // Restore the variant choices first so listeners receive the incoming mode.
         ModifierVariantUi.ApplyIncomingModifiers(__instance, __0);
@@ -409,8 +412,11 @@ internal static class ModifierVariantSetTickedPatch
 internal static class ModifierVariantSyncPatch
 {
     [HarmonyPrefix]
-    private static void Prefix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0) =>
+    private static void Prefix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0)
+    {
         ModifierValueUi.ApplyIncoming(__instance, __0);
+        StartOrder.ApplyIncoming(__instance, __0);
+    }
 
     [HarmonyPostfix]
     private static void Postfix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0)

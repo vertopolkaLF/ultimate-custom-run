@@ -212,6 +212,7 @@ internal static class ModifierGroupsUi
                     lockEntry?.Nodes.Add(handicapRows);
                 }
             }
+            if (group == ModifierGroup.ImprovedStart) childList.AddChild(StartOrderUi.Create(list));
             if (variantRows.Count > 0) ModifierVariantUi.InitializeChoices(list);
             LinkedModifierChains.Attach(body, visibleRows);
             var section = new Section
@@ -427,6 +428,7 @@ internal static class ModifierGroupsUi
                 foreach (var control in child.FindChildren("*", "Control", true, false).OfType<Control>())
                     if ((control is NButton || control.HasMeta(RangeSlider.FocusMeta)) && control.FocusMode == Control.FocusModeEnum.All)
                         yield return control;
+            foreach (var button in StartOrderUi.FocusableControls(child)) yield return button;
         }
     }
 }
