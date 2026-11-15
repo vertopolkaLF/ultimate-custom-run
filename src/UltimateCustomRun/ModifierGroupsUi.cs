@@ -416,8 +416,9 @@ internal static class ModifierGroupsUi
             foreach (var slider in child.FindChildren("*", "Range", true, false).OfType<Control>())
                 if (slider.FocusMode == Control.FocusModeEnum.All) yield return slider;
             if (section.Group == ModifierGroup.Randomizer)
-                foreach (var button in child.FindChildren("*", "Control", true, false).OfType<NButton>())
-                    if (button.FocusMode == Control.FocusModeEnum.All) yield return button;
+                foreach (var control in child.FindChildren("*", "Control", true, false).OfType<Control>())
+                    if ((control is NButton || control.HasMeta(RangeSlider.FocusMeta)) && control.FocusMode == Control.FocusModeEnum.All)
+                        yield return control;
         }
     }
 }

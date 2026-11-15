@@ -18,8 +18,7 @@ internal static class ModifierRandomizerUi
     {
         internal required ModifierGroup Group;
         internal required HBoxContainer Root;
-        internal required NSlider Min;
-        internal required NSlider Max;
+        internal required RangeSlider Slider;
         internal required Label Value;
         internal int Total;
         internal bool Applying;
@@ -126,17 +125,12 @@ internal static class ModifierRandomizerUi
         root.AddChild(new Control { CustomMinimumSize = new Vector2(52, 0), MouseFilter = Control.MouseFilterEnum.Ignore });
         var title = ModifierGroups.Sections.First(section => section.Group == group).Title;
         root.AddChild(CreateLabel(title, 200, HorizontalAlignment.Left));
-        var min = CreateSlider(group + "Min", total);
-        var max = CreateSlider(group + "Max", total);
-        root.AddChild(min);
-        root.AddChild(max);
+        var slider = new RangeSlider(group + "RangeSlider", total);
+        root.AddChild(slider.Root);
         var value = CreateLabel(string.Empty, 90, HorizontalAlignment.Right);
         root.AddChild(value);
-        var row = new RangeRow { Group = group, Root = root, Min = min, Max = max, Value = value, Total = total };
-        min.Ready += () => Refresh(list);
-        max.Ready += () => Refresh(list);
-        min.ValueChanged += position => OnRangeChanged(list, row, (int)Math.Round(position), isMin: true);
-        max.ValueChanged += position => OnRangeChanged(list, row, (int)Math.Round(position), isMin: false);
+        var row = new RangeRow { Group = group, Root = root, Slider = slider, Value = value, Total = total };
+        slider.Changed += (min, max) => OnRangeChanged(list, row, min, max);
         return row;
     }
 
@@ -152,38 +146,10 @@ internal static class ModifierRandomizerUi
         return label;
     }
 
-    private static NSlider CreateSlider(string name, int total)
+    private static void OnRangeChanged(NCustomRunModifiersList list, RangeRow row, int min, int max)
     {
-        var slider = ResourceLoader.Load<PackedScene>("res://scenes/ui/volume_slider.tscn").Instantiate<NSlider>();
-        slider.Name = name;
-        slider.MinValue = 0;
-        // NSlider divides by MaxValue; a one-modifier group still uses a 0..1 track.
-        slider.MaxValue = Math.Max(1, total);
-        slider.Step = 1;
-        slider.Rounded = true;
-        slider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        slider.CustomMinimumSize = new Vector2(110, 58);
-        slider.FocusMode = Control.FocusModeEnum.All;
-        foreach (var child in slider.FindChildren("*", "Control", true, false).OfType<Control>())
-            child.MouseFilter = Control.MouseFilterEnum.Ignore;
-        slider.GuiInput += input =>
-        {
-            if (input.IsActionPressed(MegaInput.left)) { slider.Value--; slider.AcceptEvent(); }
-            if (input.IsActionPressed(MegaInput.right)) { slider.Value++; slider.AcceptEvent(); }
-        };
-        return slider;
-    }
-
-    private static void OnRangeChanged(NCustomRunModifiersList list, RangeRow row, int position, bool isMin)
-    {
-        if (row.Applying) return;
-        var settings = ModifierRandomizer.Settings;
-        var (min, max) = settings.Range(row.Group);
-        position = Math.Clamp(position, 0, row.Total);
-        // Dragging one end past the other pushes it along.
-        if (isMin) { min = position; max = Math.Max(max, min); }
-        else { max = position; min = Math.Min(min, max); }
-        settings.SetRange(row.Group, min, max);
+        if (row.Applying || !IsEditable(list)) return;
+        ModifierRandomizer.Settings.SetRange(row.Group, min, max);
         ModifierRandomizer.Save();
         Refresh(list);
     }
@@ -203,11 +169,7 @@ internal static class ModifierRandomizerUi
                 // Co-op in singleplayer, or a group emptied by Blitz, has nothing to roll.
                 row.Root.Visible = available.TryGetValue(row.Group, out var pool) && pool.Count > 0;
                 row.Value.Text = min == max ? min.ToString() : $"{min}–{max}";
-                foreach (var (slider, position) in new[] { (row.Min, min), (row.Max, max) })
-                {
-                    if (slider.IsNodeReady()) slider.SetValueWithoutAnimation(position);
-                    else slider.SetValueNoSignal(position);
-                }
+                row.Slider.SetValues(min, max, notify: false);
             }
             finally { row.Applying = false; }
         }

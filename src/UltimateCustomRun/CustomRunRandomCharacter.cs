@@ -17,7 +17,7 @@ internal static class CustomRunRandomCharacter
     internal static void Add(NCustomRunScreen screen)
     {
         if (Buttons.TryGetValue(screen, out _)) return;
-        var container = screen.GetNode<Control>("LeftContainer/CharSelectButtons/ButtonContainer");
+        var container = (Control)AccessTools.Field(typeof(NCustomRunScreen), "_charButtonContainer").GetValue(screen)!;
         var button = ResourceLoader.Load<PackedScene>(ButtonScene).Instantiate<NCharacterSelectButton>();
         button.Name = "random_button";
         container.AddChild(button);
@@ -25,7 +25,7 @@ internal static class CustomRunRandomCharacter
         Buttons.Add(screen, button);
 
         // Vanilla links the character row without wrapping; append Random after the last character.
-        var seedInput = screen.GetNode<LineEdit>("%SeedInput");
+        var seedInput = (LineEdit)AccessTools.Field(typeof(NCustomRunScreen), "_seedInput").GetValue(screen)!;
         var previous = container.GetChildren().OfType<NCharacterSelectButton>().LastOrDefault(item => item != button);
         if (previous != null)
         {
