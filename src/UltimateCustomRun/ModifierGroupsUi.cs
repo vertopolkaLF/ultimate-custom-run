@@ -284,7 +284,15 @@ internal static class ModifierGroupsUi
             foreach (var section in layout.Sections) Reorder(layout, section);
         var forcedChanged = ApplyForced(list, layout);
         if (unticked || forcedChanged) ModifierVariantUi.RefreshFromTickboxes(list);
-        disabled.Root.Visible = disabled.Rows.Count > 0;
+        // A group whose modifiers all moved to Disabled (or Disabled itself when empty) hides its header too.
+        foreach (var section in layout.Sections.Where(section => section.Group != ModifierGroup.Randomizer))
+        {
+            var visible = section.Rows.Count > 0;
+            if (!visible && section.Root.Visible && layout.Content.GetViewport()?.GuiGetFocusOwner() is { } focus &&
+                section.Root.IsAncestorOf(focus))
+                layout.Sections.FirstOrDefault(other => other != section && other.Root.Visible)?.Header.GrabFocus();
+            section.Root.Visible = visible;
+        }
     }
 
     // Lockable nodes return to their original positions; nodes moved in from other sections follow in build order.
