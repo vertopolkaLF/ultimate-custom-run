@@ -9,7 +9,6 @@ namespace UltimateCustomRun;
 internal sealed class RandomizerSettings
 {
     public Dictionary<string, int[]> Ranges { get; set; } = [];
-    public bool Character { get; set; } = true;
     public bool Values { get; set; }
     public bool Expanded { get; set; }
 

@@ -50,14 +50,10 @@ internal static class ModifierRandomizerUi
         var options = new HBoxContainer { Name = "RandomizerOptions", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         options.AddThemeConstantOverride("separation", 12);
         container.AddChild(options);
-        AddOption(list, options, "RandomCharacter",
-            russian ? "Случайный персонаж" : "Random character",
-            russian ? "Выбрать случайного открытого персонажа для вас." : "Pick a random unlocked character for you.",
-            () => settings.Character, value => settings.Character = value);
         AddOption(list, options, "RandomValues",
             russian ? "Случайные значения" : "Random values",
-            russian ? "Бросить значения и варианты выпавших модификаторов. Иначе используются текущие."
-                : "Roll the values and variants of picked modifiers. Otherwise they keep their current setup.",
+            russian ? "Выпавшие модификаторы получают случайные настройки: числа на ползунках (например, сколько карт даёт Insanity), вариант (Normal / Draft / Pick Any) и доп. опции. Без галочки берутся ваши текущие настройки."
+                : "Picked modifiers get random settings: slider numbers (like Insanity's card count), variant (Normal / Draft / Pick Any) and sub-options. Unticked, they use your current settings.",
             () => settings.Values, value => settings.Values = value);
 
         var totals = Candidates(list, ignoreLocks: true);
@@ -269,17 +265,8 @@ internal static class ModifierRandomizerUi
                 selected.AddRange(tickboxes.Select(row => row.Modifier).OfType<ModifierModel>()
                     .Where(BlitzCompatibility.IsForced).Select(modifier => (ModifierModel)modifier.MutableClone()));
 
-            if (settings.Character && FindScreen(list) is { } screen)
-                AccessTools.Method(typeof(NCustomRunScreen), "RandomizeLocalCharacter")!.Invoke(screen, null);
             list.SetTickedModifiers(selected);
         }
         catch (Exception ex) { GD.PushError($"[Ultimate Custom Run] Could not randomize the custom run: {ex}"); }
-    }
-
-    private static NCustomRunScreen? FindScreen(Node node)
-    {
-        for (var current = node.GetParent(); current != null; current = current.GetParent())
-            if (current is NCustomRunScreen screen) return screen;
-        return null;
     }
 }
