@@ -1,5 +1,6 @@
 using Godot;
 using MegaCrit.Sts2.Core.ControllerInput;
+using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 
 namespace UltimateCustomRun;
@@ -17,7 +18,6 @@ internal sealed class RangeSlider
     internal event Action<int, int>? Changed;
 
     private readonly NSlider track;
-    private readonly ColorRect focusHighlight;
     private Control? lowHandle;
     private Control? highHandle;
     private int max;
@@ -33,18 +33,12 @@ internal sealed class RangeSlider
             FocusMode = Control.FocusModeEnum.All, MouseFilter = Control.MouseFilterEnum.Stop
         };
         Root.SetMeta(FocusMeta, true);
-        focusHighlight = new ColorRect
-        {
-            Color = new Color(1, 0.6392157f, 0.44705883f, 0.15f), Visible = false,
-            MouseFilter = Control.MouseFilterEnum.Ignore
-        };
-        Root.AddChild(focusHighlight);
-        focusHighlight.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-
         track = ResourceLoader.Load<PackedScene>(SliderScene).Instantiate<NSlider>();
         track.Name = "Track";
         track.MinValue = 0;
         track.MaxValue = this.max;
+        // The scene's own minimum width would push the track past Root, where clicks are not received.
+        track.CustomMinimumSize = Vector2.Zero;
         track.FocusMode = Control.FocusModeEnum.None;
         track.MouseFilter = Control.MouseFilterEnum.Ignore;
         foreach (var child in track.FindChildren("*", "Control", true, false).OfType<Control>())
@@ -66,8 +60,8 @@ internal sealed class RangeSlider
         Root.Resized += () => Callable.From(Place).CallDeferred();
 
         Root.GuiInput += OnInput;
-        Root.FocusEntered += () => { focusHighlight.Visible = true; Place(); };
-        Root.FocusExited += () => { focusHighlight.Visible = false; dragging = null; Place(); };
+        Root.FocusEntered += Place;
+        Root.FocusExited += () => { dragging = null; Place(); };
     }
 
     internal void SetMax(int value)
@@ -137,8 +131,9 @@ internal sealed class RangeSlider
         else SetValues(Math.Min(High, Low + delta), High, notify: true);
     }
 
+    // Root coordinates mapped onto the track, the same space the handles are placed in.
     private int ValueAt(float x) =>
-        Root.Size.X <= 0 ? 0 : Math.Clamp((int)Math.Round(x / Root.Size.X * max), 0, max);
+        track.Size.X <= 0 ? 0 : Math.Clamp((int)Math.Round((x - track.Position.X) / track.Size.X * max), 0, max);
 
     private void Place()
     {
@@ -146,7 +141,7 @@ internal sealed class RangeSlider
         Position(lowHandle, Low);
         Position(highHandle, High);
         // While focused, dim the handle that keyboard and controller input does not move.
-        var focused = Root.HasFocus();
+        var focused = Root.HasFocus() && NControllerManager.Instance?.IsUsingDirectionalNavigation == true;
         lowHandle.Modulate = focused && highActive ? new Color(1, 1, 1, 0.6f) : Colors.White;
         highHandle.Modulate = focused && !highActive ? new Color(1, 1, 1, 0.6f) : Colors.White;
         // Draw the active handle on top when both share a position.
