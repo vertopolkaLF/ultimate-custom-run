@@ -14,9 +14,11 @@ public sealed class UltimateStarter : ModifierModel
     internal const int Copies = 3;
     protected override string IconPath => ImageHelper.GetImagePath("packed/modifiers/specialized.png");
 
+    private static bool IsActive(RunState run) => run.Modifiers.Any(modifier => modifier is UltimateStarter);
+
     internal static void ReplaceStarters(RunState run)
     {
-        if (!run.Modifiers.Any(modifier => modifier is UltimateStarter)) return;
+        if (!IsActive(run)) return;
         foreach (var player in run.Players) ReplaceStarters(run, player);
     }
 
@@ -32,8 +34,22 @@ public sealed class UltimateStarter : ModifierModel
             card.RemoveFromState();
             run.RemoveCard(card);
         }
-        for (var index = 0; index < Copies; index++) Add<UltimateStrike>(run, player);
-        for (var index = 0; index < Copies; index++) Add<UltimateDefend>(run, player);
+        TopUp(run, player);
+    }
+
+    // Whole-deck modifiers (Draft, Sealed Deck, Insanity) wipe the starting deck in
+    // OnRunCreated and build a new one at Neow. Restore the Ultimate cards right after
+    // the wipe so the Neow choice adds its cards on top of them.
+    internal static void RestoreAfterDeckClear(ModifierModel clearing, RunState run)
+    {
+        if (!clearing.ClearsPlayerDeck || !IsActive(run)) return;
+        foreach (var player in run.Players) TopUp(run, player);
+    }
+
+    private static void TopUp(RunState run, Player player)
+    {
+        for (var index = player.Deck.Cards.OfType<UltimateStrike>().Count(); index < Copies; index++) Add<UltimateStrike>(run, player);
+        for (var index = player.Deck.Cards.OfType<UltimateDefend>().Count(); index < Copies; index++) Add<UltimateDefend>(run, player);
     }
 
     private static void Add<T>(RunState run, Player player) where T : CardModel
@@ -45,10 +61,18 @@ public sealed class UltimateStarter : ModifierModel
 }
 
 // Only new-run construction is patched. Saved decks load exactly as serialized.
-// Native whole-deck replacements (Draft, Sealed Deck, Insanity) still run afterward.
 [HarmonyPatch(typeof(RunState), nameof(RunState.CreateForNewRun))]
 internal static class UltimateStarterNewRunPatch
 {
     [HarmonyPostfix]
     private static void Postfix(RunState __result) => UltimateStarter.ReplaceStarters(__result);
+}
+
+// OnRunCreated runs only for brand new runs; loaded runs use OnRunLoaded.
+[HarmonyPatch(typeof(ModifierModel), nameof(ModifierModel.OnRunCreated))]
+internal static class UltimateStarterDeckClearPatch
+{
+    [HarmonyPostfix]
+    private static void Postfix(ModifierModel __instance, RunState runState) =>
+        UltimateStarter.RestoreAfterDeckClear(__instance, runState);
 }

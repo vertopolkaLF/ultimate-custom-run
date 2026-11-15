@@ -1210,6 +1210,23 @@ internal static class Program
         model.ToMutable().OnRunLoaded(run);
         Check(players.Select((player, index) => player.Deck.Cards.SequenceEqual(completed[index])).All(unchanged => unchanged),
             "Repeated startup replacement and modifier reload never duplicate Ultimate starters");
+
+        var clearing = new ModifierModel[]
+        {
+            model.ToMutable(), ModelDb.Modifier<Draft>().ToMutable(),
+            ModelDb.Modifier<SealedDeck>().ToMutable(), ModelDb.Modifier<Insanity>().ToMutable()
+        };
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, clearing);
+        foreach (var modifier in clearing) modifier.OnRunCreated(run);
+        Check(players.All(player => player.Deck.Cards.Count == 6 &&
+                player.Deck.Cards.OfType<UltimateStrike>().Count() == 3 && player.Deck.Cards.OfType<UltimateDefend>().Count() == 3 &&
+                player.Deck.Cards.All(card => card.Owner == player && run.ContainsCard(card) && card.FloorAddedToDeck == 1)),
+            "Ultimate cards survive Draft, Sealed Deck and Insanity deck wipes exactly once");
+        var withoutUltimate = new ModifierModel[] { ModelDb.Modifier<Draft>().ToMutable() };
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, withoutUltimate);
+        withoutUltimate[0].OnRunCreated(run);
+        Check(players.All(player => player.Deck.Cards.Count == 0),
+            "Draft still clears the deck when Ultimate Starter is not selected");
         Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(RunState), nameof(RunState.CreateForNewRun)))
             ?.Owners.Contains(ModEntry.HarmonyId) == true &&
             Harmony.GetPatchInfo(AccessTools.Method(typeof(RunState), nameof(RunState.FromSerializable)))
