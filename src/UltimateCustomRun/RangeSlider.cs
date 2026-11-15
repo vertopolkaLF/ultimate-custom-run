@@ -121,12 +121,19 @@ internal sealed class RangeSlider
     // A dragged handle stops at the other one instead of swapping.
     private void Drag(int value)
     {
+        // Stacked handles: the drag direction picks which one moves, so both ends stay reachable.
+        if (Low == High && value != Low)
+        {
+            dragging = value > High;
+            highActive = dragging.Value;
+        }
         if (dragging == true) SetValues(Low, Math.Max(value, Low), notify: true);
         else SetValues(Math.Min(value, High), High, notify: true);
     }
 
     private void Step(int delta)
     {
+        if (Low == High) highActive = delta > 0;
         if (highActive) SetValues(Low, Math.Max(Low, High + delta), notify: true);
         else SetValues(Math.Min(High, Low + delta), High, notify: true);
     }
