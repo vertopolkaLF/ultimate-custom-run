@@ -209,7 +209,9 @@ internal static class ModifierRandomizerUi
 
             var blitz = BlitzCompatibility.IsBlitz(list);
             var tickboxes = Tickboxes(list);
-            var selected = new List<ModifierModel>();
+            // Each picked modifier remembers its checkbox position, so the result keeps the native list order.
+            var selected = new List<(int Row, ModifierModel Modifier)>();
+            int RowOf(ModifierModel? modifier) => tickboxes.FindIndex(row => row.Modifier == modifier);
             foreach (var source in ModifierRandomizer.Pick(candidates, settings.Range, rng))
             {
                 var chosen = source;
@@ -217,17 +219,18 @@ internal static class ModifierRandomizerUi
                     chosen = settings.Values ? variants.All[rng.Next(variants.All.Count)] : variants.Current;
                 var modifier = (ModifierModel)chosen.MutableClone();
                 if (settings.Values) ModifierRandomizer.RandomizeValues(modifier, rng, blitz);
-                selected.Add(modifier);
+                selected.Add((RowOf(source), modifier));
                 foreach (var child in tickboxes.Where(row => row.Modifier is SubmodifierModel sub && sub.ParentType == source.GetType()))
                     if (settings.Values ? rng.Next(2) == 0 : child.IsTicked)
-                        selected.Add((ModifierModel)child.Modifier!.MutableClone());
+                        selected.Add((RowOf(child.Modifier), (ModifierModel)child.Modifier!.MutableClone()));
             }
             // Blitz keeps its always-on modifiers with their current values.
             if (blitz)
                 selected.AddRange(tickboxes.Select(row => row.Modifier).OfType<ModifierModel>()
-                    .Where(BlitzCompatibility.IsForced).Select(modifier => (ModifierModel)modifier.MutableClone()));
+                    .Where(BlitzCompatibility.IsForced).Select(modifier => (RowOf(modifier), (ModifierModel)modifier.MutableClone())));
 
-            list.SetTickedModifiers(selected);
+            // A shuffled list would also shuffle the Neow start order, which presets and syncs read from list order.
+            list.SetTickedModifiers(selected.OrderBy(entry => entry.Row).Select(entry => entry.Modifier).ToList());
         }
         catch (Exception ex) { GD.PushError($"[Ultimate Custom Run] Could not randomize the custom run: {ex}"); }
     }
