@@ -145,6 +145,7 @@ internal static class Program
             TestPresetManagement();
             TestStartOrder();
             TestUltimateStarter();
+            TestNoStarterDeck();
             TestDill();
             TestHeadstart();
             TestTwentyTwenty();
@@ -192,7 +193,7 @@ internal static class Program
             typeof(TwentyTwenty), typeof(TwentyTwentyDraft), typeof(TwentyTwentyAny),
             typeof(MegaCrit.Sts2.Core.Models.Enchantments.Clone), typeof(MegaCrit.Sts2.Core.Models.Relics.PaelsGrowth), typeof(PommelStrike),
             typeof(Friendship), typeof(FriendshipDraft), typeof(RichLoot), typeof(CardSwarm), typeof(CustomRunParameters),
-            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(Dill), typeof(Headstart), typeof(MysteryEvents), typeof(DoubleTrouble), typeof(CampfiresBetweenBosses),
+            typeof(SuperDraft), typeof(MustHave), typeof(Speedrun), typeof(UltimateStarter), typeof(NoStarterDeck), typeof(Dill), typeof(Headstart), typeof(MysteryEvents), typeof(DoubleTrouble), typeof(CampfiresBetweenBosses),
             typeof(BlitzMerchant), typeof(BlitzMerchantRandom), typeof(SharedGold), typeof(CoopHandicap),
             .. typeof(ActModel).Assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(ActModel)) && !type.IsAbstract),
             typeof(MegaCrit.Sts2.Core.Models.Encounters.VantomBoss),
@@ -1293,6 +1294,44 @@ internal static class Program
             Harmony.GetPatchInfo(AccessTools.Method(typeof(RunState), nameof(RunState.FromSerializable)))
                 ?.Postfixes.Any(patch => patch.PatchMethod.DeclaringType == typeof(UltimateStarterNewRunPatch)) != true,
             "Ultimate Starter patches new-run creation only");
+    }
+
+    private static void TestNoStarterDeck()
+    {
+        var model = ModelDb.Modifier<NoStarterDeck>();
+        Check(ModifierGroups.Classify(model, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
+            ModifierListPatch.IsCustomOnly(model) && ModifierValues.For(model) == null &&
+            model.ClearsPlayerDeck && model.GenerateNeowOption(null!) == null && !StartOrder.IsOrderable(model) &&
+            ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<NoStarterDeck>().Count() == 1,
+            "No Starting Deck appears once in Improved Start, clears the deck and adds no Neow prompt");
+        var saved = model.ToMutable().ToSerializable();
+        Check(ModifierModel.FromSerializable(saved) is NoStarterDeck, "No Starting Deck survives save serialization");
+
+        var run = (RunState)RuntimeHelpers.GetUninitializedObject(typeof(RunState));
+        AccessTools.Field(typeof(RunState), "_allCards").SetValue(run, new List<CardModel>());
+        var players = new List<Player>();
+        AccessTools.Field(typeof(RunState), "_players").SetValue(run, players);
+        var player = (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player));
+        AccessTools.Field(typeof(Player), "_runState").SetValue(player, run);
+        AccessTools.Field(typeof(Player), "<Deck>k__BackingField").SetValue(player, new CardPile(PileType.Deck));
+        players.Add(player);
+        foreach (var canonical in ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Ironclad>().StartingDeck)
+        {
+            var card = canonical.ToMutable();
+            run.AddCard(card, player);
+            player.Deck.AddInternal(card, silent: true);
+        }
+
+        var alone = new ModifierModel[] { model.ToMutable() };
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, alone);
+        alone[0].OnRunCreated(run);
+        Check(player.Deck.Cards.Count == 0, "No Starting Deck empties the starting deck");
+
+        var withUltimate = new ModifierModel[] { ModelDb.Modifier<UltimateStarter>().ToMutable(), model.ToMutable() };
+        AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, withUltimate);
+        foreach (var modifier in withUltimate) modifier.OnRunCreated(run);
+        Check(player.Deck.Cards.Count == 6 && player.Deck.Cards.All(card => card is UltimateStrike or UltimateDefend),
+            "With Ultimate Starter, only the Ultimate Strikes and Defends remain");
     }
 
     private static void TestTwentyTwenty()

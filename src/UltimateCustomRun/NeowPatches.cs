@@ -15,7 +15,7 @@ namespace UltimateCustomRun;
 internal static class ModifierListPatch
 {
     internal static bool IsCustomOnly(ModifierModel modifier) =>
-        modifier is TwentyTwentyModifier or AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter or Dill or Headstart or MysteryEvents or DoubleTrouble or BlitzMerchantModifier or SubmodifierModel or SharedGold or CoopHandicap;
+        modifier is TwentyTwentyModifier or AscensionModifier or NeowStarterChoice or SpecializedPickAny or SpecializedDraft or AllStarDraft or Friendship or FriendshipDraft or ColorlessCards or RichLoot or CardSwarm or CustomRunParameters or SuperDraft or MustHave or Speedrun or UltimateStarter or NoStarterDeck or Dill or Headstart or MysteryEvents or DoubleTrouble or BlitzMerchantModifier or SubmodifierModel or SharedGold or CoopHandicap;
 
     internal static IReadOnlyList<ModifierModel> ForCustomRun(IEnumerable<ModifierModel> source)
     {
@@ -39,7 +39,7 @@ internal static class ModifierListPatch
         ordered.AddRange([ModelDb.Modifier<BlitzMerchant>().ToMutable(), ModelDb.Modifier<BlitzMerchantRandom>().ToMutable()]);
         var startIndex = ordered.FindIndex(modifier => modifier is MegaCrit.Sts2.Core.Models.Modifiers.Insanity);
         ordered.InsertRange(startIndex < 0 ? ordered.Count : startIndex + 1,
-            [ModelDb.Modifier<UltimateStarter>().ToMutable(), ModelDb.Modifier<SuperDraft>().ToMutable()]);
+            [ModelDb.Modifier<NoStarterDeck>().ToMutable(), ModelDb.Modifier<UltimateStarter>().ToMutable(), ModelDb.Modifier<SuperDraft>().ToMutable()]);
         ordered.Add(ModelDb.Modifier<MustHave>().ToMutable());
         ordered.Add(ModelDb.Modifier<Speedrun>().ToMutable());
         ordered.Add(ModelDb.Modifier<Dill>().ToMutable());
@@ -98,6 +98,8 @@ internal static class ModifierTextPatch
             [ModelDb.GetId<SuperDraft>().Entry + ".description"] = SuperDraft.DisplayDescription,
             [ModelDb.GetId<UltimateStarter>().Entry + ".title"] = UltimateStarter.DisplayTitle,
             [ModelDb.GetId<UltimateStarter>().Entry + ".description"] = UltimateStarter.DisplayDescription,
+            [ModelDb.GetId<NoStarterDeck>().Entry + ".title"] = NoStarterDeck.DisplayTitle,
+            [ModelDb.GetId<NoStarterDeck>().Entry + ".description"] = NoStarterDeck.DisplayDescription,
             [ModelDb.GetId<MustHave>().Entry + ".title"] = MustHave.DisplayTitle,
             [ModelDb.GetId<MustHave>().Entry + ".description"] = MustHave.DisplayDescription,
             [ModelDb.GetId<Speedrun>().Entry + ".title"] = Speedrun.DisplayTitle,
