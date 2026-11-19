@@ -318,7 +318,7 @@ internal static class ModifierGroupsUi
     // The scrollbar track runs the full height of the panel and its right edge closes the panel.
     private static void FitScrollbar(NCustomRunModifiersList list, Control panel)
     {
-        if (!GodotObject.IsInstanceValid(panel) || list.GetNodeOrNull<Control>("Scrollbar") is not { } bar) return;
+        if (!GodotObject.IsInstanceValid(panel) || (list.GetNodeOrNull<Control>("ScrollContainer/Scrollbar") ?? list.GetNodeOrNull<Control>("Scrollbar")) is not { } bar) return;
         var box = panel.GetGlobalRect();
         var track = bar.GetGlobalRect();
         if (track.Size.Y <= 0) return;
