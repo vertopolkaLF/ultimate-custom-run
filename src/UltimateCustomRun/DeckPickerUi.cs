@@ -336,7 +336,9 @@ internal static class DeckPickerUi
         label.HorizontalAlignment = HorizontalAlignment.Center;
         button.AddChild(label);
         label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        label.OffsetBottom = -3;
+        // Angle quotes sit low in Kreon; lift them to the digits' optical center.
+        label.OffsetTop = -5;
+        label.OffsetBottom = -5;
         void Light(bool on) => label.AddThemeColorOverride("font_color", on ? VanillaUi.Cream : VanillaUi.Gold);
         button.MouseEntered += () => Light(true);
         button.MouseExited += () => Light(false);
