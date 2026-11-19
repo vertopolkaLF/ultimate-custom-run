@@ -82,7 +82,15 @@ internal static class ActiveModifiersUi
         var chips = new HFlowContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = Control.MouseFilterEnum.Ignore };
         chips.AddThemeConstantOverride("h_separation", 8);
         chips.AddThemeConstantOverride("v_separation", 8);
-        column.AddChild(chips);
+        // Long lists scroll with the mouse wheel inside the capped panel; the scrollbar stays hidden.
+        var scroll = new ScrollContainer
+        {
+            SizeFlagsVertical = Control.SizeFlags.ExpandFill, MouseFilter = Control.MouseFilterEnum.Pass,
+            HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+            VerticalScrollMode = ScrollContainer.ScrollMode.ShowNever
+        };
+        column.AddChild(scroll);
+        scroll.AddChild(chips);
 
         var panel = new Panel
         {
@@ -94,6 +102,7 @@ internal static class ActiveModifiersUi
         if (players != null) players.VisibilityChanged += () => Place(panel);
         // Wrapped chip rows change the height the panel needs.
         margin.MinimumSizeChanged += () => Callable.From(() => Place(panel)).CallDeferred();
+        chips.MinimumSizeChanged += () => Callable.From(() => Place(panel)).CallDeferred();
         Place(panel);
     }
 
@@ -151,7 +160,9 @@ internal static class ActiveModifiersUi
         panel.Root.OffsetRight = right;
         panel.Root.OffsetTop = top;
         var margin = panel.Root.GetChildren().OfType<MarginContainer>().FirstOrDefault();
-        var wanted = Math.Max(MinimumHeight, margin?.GetCombinedMinimumSize().Y ?? MinimumHeight);
+        // The scroll area reports no height of its own, so add the wrapped chip rows to the rest.
+        var wanted = Math.Max(MinimumHeight, (margin?.GetCombinedMinimumSize().Y ?? MinimumHeight) +
+            (panel.Chips.Visible ? panel.Chips.GetCombinedMinimumSize().Y : 0));
         panel.Root.OffsetBottom = Math.Min(Bottom, top + wanted);
         panel.Root.Visible = Bottom - top >= MinimumHeight;
     }
@@ -174,7 +185,8 @@ internal static class ActiveModifiersUi
         var chip = new NButton
         {
             Name = "Chip", CustomMinimumSize = new Vector2(width, 40), FocusMode = Control.FocusModeEnum.None,
-            MouseFilter = Control.MouseFilterEnum.Stop,
+            // Pass, so the wheel over a chip still scrolls the list.
+            MouseFilter = Control.MouseFilterEnum.Pass,
             PivotOffset = new Vector2(width / 2, 20)
         };
         var material = new ShaderMaterial { Shader = ResourceLoader.Load<Shader>("res://shaders/hsv.gdshader") };
