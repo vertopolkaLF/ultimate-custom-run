@@ -88,6 +88,8 @@ internal static class ModifierValueUi
         foreach (var child in slider.FindChildren("*", "Control", true, false).OfType<Control>())
             child.MouseFilter = Control.MouseFilterEnum.Ignore;
         root.AddChild(slider);
+        // The handle is centered on the track end; leave room so it is not clipped at the maximum.
+        root.AddChild(new Control { CustomMinimumSize = new Vector2(24, 0), MouseFilter = Control.MouseFilterEnum.Ignore });
         var row = new Row { Parent = parent, Spec = spec, Root = root, Slider = slider, Label = label, Kind = kind };
         Rows.GetOrCreateValue(list).Add(row);
         slider.Ready += () => Refresh(list);
