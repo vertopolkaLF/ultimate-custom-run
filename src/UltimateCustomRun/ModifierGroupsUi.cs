@@ -411,7 +411,7 @@ internal static class ModifierGroupsUi
         slot.AnchorLeft = slot.AnchorRight = 0;
         slot.AnchorTop = slot.AnchorBottom = 1;
         slot.OffsetLeft = rail.OffsetLeft;
-        slot.OffsetRight = rail.OffsetRight;
+        slot.OffsetRight = rail.OffsetRight + 6; // Up to the divider, to fit the label on one line.
         slot.OffsetBottom = PanelBottom(parent) - 8;
         slot.OffsetTop = slot.OffsetBottom - 90;
         slot.Alignment = BoxContainer.AlignmentMode.End;
@@ -422,13 +422,18 @@ internal static class ModifierGroupsUi
 
         var toggle = ModifierRandomizerUi.AddOption(list, slot, "AdvancedModeToggle", title, "",
             () => AdvancedMode.Enabled, value => AdvancedMode.SetEnabled(list, value));
-        toggle.Ready += () =>
+        // AddOption adds the row to the tree, so it is already ready and has written its "title: description" text.
+        void Relabel()
         {
+            if (!GodotObject.IsInstanceValid(toggle)) return;
             var label = toggle.GetNode<MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel>("HBoxContainer/Description");
             label.AutoSizeEnabled = false;
-            foreach (var size in new[] { "normal_font_size", "bold_font_size" }) label.AddThemeFontSizeOverride(size, 22);
+            label.AutowrapMode = TextServer.AutowrapMode.Off;
+            foreach (var size in new[] { "normal_font_size", "bold_font_size" }) label.AddThemeFontSizeOverride(size, 21);
             label.Text = $"[gold]{title}[/gold]";
-        };
+        }
+        Relabel();
+        Callable.From(Relabel).CallDeferred();
         toggle.MouseEntered += () => NHoverTipSet.CreateAndShow(toggle,
             new HoverTip(new LocString("modifiers", AdvancedTitleKey), new LocString("modifiers", AdvancedDescriptionKey), null!),
             HoverTipAlignment.Right);
