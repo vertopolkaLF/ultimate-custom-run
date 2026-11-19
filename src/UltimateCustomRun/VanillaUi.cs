@@ -120,6 +120,37 @@ internal static class VanillaUi
         if (visuals?.GetNodeOrNull<TextureRect>("NotTicked") is { } unticked) unticked.Texture = Radio(false);
     }
 
+    internal const string HexTexture = "res://images/ui/reward_screen/reward_skip_button.png";
+
+    // The reward screen's hexagonal button. The texture is drawn at its own aspect (scaled to the height) and
+    // nine-patched horizontally, so the pointed ends keep their angle at any width. h/s/v tint it through the
+    // game's hsv shader: (1, 1, v) is the native teal, (0.48, 1.5, 0.8) the green Proceed/Feedback button.
+    internal static (Control Root, ShaderMaterial Material) Hex(float h, float s, float v)
+    {
+        var material = new ShaderMaterial { Shader = ResourceLoader.Load<Shader>("res://shaders/hsv.gdshader") };
+        material.SetShaderParameter("h", h);
+        material.SetShaderParameter("s", s);
+        material.SetShaderParameter(ShaderV, v);
+        var root = new Control { Name = "Hex", MouseFilter = Control.MouseFilterEnum.Ignore };
+        var texture = ResourceLoader.Load<Texture2D>(HexTexture);
+        var image = new NinePatchRect
+        {
+            Texture = texture, Material = material, MouseFilter = Control.MouseFilterEnum.Ignore,
+            PatchMarginLeft = 64, PatchMarginRight = 64, PatchMarginTop = 24, PatchMarginBottom = 24
+        };
+        root.AddChild(image);
+        void Fit()
+        {
+            if (root.Size.Y <= 0) return;
+            var scale = root.Size.Y / texture.GetHeight();
+            image.Scale = Vector2.One * scale;
+            image.Size = new Vector2(root.Size.X / scale, texture.GetHeight());
+        }
+        root.Resized += Fit;
+        Fit();
+        return (root, material);
+    }
+
     internal static void SetBrightness(ShaderMaterial material, float value) => material.SetShaderParameter(ShaderV, value);
 
     // Count badge drawn on the card library's cost tickbox.
@@ -145,9 +176,14 @@ internal static class VanillaUi
     // The settings tabs' hover: brighten and grow at once, then ease back.
     internal static void HoverIn(Control control, ShaderMaterial? material, ref Tween? tween, float brightness = 1.2f)
     {
+        // NTickbox: a 0.05 s tween up to x1.05 and the hover brightness.
         tween?.Kill();
-        if (material != null) SetBrightness(material, brightness);
-        control.Scale = Vector2.One * 1.05f;
+        if (!GodotObject.IsInstanceValid(control) || !control.IsInsideTree()) return;
+        tween = control.CreateTween().SetParallel();
+        tween.TweenProperty(control, "scale", Vector2.One * 1.05f, 0.05);
+        if (material != null)
+            tween.TweenMethod(Callable.From<float>(value => SetBrightness(material, value)),
+                (float)material.GetShaderParameter(ShaderV), brightness, 0.05);
     }
 
     internal static void HoverOut(Control control, ShaderMaterial? material, ref Tween? tween, float from = 1.2f, float to = 0.8f)
@@ -157,7 +193,8 @@ internal static class VanillaUi
         tween = control.CreateTween().SetParallel();
         tween.TweenProperty(control, "scale", Vector2.One, 0.5).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
         if (material != null)
-            tween.TweenMethod(Callable.From<float>(value => SetBrightness(material, value)), from, to, 0.5)
+            tween.TweenMethod(Callable.From<float>(value => SetBrightness(material, value)),
+                    (float)material.GetShaderParameter(ShaderV), to, 0.5)
                 .SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
     }
 }

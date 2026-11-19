@@ -1,5 +1,6 @@
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 
@@ -14,7 +15,7 @@ internal static class DevLaunch
     internal const string Flag = "--ucr-custom-run";
     private static bool done;
 
-    private static string[] Args => OS.GetCmdlineArgs().Concat(OS.GetCmdlineUserArgs()).ToArray();
+    internal static string[] Args => OS.GetCmdlineArgs().Concat(OS.GetCmdlineUserArgs()).ToArray();
 
     [HarmonyPostfix]
     private static void Postfix(NMainMenu __instance)
@@ -39,6 +40,31 @@ internal static class DevLaunch
                 GD.PrintErr($"[Ultimate Custom Run] Could not open Custom Run from {Flag}: {exception}");
             }
         };
+    }
+
+    // The game applies its saved display settings (fullscreen on the primary screen) during startup;
+    // with the flag, the window goes to the requested screen instead.
+    [HarmonyPatch(typeof(NGame), nameof(NGame.ApplyDisplaySettings))]
+    private static class KeepWindowPlacement
+    {
+        [HarmonyPrefix]
+        private static bool Prefix()
+        {
+            if (!Args.Contains(Flag)) return true;
+            PlaceWindow();
+            return false;
+        }
+    }
+
+    // Skips the studio logo animation, the same as the game's own "skip intro" setting.
+    [HarmonyPatch(typeof(NGame), "LaunchMainMenu")]
+    private static class SkipLogo
+    {
+        [HarmonyPrefix]
+        private static void Prefix(ref bool skipLogo)
+        {
+            if (Args.Contains(Flag)) skipLogo = true;
+        }
     }
 
     private static void PlaceWindow()

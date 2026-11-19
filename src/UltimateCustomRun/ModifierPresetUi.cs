@@ -40,9 +40,6 @@ internal static class ModifierPresetUi
 
     private static readonly ConditionalWeakTable<NActDropdown, DropdownState> Dropdowns = new();
     private static readonly ConditionalWeakTable<NCustomRunScreen, ScreenState> Screens = new();
-    private static readonly Color ButtonColor = Color.FromHtml("36566b");
-    private static readonly Color ButtonHoverColor = Color.FromHtml("496f83");
-    private static readonly Color ButtonBorderColor = Color.FromHtml("a6bdc8");
 
     internal static void AddControls(NCustomRunScreen screen)
     {
@@ -107,6 +104,7 @@ internal static class ModifierPresetUi
     private static NButton CreateSaveButton() =>
         CreateButton("SaveModifierPresetButton", IsRussian() ? "Сохранить" : "Save", 136);
 
+    // Green hexagonal button, the same art and tint as the game's Proceed and Feedback buttons.
     internal static NButton CreateButton(string name, string text, float width)
     {
         var button = new NButton
@@ -117,26 +115,10 @@ internal static class ModifierPresetUi
             FocusMode = Control.FocusModeEnum.All,
             MouseFilter = Control.MouseFilterEnum.Stop
         };
-        var background = new Panel
-        {
-            Name = "Background",
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-            FocusMode = Control.FocusModeEnum.None
-        };
-        var style = new StyleBoxFlat
-        {
-            BgColor = ButtonColor,
-            BorderColor = ButtonBorderColor,
-            BorderWidthLeft = 2,
-            BorderWidthTop = 2,
-            BorderWidthRight = 2,
-            BorderWidthBottom = 2,
-            CornerRadiusTopLeft = 8,
-            CornerRadiusTopRight = 8,
-            CornerRadiusBottomLeft = 8,
-            CornerRadiusBottomRight = 8
-        };
-        background.AddThemeStyleboxOverride("panel", style);
+        button.Resized += () => button.PivotOffset = button.Size / 2;
+        // The hex art is teal; h shifts its hue by (h - 1) turns, so 0.76 lands on the Feedback button's green.
+        var (background, material) = VanillaUi.Hex(0.76f, 1.3f, GreenV);
+        background.Name = "Background";
         button.AddChild(background);
         background.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         var label = new Label
@@ -151,49 +133,92 @@ internal static class ModifierPresetUi
         label.AddThemeFontOverride("font", ResourceLoader.Load<Font>("res://themes/kreon_bold_shared.tres"));
         label.AddThemeFontSizeOverride("font_size", 25);
         label.AddThemeColorOverride("font_color", Color.FromHtml("fff6e2"));
-        label.AddThemeColorOverride("font_shadow_color", new Color(0, 0, 0, 0.5f));
-        label.AddThemeConstantOverride("shadow_offset_x", 2);
-        label.AddThemeConstantOverride("shadow_offset_y", 2);
+        label.AddThemeColorOverride("font_outline_color", new Color(0.13f, 0.24f, 0.1f));
+        label.AddThemeConstantOverride("outline_size", 10);
         button.AddChild(label);
         label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        label.OffsetBottom = -2;
+        AddHover(button, button, material, GreenV);
+        return button;
+    }
+
+    private const float GreenV = 0.8f, TealV = 0.9f;
+
+    // The settings-button hover used across the mod: grow and brighten at once, ease back over half a second.
+    private static void AddHover(Control target, Control scaled, ShaderMaterial material, float baseV)
+    {
+        Tween? tween = null;
         var hovered = false;
         var focused = false;
-        void Update() => style.BgColor = hovered || focused ? ButtonHoverColor : ButtonColor;
-        button.MouseEntered += () => { hovered = true; Update(); };
-        button.MouseExited += () => { hovered = false; Update(); };
-        button.Connect(NClickableControl.SignalName.Focused, Callable.From<NClickableControl>(_ =>
+        void Update()
         {
-            // Mouse clicks also focus the button; show focus only for keyboard or controller navigation.
-            focused = NControllerManager.Instance?.IsUsingDirectionalNavigation == true;
-            Update();
-        }));
-        button.Connect(NClickableControl.SignalName.Unfocused, Callable.From<NClickableControl>(_ => { focused = false; Update(); }));
-        return button;
+            // Grow from the middle; the size may have settled after the node was built.
+            scaled.PivotOffset = scaled.Size / 2;
+            if (hovered || focused) VanillaUi.HoverIn(scaled, material, ref tween, baseV + 0.3f);
+            else VanillaUi.HoverOut(scaled, material, ref tween, baseV + 0.3f, baseV);
+        }
+        target.MouseEntered += () => { hovered = true; Update(); };
+        target.MouseExited += () => { hovered = false; Update(); };
+        if (target is NClickableControl clickable)
+        {
+            clickable.Connect(NClickableControl.SignalName.Focused, Callable.From<NClickableControl>(_ =>
+            {
+                // Mouse clicks also focus the button; show focus only for keyboard or controller navigation.
+                focused = NControllerManager.Instance?.IsUsingDirectionalNavigation == true;
+                Update();
+            }));
+            clickable.Connect(NClickableControl.SignalName.Unfocused, Callable.From<NClickableControl>(_ => { focused = false; Update(); }));
+        }
     }
 
     private static void ApplySettingsDropdownAppearance(NActDropdown dropdown)
     {
         var label = dropdown.GetNode<MegaLabel>("CurrentOption/Label");
         label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        label.OffsetLeft = HorizontalPadding;
-        label.OffsetRight = -(HorizontalPadding + RemoveButtonWidth);
+        label.OffsetLeft = 30; // Clear of the hexagon's left point; the right side leaves room for the arrow.
+        label.OffsetRight = -66;
         label.HorizontalAlignment = HorizontalAlignment.Center;
         label.VerticalAlignment = VerticalAlignment.Center;
         label.ClipText = true;
         label.MouseFilter = Control.MouseFilterEnum.Ignore;
 
-        var currentOption = dropdown.GetNode<Panel>("CurrentOption/Highlight");
-        currentOption.Modulate = Colors.White;
-        currentOption.AddThemeStyleboxOverride("panel", new StyleBoxFlat
-        {
-            BgColor = Color.FromHtml("2c434f")
-        });
+        label.AddThemeColorOverride("font_color", VanillaUi.Gold);
+        label.AddThemeColorOverride("font_outline_color", new Color(0.2166f, 0.317363f, 0.38f));
+        label.AddThemeConstantOverride("outline_size", 10);
 
+        // The closed select is the reward screen's teal hexagon, like the game's Skip button.
+        var current = dropdown.GetNode<Control>("CurrentOption");
+        current.Resized += () => current.PivotOffset = current.Size / 2;
+        var highlight = current.GetNode<Panel>("Highlight");
+        highlight.SelfModulate = Colors.Transparent;
+        var (hex, material) = VanillaUi.Hex(1, 1, TealV);
+        current.AddChild(hex);
+        current.MoveChild(hex, 0);
+        hex.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        // The arrow joins the hexagon so both grow together on hover.
+        if (dropdown.GetNodeOrNull<Control>("Arrow") is { } arrow)
+        {
+            arrow.Modulate = VanillaUi.Gold;
+            arrow.Reparent(current);
+            // Inside the hexagon, clear of its pointed end, centered on the row. Its pivot is the image center
+            // so the game's rotation turns it in place.
+            arrow.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
+            arrow.OffsetLeft = -64;
+            arrow.OffsetRight = -38;
+            arrow.OffsetTop = -13;
+            arrow.OffsetBottom = 13;
+            arrow.PivotOffset = new Vector2(13, 13);
+        }
+        AddHover(dropdown, current, material, TealV);
+
+        // The open list uses the same dark nine-patch as the game's info panels.
         var optionsPanel = dropdown.GetNode<Panel>("DropdownContainer/Highlight");
         optionsPanel.Modulate = Colors.White;
-        optionsPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        optionsPanel.AddThemeStyleboxOverride("panel", new StyleBoxTexture
         {
-            BgColor = Color.FromHtml("12212a")
+            Texture = ResourceLoader.Load<Texture2D>(VanillaUi.BoxTexture),
+            TextureMarginLeft = 12, TextureMarginTop = 12, TextureMarginRight = 12, TextureMarginBottom = 12,
+            ModulateColor = new Color(0.06f, 0.09f, 0.11f, 0.97f)
         });
     }
 
@@ -241,11 +266,41 @@ internal static class ModifierPresetUi
         label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         label.OffsetLeft = HorizontalPadding;
         label.OffsetRight = -HorizontalPadding;
-        label.HorizontalAlignment = HorizontalAlignment.Center;
+        label.HorizontalAlignment = HorizontalAlignment.Left;
         label.VerticalAlignment = VerticalAlignment.Center;
         label.ClipText = true;
         label.MouseFilter = Control.MouseFilterEnum.Ignore;
+        label.AddThemeFontOverride("font", ResourceLoader.Load<Font>(VanillaUi.RegularFont));
+        label.AddThemeFontSizeOverride("font_size", 22);
+        StyleDropdownItem(item, label, preset.Name == state.SelectedName, !removable);
         if (removable) AddRemoveButton(item, preset, dropdown, state);
+    }
+
+    // The game toggles the item's flat Highlight on hover and focus; it now drives a teal library banner and
+    // gold text instead. The current loadout stays gold, and the empty entry reads as a quiet reset.
+    private static void StyleDropdownItem(NDropdownItem item, Label label, bool current, bool reset)
+    {
+        var highlight = item.GetNode<ColorRect>("Highlight");
+        highlight.Color = Colors.Transparent;
+        var (banner, material) = VanillaUi.Banner(0.9f);
+        banner.Visible = false;
+        item.AddChild(banner);
+        item.MoveChild(banner, 0);
+        banner.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        banner.OffsetLeft = 6;
+        banner.OffsetRight = -6;
+        banner.OffsetTop = 2;
+        banner.OffsetBottom = -2;
+        var idle = current ? VanillaUi.Gold : reset ? new Color(VanillaUi.Cream, 0.5f) : VanillaUi.Cream;
+        void Paint()
+        {
+            if (!GodotObject.IsInstanceValid(label)) return;
+            banner.Visible = highlight.Visible;
+            label.AddThemeColorOverride("font_color", highlight.Visible ? VanillaUi.Gold : idle);
+            if (item.GetNodeOrNull<CanvasItem>("RemovePresetButton") is { } remove) remove.Visible = highlight.Visible;
+        }
+        highlight.VisibilityChanged += Paint;
+        Callable.From(Paint).CallDeferred();
     }
 
     private static void AddRemoveButton(NDropdownItem item, ModifierPreset preset, NActDropdown dropdown, DropdownState state)
@@ -265,13 +320,6 @@ internal static class ModifierPresetUi
         button.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.RightWide);
         button.OffsetLeft = -(HorizontalPadding + RemoveButtonWidth);
         button.OffsetRight = -HorizontalPadding;
-        var highlight = new ColorRect
-        {
-            Color = new Color(0.7f, 0.15f, 0.12f, 0.5f), Visible = false,
-            MouseFilter = Control.MouseFilterEnum.Ignore
-        };
-        button.AddChild(highlight);
-        highlight.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         var icon = new TextureRect
         {
             Texture = ResourceLoader.Load<Texture2D>(DeleteIconPath),
@@ -283,8 +331,13 @@ internal static class ModifierPresetUi
         icon.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         icon.OffsetLeft = icon.OffsetTop = 8;
         icon.OffsetRight = icon.OffsetBottom = -8;
-        button.Connect(NClickableControl.SignalName.Focused, Callable.From<NClickableControl>(_ => highlight.Visible = true));
-        button.Connect(NClickableControl.SignalName.Unfocused, Callable.From<NClickableControl>(_ => highlight.Visible = false));
+        // The trash icon shows only on the hovered row: quiet cream, red while it is the target.
+        icon.Modulate = new Color(VanillaUi.Cream, 0.7f);
+        void Target(bool on) => icon.Modulate = on ? VanillaUi.Red : new Color(VanillaUi.Cream, 0.7f);
+        button.MouseEntered += () => Target(true);
+        button.MouseExited += () => Target(false);
+        button.Connect(NClickableControl.SignalName.Focused, Callable.From<NClickableControl>(_ => Target(true)));
+        button.Connect(NClickableControl.SignalName.Unfocused, Callable.From<NClickableControl>(_ => Target(false)));
         button.Connect(NClickableControl.SignalName.Released, Callable.From<NClickableControl>(_ =>
             Callable.From(() => DeletePreset(dropdown, state, preset.Name)).CallDeferred()));
     }
