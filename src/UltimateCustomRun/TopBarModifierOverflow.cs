@@ -22,7 +22,7 @@ internal static class TopBarModifierOverflow
         internal required Control Modifiers;
         internal required Container Left;
         internal required Container Right;
-        internal required Control Overflow;
+        internal required NTopBarModifier Overflow;
         internal required TextureRect Icon;
         internal required Label Count;
         internal List<IHoverTip> Tips = new();
@@ -37,36 +37,31 @@ internal static class TopBarModifierOverflow
 
     private static readonly FieldInfo HoverTipField = AccessTools.Field(typeof(NTopBarModifier), "_hoverTip");
     private static readonly ConditionalWeakTable<NTopBar, State> States = new();
+    private static readonly ConditionalWeakTable<NTopBarModifier, State> Overflows = new();
 
     [HarmonyPostfix]
     [HarmonyPriority(Priority.Low)]
     private static void Postfix(NTopBar __instance, IRunState runState)
     {
         if (runState.Modifiers.Count == 0) return;
-        var state = States.GetValue(__instance, Create);
+        var state = States.GetValue(__instance, topBar => Create(topBar, runState));
         // Keep the overflow icon after the modifier icons added by this Initialize call.
         state.Modifiers.MoveChild(state.Overflow, -1);
         state.Shown = state.Total = -1;
         Callable.From(() => Fit(state)).CallDeferred();
     }
 
-    private static State Create(NTopBar topBar)
+    private static State Create(NTopBar topBar, IRunState runState)
     {
         var modifiers = topBar.GetNode<Control>("%Modifiers");
-        var overflow = new Control
-        {
-            Name = OverflowName, CustomMinimumSize = new Vector2(IconWidth, 80), FocusMode = Control.FocusModeEnum.All,
-            MouseFilter = Control.MouseFilterEnum.Stop, Visible = false
-        };
-        // Same placement as the icon inside the game's top_bar_modifier scene, dimmed under the count.
-        var icon = new TextureRect
-        {
-            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-            MouseFilter = Control.MouseFilterEnum.Ignore, Modulate = new Color(1, 1, 1, 0.45f),
-            AnchorLeft = 0.5f, AnchorRight = 0.5f, AnchorTop = 0.5f, AnchorBottom = 0.5f,
-            OffsetLeft = -24, OffsetRight = 24, OffsetTop = -27, OffsetBottom = 21
-        };
-        overflow.AddChild(icon);
+        // A real modifier icon, so hover and controller focus behave exactly like its neighbours;
+        // OnFocusPatch swaps its single tip for the hidden modifiers' tips.
+        var overflow = NTopBarModifier.Create(runState.Modifiers[0])!;
+        overflow.Name = OverflowName;
+        overflow.Visible = false;
+        modifiers.AddChild(overflow);
+        var icon = overflow.GetNode<TextureRect>("Icon");
+        icon.Modulate = new Color(1, 1, 1, 0.45f);
         var count = new Label
         {
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
@@ -84,22 +79,30 @@ internal static class TopBarModifierOverflow
         }
         count.AddThemeFontSizeOverride("font_size", 28);
         overflow.AddChild(count);
-        modifiers.AddChild(overflow);
 
         var state = new State
         {
             TopBar = topBar, Modifiers = modifiers, Left = topBar.LeftContainer, Right = topBar.RightContainer,
             Overflow = overflow, Icon = icon, Count = count
         };
-        overflow.Connect(Control.SignalName.FocusEntered, Callable.From(() => ShowTips(state)));
-        overflow.Connect(Control.SignalName.MouseEntered, Callable.From(() => ShowTips(state)));
-        overflow.Connect(Control.SignalName.FocusExited, Callable.From(() => NHoverTipSet.Remove(overflow)));
-        overflow.Connect(Control.SignalName.MouseExited, Callable.From(() => NHoverTipSet.Remove(overflow)));
+        Overflows.AddOrUpdate(overflow, state);
         // Either row moving (gold digits, potion slots, window size) changes the free space. Fit only touches
         // the modifier row when the count changes, so the re-sort it causes ends here.
         state.Left.Connect(Container.SignalName.SortChildren, Callable.From(() => Fit(state)));
         state.Right.Connect(Container.SignalName.SortChildren, Callable.From(() => Fit(state)));
         return state;
+    }
+
+    [HarmonyPatch(typeof(NTopBarModifier), "OnFocus")]
+    private static class OnFocusPatch
+    {
+        [HarmonyPrefix]
+        private static bool Prefix(NTopBarModifier __instance)
+        {
+            if (!Overflows.TryGetValue(__instance, out var state)) return true;
+            ShowTips(state);
+            return false;
+        }
     }
 
     private static void ShowTips(State state)
@@ -113,7 +116,7 @@ internal static class TopBarModifierOverflow
     private static void Fit(State state)
     {
         if (!GodotObject.IsInstanceValid(state.TopBar) || !state.Modifiers.IsVisibleInTree()) return;
-        var icons = state.Modifiers.GetChildren().OfType<NTopBarModifier>().Where(icon => !icon.IsQueuedForDeletion()).ToList();
+        var icons = state.Modifiers.GetChildren().OfType<NTopBarModifier>().Where(icon => icon != state.Overflow && !icon.IsQueuedForDeletion()).ToList();
         // The first right-aligned element that is always laid out (timer, or the map when the timer is off).
         // The save indicator and its padding before it only flash briefly.
         var obstacle = state.Right.GetChildren().OfType<Control>()
