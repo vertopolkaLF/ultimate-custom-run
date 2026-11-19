@@ -278,7 +278,7 @@ internal static class DeckPickerUi
     {
         if (!GodotObject.IsInstanceValid(state.Sentence)) return;
         var modifier = state.Rows.GetValueOrDefault(choice)?.Modifier;
-        var adjustable = state.Editable && AdvancedMode.IsActive(list);
+        var adjustable = state.Editable;
         var values = new int[2];
         if (modifier != null && ModifierValues.For(modifier) != null) values[0] = ModifierValues.Get(modifier);
         if (modifier is SealedDeck) values[1] = ModifierValues.GetSealedPool(modifier);

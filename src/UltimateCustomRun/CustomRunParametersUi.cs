@@ -24,15 +24,33 @@ internal static class CustomRunParametersUi
     }
 
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, List<Row>> Rows = new();
-    private static readonly (CustomRunParameter Parameter, string English, string Russian, int MaxIndex)[] Specs =
+    // MaxIndex is the Unbalanced limit; BalancedMaxIndex is the normal one.
+    private static readonly (CustomRunParameter Parameter, string English, string Russian, int MaxIndex, int BalancedMaxIndex)[] Specs =
     [
-        (CustomRunParameter.FloorsPerAct, "Floors per act", "Этажей за акт", 23),
-        (CustomRunParameter.BaseHandSize, "Base hand size", "Размер базовой руки", 11),
-        (CustomRunParameter.BaseEnergy, "Base energy", "Базовая энергия", 21),
-        (CustomRunParameter.EnemyHpPercent, "Enemy HP", "Здоровье врагов", 39),
-        (CustomRunParameter.EnemyDamagePercent, "Enemy damage", "Урон врагов", 39),
-        (CustomRunParameter.PlayerHpPercent, "Player HP", "Здоровье игрока", 39)
+        (CustomRunParameter.FloorsPerAct, "Floors per act", "Этажей за акт", 23, 23),
+        (CustomRunParameter.BaseHandSize, "Base hand size", "Размер базовой руки", 11, 11),
+        (CustomRunParameter.BaseEnergy, "Base energy", "Базовая энергия", 21, 11),
+        (CustomRunParameter.EnemyHpPercent, "Enemy HP", "Здоровье врагов", 39, 19),
+        (CustomRunParameter.EnemyDamagePercent, "Enemy damage", "Урон врагов", 39, 19),
+        (CustomRunParameter.PlayerHpPercent, "Player HP", "Здоровье игрока", 39, 19)
     ];
+
+    internal static int MaxIndexFor(CustomRunParameter parameter, bool unbalanced)
+    {
+        var spec = Specs.First(spec => spec.Parameter == parameter);
+        return unbalanced ? spec.MaxIndex : spec.BalancedMaxIndex;
+    }
+
+    internal static bool NeedsUnbalanced(CustomRunParameterValues values) =>
+        Specs.Any(spec => IndexFor(spec.Parameter, values.Get(spec.Parameter)) > spec.BalancedMaxIndex);
+
+    internal static void ClampToBalanced(CustomRunParameters modifier)
+    {
+        var values = CustomRunParameterValuesStore.Get(modifier);
+        foreach (var spec in Specs)
+            if (IndexFor(spec.Parameter, values.Get(spec.Parameter)) > spec.BalancedMaxIndex)
+                CustomRunParameterValuesStore.Set(modifier, spec.Parameter, ValueAt(spec.Parameter, spec.BalancedMaxIndex));
+    }
 
     internal static Control? Create(NCustomRunModifiersList list, NRunModifierTickbox parent)
     {
@@ -133,6 +151,7 @@ internal static class CustomRunParametersUi
             try
             {
                 row.Root.Visible = row.Parent.IsTicked;
+                row.Slider.MaxValue = MaxIndexFor(row.Parameter, AdvancedMode.IsActive(list));
                 var editable = Editable(list, row.Parameter) && row.Parent.Modifier is CustomRunParameters;
                 row.Slider.MouseFilter = editable ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
                 row.Slider.FocusMode = editable ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
@@ -156,7 +175,7 @@ internal static class CustomRunParametersUi
     private static bool Editable(NCustomRunModifiersList list, CustomRunParameter parameter) =>
         Editable(list) && !(BlitzCompatibility.IsParameterDisabled(parameter) && BlitzCompatibility.IsBlitz(list));
 
-    private static string Title((CustomRunParameter Parameter, string English, string Russian, int MaxIndex) spec) =>
+    private static string Title((CustomRunParameter Parameter, string English, string Russian, int MaxIndex, int BalancedMaxIndex) spec) =>
         LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru" ? spec.Russian : spec.English;
 
     internal static string DescriptionText(CustomRunParameterValues values, bool russian)
@@ -180,9 +199,9 @@ internal static class CustomRunParametersUi
     }
 
     // Any slider position, except a zero hand size or zero energy, which leaves no playable turn.
-    internal static int RandomValue(CustomRunParameter parameter, Random rng)
+    internal static int RandomValue(CustomRunParameter parameter, Random rng, bool unbalanced)
     {
-        var maxIndex = Specs.First(spec => spec.Parameter == parameter).MaxIndex;
+        var maxIndex = MaxIndexFor(parameter, unbalanced);
         var indices = Enumerable.Range(0, maxIndex + 1)
             .Where(index => parameter is not (CustomRunParameter.BaseHandSize or CustomRunParameter.BaseEnergy) || ValueAt(parameter, index) != 0)
             .ToArray();

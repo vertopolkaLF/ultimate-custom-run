@@ -81,16 +81,17 @@ internal static class ModifierRandomizer
         spec.Max < spec.Min ? spec.Default : spec.Min + rng.Next((spec.Max - spec.Min) / spec.Step + 1) * spec.Step;
 
     // Co-op Handicap keeps its per-player values; a random damage split is not a run modifier choice.
-    internal static void RandomizeValues(ModifierModel modifier, Random rng, bool blitz)
+    // Rolls stay inside the normal slider limits unless Unbalanced is on.
+    internal static void RandomizeValues(ModifierModel modifier, Random rng, bool blitz, bool unbalanced)
     {
-        if (modifier is SealedDeck) ModifierValues.SetSealedPool(modifier, RandomIn(ModifierValues.SealedPoolSpec, rng));
-        if (ModifierValues.For(modifier) is { } spec) ModifierValues.Set(modifier, RandomIn(spec, rng));
-        if (modifier is Dill dill) dill.MaxHpPerFight = RandomIn(Dill.GrowthSpec, rng);
+        if (modifier is SealedDeck) ModifierValues.SetSealedPool(modifier, RandomIn(ModifierValues.SealedPoolSpec.Limited(unbalanced), rng));
+        if (ModifierValues.For(modifier) is { } spec) ModifierValues.Set(modifier, RandomIn(spec.Limited(unbalanced), rng));
+        if (modifier is Dill dill) dill.MaxHpPerFight = RandomIn(Dill.GrowthSpec.Limited(unbalanced), rng);
         if (modifier is CustomRunParameters parameters)
             foreach (var parameter in Enum.GetValues<CustomRunParameter>())
             {
                 if (blitz && BlitzCompatibility.IsParameterDisabled(parameter)) continue;
-                CustomRunParameterValuesStore.Set(parameters, parameter, CustomRunParametersUi.RandomValue(parameter, rng));
+                CustomRunParameterValuesStore.Set(parameters, parameter, CustomRunParametersUi.RandomValue(parameter, rng, unbalanced));
             }
     }
 

@@ -39,7 +39,11 @@ internal static class CoopHandicapUi
     }
 
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, State> States = new();
-    private static int MaxIndex => (CoopHandicap.PercentSpec.Max - CoopHandicap.PercentSpec.Min) / CoopHandicap.PercentSpec.Step;
+    private static int MaxIndex(bool unbalanced)
+    {
+        var spec = CoopHandicap.PercentSpec.Limited(unbalanced);
+        return (spec.Max - spec.Min) / spec.Step;
+    }
 
     internal static Control? Create(NCustomRunModifiersList list, NRunModifierTickbox parent)
     {
@@ -62,7 +66,7 @@ internal static class CoopHandicapUi
             foreach (var stat in Enum.GetValues<HandicapStat>())
             {
                 var (root, _, slider, value) = CustomRunParametersUi.BuildSliderRow(
-                    stat.ToString() + "Setting", StatTitle(stat), MaxIndex, true);
+                    stat.ToString() + "Setting", StatTitle(stat), MaxIndex(AdvancedMode.IsActive(list)), true);
                 group.AddChild(root);
                 var row = new Row { Parent = parent, Slot = slot, Stat = stat, Slider = slider, Value = value };
                 state.Rows.Add(row);
@@ -116,6 +120,7 @@ internal static class CoopHandicapUi
             player.Caption.Text = string.IsNullOrWhiteSpace(name) ? number : $"{number}: {name}";
         }
         var editable = Editable(list);
+        var maxIndex = MaxIndex(AdvancedMode.IsActive(list));
         foreach (var row in state.Rows)
         {
             row.Applying = true;
@@ -123,6 +128,7 @@ internal static class CoopHandicapUi
             {
                 row.Slider.MouseFilter = editable ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
                 row.Slider.FocusMode = editable ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
+                row.Slider.MaxValue = maxIndex;
                 var value = modifier.Get(row.Stat, row.Slot);
                 row.Value.Text = value + "%";
                 var index = (value - CoopHandicap.PercentSpec.Min) / CoopHandicap.PercentSpec.Step;

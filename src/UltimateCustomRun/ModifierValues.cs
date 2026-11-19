@@ -16,9 +16,14 @@ internal static class ModifierValues
 {
     internal const string SaveKey = nameof(SpecializedDraft.CustomValue);
     internal const string SealedPoolKey = nameof(SpecializedDraft.SealedPoolSize);
-    internal static readonly Spec SealedPoolSpec = new(10, 120, 5, 30, "offers");
-    internal sealed record Spec(int Min, int Max, int Step, int Default, string Unit)
+    internal static readonly Spec SealedPoolSpec = new(10, 120, 5, 30, "offers", 60);
+    // Max is the Unbalanced limit; BalancedMax (when set) is the normal slider limit.
+    internal sealed record Spec(int Min, int Max, int Step, int Default, string Unit, int? BalancedMax = null)
     {
+        internal int NormalMax => Math.Min(Max, BalancedMax ?? Max);
+        internal Spec Limited(bool unbalanced) => unbalanced || BalancedMax == null ? this : this with { Max = NormalMax, BalancedMax = null };
+        internal bool Exceeds(int value) => value > NormalMax;
+
         internal int Normalize(int value) => Min + (int)Math.Round(
             (Math.Clamp(value, Min, Max) - Min) / (double)Step, MidpointRounding.AwayFromZero) * Step;
     }
@@ -28,20 +33,20 @@ internal static class ModifierValues
     internal static Spec? For(ModifierModel? modifier) => modifier switch
     {
         Specialized or SpecializedDraft or SpecializedPickAny or AllStar or AllStarDraft or Friendship or FriendshipDraft
-            => new(1, 100, 1, 5, "cards"),
-        TwentyTwentyModifier => new(1, 100, 1, 1, "cards"),
-        Draft => new(5, 100, 5, 10, "cards"),
-        SealedDeck => new(5, Math.Min(100, GetSealedPool(modifier) - 5), 5, 10, "cards"),
-        Insanity => new(5, 100, 5, 30, "cards"),
-        Hoarder => new(1, 10, 1, 2, "extra copies"),
-        Midas => new(150, 1000, 5, 200, "% gold"),
+            => new(1, 100, 1, 5, "cards", 10),
+        TwentyTwentyModifier => new(1, 100, 1, 1, "cards", 10),
+        Draft => new(5, 100, 5, 10, "cards", 20),
+        SealedDeck => new(5, Math.Min(100, GetSealedPool(modifier) - 5), 5, 10, "cards", 55),
+        Insanity => new(5, 100, 5, 30, "cards", 60),
+        Hoarder => new(1, 10, 1, 2, "extra copies", 5),
+        Midas => new(150, 1000, 5, 200, "% gold", 300),
         DoubleTrouble => new(2, 3, 1, 2, "bosses"),
-        Speedrun => new(10, 180, 5, 30, "minutes"),
-        Dill => new(1, 100, 1, 1, "initial max HP"),
-        Headstart => new(1, 25, 1, 1, "relics"),
-        RichLoot => new(1, 10, 1, 1, "extra relics"),
-        CardSwarm => new(1, 7, 1, 1, "extra cards"),
-        MysteryEvents => new(1, 10, 1, MysteryEvents.EventCount, "events"),
+        Speedrun => new(10, 180, 5, 30, "minutes", 60),
+        Dill => new(1, 100, 1, 1, "initial max HP", 20),
+        Headstart => new(1, 25, 1, 1, "relics", 5),
+        RichLoot => new(1, 10, 1, 1, "extra relics", 3),
+        CardSwarm => new(1, 7, 1, 1, "extra cards", 3),
+        MysteryEvents => new(1, 10, 1, MysteryEvents.EventCount, "events", 5),
         BlitzMerchantModifier => BlitzMerchantModifier.PicksSpec,
         _ => null
     };

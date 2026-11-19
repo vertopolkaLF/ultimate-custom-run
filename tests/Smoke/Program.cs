@@ -787,7 +787,7 @@ internal static class Program
     {
         var canonical = ModelDb.Modifier<SealedDeck>();
         Check(ModifierValues.Get(canonical) == 10 && ModifierValues.GetSealedPool(canonical) == 30 &&
-            ModifierValues.SealedPoolSpec == new ModifierValues.Spec(10, 120, 5, 30, "offers"),
+            ModifierValues.SealedPoolSpec == new ModifierValues.Spec(10, 120, 5, 30, "offers", 60),
             "Sealed Deck defaults to 10 of 30; pool slider uses 10..120, step 5");
         for (var pool = 10; pool <= 120; pool += 5)
         {
@@ -855,7 +855,7 @@ internal static class Program
     private static void TestSpeedrun()
     {
         var canonical = ModelDb.Modifier<Speedrun>();
-        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(10, 180, 5, 30, "minutes"),
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(10, 180, 5, 30, "minutes", 60),
             "Speedrun limit uses 10..180 minutes, step 5, default 30");
         Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.Negatives &&
             ModifierListPatch.IsCustomOnly(canonical) &&
@@ -995,21 +995,21 @@ internal static class Program
         for (var i = 0; i < 100; i++)
         {
             var sealedDeck = ModelDb.Modifier<SealedDeck>().ToMutable();
-            ModifierRandomizer.RandomizeValues(sealedDeck, rng, blitz: false);
+            ModifierRandomizer.RandomizeValues(sealedDeck, rng, blitz: false, unbalanced: false);
             var pool = ModifierValues.GetSealedPool(sealedDeck);
             var chosen = ModifierValues.Get(sealedDeck);
             var dill = (Dill)ModelDb.Modifier<Dill>().ToMutable();
-            ModifierRandomizer.RandomizeValues(dill, rng, blitz: false);
+            ModifierRandomizer.RandomizeValues(dill, rng, blitz: false, unbalanced: false);
             var parameters = (CustomRunParameters)ModelDb.Modifier<CustomRunParameters>().ToMutable();
-            ModifierRandomizer.RandomizeValues(parameters, rng, blitz: true);
+            ModifierRandomizer.RandomizeValues(parameters, rng, blitz: true, unbalanced: false);
             var values = CustomRunParameterValuesStore.Get(parameters);
-            valuesValid &= pool is >= 10 and <= 120 && chosen >= 5 && chosen <= Math.Min(100, pool - 5) &&
-                ModifierValues.Get(dill) is >= 1 and <= 100 && dill.MaxHpPerFight is >= 1 and <= 20 &&
+            valuesValid &= pool is >= 10 and <= 60 && chosen >= 5 && chosen <= pool - 5 &&
+                ModifierValues.Get(dill) is >= 1 and <= 20 && dill.MaxHpPerFight is >= 1 and <= 5 &&
                 values.FloorsPerAct == CustomRunParameterValues.Default.FloorsPerAct &&
                 values.BaseHandSize != 0 && values.BaseEnergy != 0 &&
-                values.EnemyHpPercent is >= 25 and <= 1000 && values.EnemyHpPercent % 25 == 0;
+                values.EnemyHpPercent is >= 25 and <= 500 && values.EnemyHpPercent % 25 == 0 && values.BaseEnergy <= 10;
         }
-        Check(valuesValid, "Randomized values stay valid; Blitz keeps floors and hand size or energy never roll zero");
+        Check(valuesValid, "Randomized values stay inside normal limits; Blitz keeps floors and hand size or energy never roll zero");
     }
 
     private static void TestPresetApplication()
@@ -1060,13 +1060,13 @@ internal static class Program
             savedParameters.EnemyDamagePercent = 175;
             savedParameters.PlayerHpPercent = 125;
             var savedDill = (Dill)ModelDb.Modifier<Dill>().ToMutable();
-            ModifierValues.Set(savedDill, 17);
+            ModifierValues.Set(savedDill, 40);
             savedDill.MaxHpPerFight = 4;
             var preset = System.Text.Json.JsonSerializer.Deserialize<ModifierPreset>(System.Text.Json.JsonSerializer.Serialize(
                 ModifierPresetStore.Capture("Regression", [savedDraft, savedSealed, savedParameters, savedDill])))!;
             AdvancedMode.UseInMemorySettings(false);
             AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null, [list, preset]);
-            Check(AdvancedMode.Enabled, "A loadout with Run Parameters, Dill or custom values switches Advanced mode on");
+            Check(AdvancedMode.Enabled, "A loadout with a value above its normal limit switches Unbalanced on");
             Check(list.GetModifiersTickedOn().Any(model => model is SpecializedDraft) && choices[1].IsTicked,
                 "Loadout visually selects the saved Draft variant");
             Check(_presetNotification?.Any(model => model is SpecializedDraft && ModifierValues.Get(model) == 8) == true,
@@ -1077,7 +1077,7 @@ internal static class Program
             Check(CustomRunParameterValuesStore.From(_presetNotification) == CustomRunParameterValuesStore.Get(savedParameters),
                 "Loadout JSON round-trip delivers all six saved Custom Run Parameters to the run");
             Check(_presetNotification!.OfType<Dill>().Single() is { MaxHpPerFight: 4 } deliveredDill &&
-                ModifierValues.Get(deliveredDill) == 17, "Loadout JSON round-trip delivers both Dill sliders");
+                ModifierValues.Get(deliveredDill) == 40, "Loadout JSON round-trip delivers both Dill sliders");
             foreach (var mode in new[] { any.Modifier!, normal.Modifier!, draft.Modifier! })
             {
                 var selected = (ModifierModel)mode.MutableClone();
@@ -1096,10 +1096,10 @@ internal static class Program
             AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null, [list, ModifierPresetStore.Empty]);
             AdvancedMode.UseInMemorySettings(false);
             var vanillaDraft = (ModifierModel)draft.Modifier!.MutableClone();
-            AdvancedMode.ResetValues(vanillaDraft);
+            ModifierValues.Set(vanillaDraft, 8);
             AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null,
                 [list, ModifierPresetStore.Capture("Vanilla", [vanillaDraft])]);
-            Check(!AdvancedMode.Enabled, "A loadout with only vanilla-like modifiers at default values keeps Advanced mode off");
+            Check(!AdvancedMode.Enabled, "A loadout with values inside normal limits keeps Unbalanced off");
             AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null, [list, ModifierPresetStore.Empty]);
             Check(_presetNotification is { Count: 0 } && list.GetModifiersTickedOn().Count == 0,
                 "Empty loadout clears both the run notification and visual selection");
@@ -1109,30 +1109,38 @@ internal static class Program
 
     private static void TestAdvancedModeClassification()
     {
-        foreach (var model in new ModifierModel[] { ModelDb.Modifier<CustomRunParameters>(), ModelDb.Modifier<CoopHandicap>() })
-            Check(AdvancedMode.IsAdvancedModifier(model), "Advanced mode hides " + model.GetType().Name);
-        foreach (var model in new ModifierModel[]
-        {
-            ModelDb.Modifier<Specialized>(), ModelDb.Modifier<SealedDeck>(), ModelDb.Modifier<DoubleTrouble>(),
-            ModelDb.Modifier<MysteryEvents>(), ModelDb.Modifier<RichLoot>(), ModelDb.Modifier<MustHave>(), ModelDb.Modifier<SharedGold>(),
-            ModelDb.Modifier<Headstart>(), ModelDb.Modifier<TwentyTwentyDraft>(), ModelDb.Modifier<SuperDraft>(),
-            ModelDb.Modifier<UltimateStarter>(), ModelDb.Modifier<NoStarterDeck>(), ModelDb.Modifier<Dill>()
-        })
-            Check(!AdvancedMode.IsAdvancedModifier(model), "Basic mode keeps " + model.GetType().Name);
         var sealedDeck = (ModifierModel)ModelDb.Modifier<SealedDeck>().MutableClone();
-        Check(!AdvancedMode.Uses([sealedDeck]), "Default slider values do not need Advanced mode");
         ModifierValues.SetSealedPool(sealedDeck, 60);
         ModifierValues.Set(sealedDeck, 40);
-        Check(AdvancedMode.Uses([sealedDeck]), "A changed slider value needs Advanced mode");
-        AdvancedMode.ResetValues(sealedDeck);
-        Check(ModifierValues.Get(sealedDeck) == 10 && ModifierValues.GetSealedPool(sealedDeck) == 30 && !AdvancedMode.Uses([sealedDeck]),
-            "Leaving Advanced mode restores both Sealed Deck sliders to their defaults");
+        Check(!AdvancedMode.Uses([sealedDeck]), "Values inside normal limits do not need Unbalanced");
+        Check(ModifierValues.SealedPoolSpec.Limited(false).Max == 60 && ModifierValues.For(sealedDeck)!.Limited(false).Max == 55 &&
+            ModifierValues.SealedPoolSpec.Limited(true).Max == 120, "Sealed Deck sliders use normal limits unless Unbalanced");
+        ModifierValues.SetSealedPool(sealedDeck, 120);
+        ModifierValues.Set(sealedDeck, 100);
+        Check(AdvancedMode.Uses([sealedDeck]), "A value above its normal limit needs Unbalanced");
+        AdvancedMode.ClampToBalanced(sealedDeck);
+        Check(ModifierValues.Get(sealedDeck) == 55 && ModifierValues.GetSealedPool(sealedDeck) == 60 && !AdvancedMode.Uses([sealedDeck]),
+            "Leaving Unbalanced clamps both Sealed Deck sliders to their normal limits");
         var dill = (Dill)ModelDb.Modifier<Dill>().MutableClone();
         dill.MaxHpPerFight = 5;
-        Check(AdvancedMode.Uses([dill]), "A changed Dill growth needs Advanced mode");
-        AdvancedMode.ResetValues(dill);
-        Check(dill.MaxHpPerFight == Dill.GrowthSpec.Default && !AdvancedMode.Uses([dill]),
-            "Leaving Advanced mode restores Dill growth to its default");
+        Check(!AdvancedMode.Uses([dill]), "Dill growth at its normal limit keeps Unbalanced off");
+        dill.MaxHpPerFight = 12;
+        Check(AdvancedMode.Uses([dill]), "Dill growth above its normal limit needs Unbalanced");
+        AdvancedMode.ClampToBalanced(dill);
+        Check(dill.MaxHpPerFight == 5 && !AdvancedMode.Uses([dill]), "Leaving Unbalanced clamps Dill growth");
+        var parameters = (CustomRunParameters)ModelDb.Modifier<CustomRunParameters>().MutableClone();
+        Check(!AdvancedMode.Uses([parameters]), "Run Parameters are available without Unbalanced");
+        parameters.BaseEnergy = 15;
+        parameters.EnemyHpPercent = 800;
+        Check(AdvancedMode.Uses([parameters]), "Run Parameters above normal limits need Unbalanced");
+        AdvancedMode.ClampToBalanced(parameters);
+        Check(parameters.BaseEnergy == 10 && parameters.EnemyHpPercent == 500 && !AdvancedMode.Uses([parameters]),
+            "Leaving Unbalanced clamps Run Parameters");
+        var handicap = (CoopHandicap)ModelDb.Modifier<CoopHandicap>().MutableClone();
+        handicap.Set(HandicapStat.DamageTaken, 2, 750);
+        Check(AdvancedMode.Uses([handicap]), "Handicap above its normal limit needs Unbalanced");
+        AdvancedMode.ClampToBalanced(handicap);
+        Check(handicap.Get(HandicapStat.DamageTaken, 2) == 500 && !AdvancedMode.Uses([handicap]), "Leaving Unbalanced clamps Handicap");
     }
 
     private static void TestPresetManagement()
@@ -1388,7 +1396,7 @@ internal static class Program
                 ModifierListPatch.IsCustomOnly(model) &&
                 ModifierGroups.Classify(model, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
                 ModifierVariantUi.BelongsTo(model, ModifierVariantUi.Family.TwentyTwenty) &&
-                ModifierValues.For(model) == new ModifierValues.Spec(1, 100, 1, 1, "cards") &&
+                ModifierValues.For(model) == new ModifierValues.Spec(1, 100, 1, 1, "cards", 10) &&
                 model.GenerateNeowOption(neow) != null && !model.ClearsPlayerDeck,
                 "20/20 modes appear once in Improved Start, with a 1..100 slider and a Neow callback");
             foreach (var other in models.Where(other => other != model))
@@ -1494,8 +1502,8 @@ internal static class Program
     private static void TestDill()
     {
         var canonical = ModelDb.Modifier<Dill>();
-        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 100, 1, 1, "initial max HP") &&
-            Dill.GrowthSpec == new ModifierValues.Spec(1, 20, 1, 2, "max HP per fight") &&
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 100, 1, 1, "initial max HP", 20) &&
+            Dill.GrowthSpec == new ModifierValues.Spec(1, 20, 1, 2, "max HP per fight", 5) &&
             canonical.MaxHpPerFight == 2,
             "Dill has independent initial-HP and per-fight sliders with the requested ranges and defaults");
         Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.Negatives &&
@@ -1692,7 +1700,7 @@ internal static class Program
 
         // Handicap values: defaults, clamping, save, replay/network packet and clone.
         var handicapCanonical = ModelDb.Modifier<CoopHandicap>();
-        Check(handicapCanonical.IsDefault && CoopHandicap.PercentSpec == new ModifierValues.Spec(25, 1000, 25, 100, "%"),
+        Check(handicapCanonical.IsDefault && CoopHandicap.PercentSpec == new ModifierValues.Spec(25, 1000, 25, 100, "%", 500),
             "Handicap defaults every player to 100% damage dealt and taken");
         foreach (var name in new[] { nameof(CoopHandicap.DamageDealtPercents), nameof(CoopHandicap.DamageTakenPercents) })
             Check(MegaCrit.Sts2.Core.Multiplayer.Serialization.ModelIdSerializationCache.GetNetIdForPropertyName(name) >= 0,
@@ -2146,7 +2154,7 @@ internal static class Program
             "Exhausted, conditional-only and empty pools never repeat or select forbidden events");
 
         var canonical = ModelDb.Modifier<MysteryEvents>();
-        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 10, 1, 3, "events") &&
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 10, 1, 3, "events", 5) &&
             MysteryEvents.DescriptionText(1) == "Encounter [blue]1[/blue] additional Event after Neow." &&
             MysteryEvents.DescriptionText(3) == MysteryEvents.DisplayDescription,
             "??? slider spans 1..10 events, defaults to three, and uses singular/plural descriptions");
@@ -2343,7 +2351,7 @@ internal static class Program
     private static void TestHeadstart()
     {
         var canonical = ModelDb.Modifier<Headstart>();
-        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 25, 1, 1, "relics") &&
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 25, 1, 1, "relics", 5) &&
             ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
             ModifierListPatch.IsCustomOnly(canonical) &&
             ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<Headstart>().Count() == 1,

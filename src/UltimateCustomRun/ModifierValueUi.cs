@@ -42,12 +42,13 @@ internal static class ModifierValueUi
         return root;
     }
 
-    private static ModifierValues.Spec? SpecFor(ModifierModel? modifier, ValueKind kind) => kind switch
+    // The slider range for the current mode: Unbalanced raises the upper limit.
+    private static ModifierValues.Spec? SpecFor(ModifierModel? modifier, ValueKind kind, bool unbalanced) => (kind switch
     {
         ValueKind.SealedPool => ModifierValues.SealedPoolSpec,
         ValueKind.DillGrowth => Dill.GrowthSpec,
         _ => ModifierValues.For(modifier)
-    };
+    })?.Limited(unbalanced);
 
     private static int ValueFor(ModifierModel modifier, ValueKind kind) => kind switch
     {
@@ -58,7 +59,7 @@ internal static class ModifierValueUi
 
     private static Control? CreateRow(NCustomRunModifiersList list, NRunModifierTickbox parent, ValueKind kind = ValueKind.Primary)
     {
-        if (SpecFor(parent.Modifier, kind) is not { } spec) return null;
+        if (SpecFor(parent.Modifier, kind, AdvancedMode.IsActive(list)) is not { } spec) return null;
         var root = new HBoxContainer
         {
             Name = parent.Modifier!.Id.Entry + kind + "Value", CustomMinimumSize = new Vector2(0, 64),
@@ -96,7 +97,7 @@ internal static class ModifierValueUi
         slider.ValueChanged += value =>
         {
             if (row.Applying || !Editable(list)) return;
-            var amount = spec.Min + (int)Math.Round(value) * spec.Step;
+            var amount = row.Spec.Min + (int)Math.Round(value) * row.Spec.Step;
             if (kind == ValueKind.SealedPool) ModifierValues.SetSealedPool(parent.Modifier!, amount);
             else if (kind == ValueKind.DillGrowth) ((Dill)parent.Modifier!).MaxHpPerFight = amount;
             else SetFamilyValue(list, parent.Modifier!, amount);
@@ -115,8 +116,9 @@ internal static class ModifierValueUi
     // One step up or down from the deck picker's inline stepper.
     internal static void Adjust(NCustomRunModifiersList list, ModifierModel modifier, bool pool, int direction)
     {
-        if (!Editable(list) || !AdvancedMode.IsActive(list)) return;
-        var spec = pool ? ModifierValues.SealedPoolSpec : ModifierValues.For(modifier);
+        if (!Editable(list)) return;
+        var unbalanced = AdvancedMode.IsActive(list);
+        var spec = (pool ? ModifierValues.SealedPoolSpec : ModifierValues.For(modifier))?.Limited(unbalanced);
         if (spec == null) return;
         var current = pool ? ModifierValues.GetSealedPool(modifier) : ModifierValues.Get(modifier);
         var next = Math.Clamp(current + direction * spec.Step, spec.Min, spec.Max);
@@ -125,7 +127,7 @@ internal static class ModifierValueUi
         {
             ModifierValues.SetSealedPool(modifier, next);
             // A smaller pool can leave fewer cards to choose than the current pick count.
-            if (ModifierValues.For(modifier) is { } picks && ModifierValues.Get(modifier) > picks.Max)
+            if (ModifierValues.For(modifier)?.Limited(unbalanced) is { } picks && ModifierValues.Get(modifier) > picks.Max)
                 SetFamilyValue(list, modifier, picks.Max);
         }
         else SetFamilyValue(list, modifier, next);
@@ -165,7 +167,6 @@ internal static class ModifierValueUi
     {
         SubmodifierUi.Refresh(list);
         if (!Rows.TryGetValue(list, out var rows)) return;
-        // Sliders belong to Advanced mode; without it every modifier keeps its default value.
         var advanced = AdvancedMode.IsActive(list);
         foreach (var row in rows)
         {
@@ -173,12 +174,12 @@ internal static class ModifierValueUi
             try
             {
                 // Starting deck values are edited inside the deck picker's sentence instead.
-                var shown = row.Parent.IsTicked && advanced && !DeckPickerUi.IsDeckModifier(row.Parent.Modifier);
+                var shown = row.Parent.IsTicked && !DeckPickerUi.IsDeckModifier(row.Parent.Modifier);
                 row.Root.Visible = shown;
                 if (row.Root.GetParent() is VBoxContainer group && (group.Name == "SealedDeckValues" || group.Name == "DillValues"))
                     group.Visible = shown;
                 var editable = Editable(list) && !ModifierGroupsUi.IsLocked(list, row.Parent.Modifier);
-                row.Spec = SpecFor(row.Parent.Modifier, row.Kind)!;
+                row.Spec = SpecFor(row.Parent.Modifier, row.Kind, advanced)!;
                 editable &= row.Spec.Max > row.Spec.Min;
                 row.Slider.MouseFilter = editable ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
                 row.Slider.FocusMode = editable ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;

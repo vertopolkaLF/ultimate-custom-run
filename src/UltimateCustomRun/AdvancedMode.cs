@@ -15,9 +15,8 @@ internal sealed class AdvancedModeSettings
     public bool Enabled { get; set; }
 }
 
-// Advanced mode reveals Run Parameters and value sliders.
-// Without it every modifier stays available, but uses its default values.
-// Run Parameters and Handicap consist only of sliders, so they are hidden entirely.
+// Advanced mode ("Unbalanced") raises every value slider's upper limit far past its normal range.
+// Without it the sliders, Run Parameters and Handicap stay available within their normal limits.
 internal static class AdvancedMode
 {
     private const string FilePath = "user://ultimate_custom_run_options.json";
@@ -37,25 +36,29 @@ internal static class AdvancedMode
         }
     }
 
-    internal static bool IsAdvancedModifier(ModifierModel? modifier) =>
-        modifier is CustomRunParameters or CoopHandicap;
-
-    internal static bool HasCustomValue(ModifierModel modifier)
+    // A value above its normal slider limit only exists in Unbalanced mode.
+    internal static bool NeedsUnbalanced(ModifierModel modifier)
     {
-        if (modifier is SealedDeck && ModifierValues.GetSealedPool(modifier) != ModifierValues.SealedPoolSpec.Default) return true;
-        if (modifier is Dill dill && dill.MaxHpPerFight != Dill.GrowthSpec.Default) return true;
-        return ModifierValues.For(modifier) is { } spec && ModifierValues.Get(modifier) != spec.Default;
+        if (modifier is SealedDeck && ModifierValues.SealedPoolSpec.Exceeds(ModifierValues.GetSealedPool(modifier))) return true;
+        if (modifier is Dill dill && Dill.GrowthSpec.Exceeds(dill.MaxHpPerFight)) return true;
+        if (modifier is CustomRunParameters parameters &&
+            CustomRunParametersUi.NeedsUnbalanced(CustomRunParameterValuesStore.Get(parameters))) return true;
+        if (modifier is CoopHandicap { NeedsUnbalanced: true }) return true;
+        return ModifierValues.For(modifier) is { } spec && spec.Exceeds(ModifierValues.Get(modifier));
     }
 
-    internal static bool Uses(IEnumerable<ModifierModel> modifiers) =>
-        modifiers.Any(modifier => IsAdvancedModifier(modifier) || HasCustomValue(modifier));
+    internal static bool Uses(IEnumerable<ModifierModel> modifiers) => modifiers.Any(NeedsUnbalanced);
 
-    internal static void ResetValues(ModifierModel modifier)
+    internal static void ClampToBalanced(ModifierModel modifier)
     {
-        // The Sealed Deck pick limit depends on the pool, so restore the pool first.
-        if (modifier is SealedDeck) ModifierValues.SetSealedPool(modifier, ModifierValues.SealedPoolSpec.Default);
-        if (ModifierValues.For(modifier) is { } spec) ModifierValues.Set(modifier, spec.Default);
-        if (modifier is Dill dill) dill.MaxHpPerFight = Dill.GrowthSpec.Default;
+        // The Sealed Deck pick limit depends on the pool, so clamp the pool first.
+        if (modifier is SealedDeck)
+            ModifierValues.SetSealedPool(modifier, Math.Min(ModifierValues.GetSealedPool(modifier), ModifierValues.SealedPoolSpec.NormalMax));
+        if (ModifierValues.For(modifier) is { } spec && spec.Exceeds(ModifierValues.Get(modifier)))
+            ModifierValues.Set(modifier, spec.NormalMax);
+        if (modifier is Dill dill) dill.MaxHpPerFight = Math.Min(dill.MaxHpPerFight, Dill.GrowthSpec.NormalMax);
+        if (modifier is CustomRunParameters parameters) CustomRunParametersUi.ClampToBalanced(parameters);
+        if (modifier is CoopHandicap handicap) handicap.ClampToBalanced();
     }
 
     private static List<NRunModifierTickbox> Tickboxes(NCustomRunModifiersList list) =>
@@ -70,17 +73,13 @@ internal static class AdvancedMode
         (IsEditable(list) && Enabled) ||
         Uses(Tickboxes(list).Where(row => row.IsTicked && row.Modifier != null).Select(row => row.Modifier!));
 
-    // Turning the mode off drops everything it would hide, so hidden state never reaches the run, presets or the lobby.
+    // Turning the mode off pulls every value back inside its normal limit, so the sliders always show the real value.
     internal static void SetEnabled(NCustomRunModifiersList list, bool enabled)
     {
         Enabled = enabled;
         if (!enabled && IsEditable(list))
             foreach (var row in Tickboxes(list))
-            {
-                if (row.Modifier is not { } modifier) continue;
-                if (IsAdvancedModifier(modifier)) row.IsTicked = false;
-                ResetValues(modifier);
-            }
+                if (row.Modifier is { } modifier) ClampToBalanced(modifier);
         ModifierVariantUi.RefreshFromTickboxes(list);
         ModifierGroupsUi.ApplyMode(list);
         ModifierValueUi.Refresh(list);

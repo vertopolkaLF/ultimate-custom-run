@@ -410,7 +410,8 @@ internal static class ModifierGroupsUi
     {
         var russian = LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
         var title = russian ? "Дисбаланс" : "Unbalanced";
-        var description = russian ? "Параметры забега и ползунки значений модификаторов." : "Run Parameters and modifier value sliders.";
+        var description = russian ? "Сильно поднимает верхние пределы всех ползунков. Ради хаоса, не баланса."
+            : "Raises every slider's upper limit far past balance. For chaos.";
         LocManager.Instance.GetTable("modifiers").MergeWith(new Dictionary<string, string>
         {
             [AdvancedTitleKey] = title, [AdvancedDescriptionKey] = description
@@ -509,27 +510,12 @@ internal static class ModifierGroupsUi
             foreach (var section in layout.Sections) Reorder(layout, section);
         var forcedChanged = ApplyForced(list, layout);
         if (unticked || forcedChanged) ModifierVariantUi.RefreshFromTickboxes(list);
-        ApplyAdvanced(list, layout);
+        RefreshAdvancedToggle(list);
         // A group whose modifiers all moved to Disabled (or Disabled itself when empty) hides its tab.
         foreach (var section in layout.Sections.Where(section => section.Group != ModifierGroup.Randomizer))
             section.Available = section.Rows.Any(row => row.Visible);
         ApplySelection(layout);
         RefreshSummary(layout);
-    }
-
-    // Without Advanced mode, slider-only modifiers disappear entirely; their extra rows follow because they are unticked.
-    private static void ApplyAdvanced(NCustomRunModifiersList list, Layout layout)
-    {
-        RefreshAdvancedToggle(list);
-        var advanced = AdvancedMode.IsActive(list);
-        var focus = layout.Content.GetViewport()?.GuiGetFocusOwner();
-        foreach (var section in layout.Sections)
-            foreach (var row in section.Rows.Where(row => AdvancedMode.IsAdvancedModifier(row.Modifier)))
-            {
-                if (!advanced && focus != null && (row == focus || row.IsAncestorOf(focus))) section.Tab.GrabFocus();
-                row.Visible = advanced;
-                row.FocusMode = advanced && !IsLocked(list, row.Modifier) ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
-            }
     }
 
     // Lockable nodes return to their original positions; nodes moved in from other sections follow in build order.

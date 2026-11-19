@@ -183,7 +183,6 @@ internal static class ModifierRandomizerUi
             .Where(modifier => !ModifierVariantUi.IsHiddenVariant(modifier) && modifier is not SubmodifierModel)
             .Where(modifier => ignoreLocks || !ModifierGroupsUi.IsLocked(list, modifier))
             .Where(modifier => !(blitz && BlitzCompatibility.IsForced(modifier)))
-            .Where(modifier => ignoreLocks || AdvancedMode.IsActive(list) || !AdvancedMode.IsAdvancedModifier(modifier))
             .GroupBy(modifier => ModifierGroups.Classify(modifier, negatives))
             .ToDictionary(group => group.Key, group => (IReadOnlyList<ModifierModel>)group.ToList());
     }
@@ -220,8 +219,7 @@ internal static class ModifierRandomizerUi
                 if (ModifierVariantUi.Variants(list, source) is { } variants)
                     chosen = settings.Values ? variants.All[rng.Next(variants.All.Count)] : variants.Current;
                 var modifier = (ModifierModel)chosen.MutableClone();
-                // Slider values stay at their defaults unless Advanced mode shows them.
-                if (settings.Values && advanced) ModifierRandomizer.RandomizeValues(modifier, rng, blitz);
+                if (settings.Values) ModifierRandomizer.RandomizeValues(modifier, rng, blitz, advanced);
                 selected.Add((RowOf(source), modifier));
                 foreach (var child in tickboxes.Where(row => row.Modifier is SubmodifierModel sub && sub.ParentType == source.GetType()))
                     if (settings.Values ? rng.Next(2) == 0 : child.IsTicked)

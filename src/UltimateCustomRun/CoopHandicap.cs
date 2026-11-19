@@ -18,7 +18,7 @@ public sealed class CoopHandicap : ModifierModel
     internal const int MaxPlayers = 4;
     internal const string DisplayTitle = "Handicap";
     internal const string DisplayDescription = "Set the damage each player deals and takes.";
-    internal static readonly ModifierValues.Spec PercentSpec = new(25, 1000, 25, 100, "%");
+    internal static readonly ModifierValues.Spec PercentSpec = new(25, 1000, 25, 100, "%", 500);
 
     private int[] _damageDealt = Defaults();
     private int[] _damageTaken = Defaults();
@@ -55,6 +55,15 @@ public sealed class CoopHandicap : ModifierModel
         AssertMutable();
         _damageDealt = (int[])source._damageDealt.Clone();
         _damageTaken = (int[])source._damageTaken.Clone();
+    }
+
+    internal bool NeedsUnbalanced => _damageDealt.Concat(_damageTaken).Any(PercentSpec.Exceeds);
+
+    internal void ClampToBalanced()
+    {
+        AssertMutable();
+        foreach (var values in new[] { _damageDealt, _damageTaken })
+            for (var slot = 0; slot < values.Length; slot++) values[slot] = Math.Min(values[slot], PercentSpec.NormalMax);
     }
 
     internal bool IsDefault => _damageDealt.Concat(_damageTaken).All(value => value == PercentSpec.Default);
