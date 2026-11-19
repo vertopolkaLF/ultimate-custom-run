@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Modifiers;
@@ -24,11 +25,13 @@ internal static class DeckPickerUi
     private sealed class Option
     {
         internal required NButton Button;
+        internal required Control Visuals;
         internal required TextureRect Radio;
+        internal required ShaderMaterial Material;
         internal required Label Name;
-        internal required Panel Highlight;
         internal bool Selected;
         internal bool Hovered;
+        internal Tween? Tween;
     }
 
     private sealed class State
@@ -178,49 +181,61 @@ internal static class DeckPickerUi
     {
         var button = new NButton
         {
-            Name = "DeckChoice", CustomMinimumSize = new Vector2(0, 40), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            Name = "DeckChoice", CustomMinimumSize = new Vector2(0, 52), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
             FocusMode = Control.FocusModeEnum.All, MouseFilter = Control.MouseFilterEnum.Stop
         };
-        var highlight = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
-        highlight.AddThemeStyleboxOverride("panel", new StyleBoxFlat
-        {
-            BgColor = new Color(VanillaUi.Gold, 0.08f),
-            CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6
-        });
-        button.AddChild(highlight);
-        highlight.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         line.AddThemeConstantOverride("separation", 10);
         button.AddChild(line);
         line.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        line.OffsetLeft = 6;
+        // Sized like the modifier rows' checkbox: a 48px image at the tickbox scene's 0.8 base scale.
+        var visuals = new Control
+        {
+            CustomMinimumSize = new Vector2(48, 48), PivotOffset = new Vector2(24, 24), Scale = Vector2.One * RadioScale,
+            SizeFlagsVertical = Control.SizeFlags.ShrinkCenter, MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+        var material = new ShaderMaterial { Shader = ResourceLoader.Load<Shader>("res://shaders/hsv.gdshader") };
+        material.SetShaderParameter("h", 1.0f);
+        material.SetShaderParameter("s", 1.0f);
+        material.SetShaderParameter("v", 1.0f);
         var radio = new TextureRect
         {
-            Texture = Radio(false), CustomMinimumSize = new Vector2(32, 32), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
-            MouseFilter = Control.MouseFilterEnum.Ignore
+            Texture = Radio(false), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, Material = material,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, MouseFilter = Control.MouseFilterEnum.Ignore
         };
-        line.AddChild(radio);
+        visuals.AddChild(radio);
+        radio.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        line.AddChild(visuals);
         var name = VanillaUi.Label(title, 22, VanillaUi.Cream, bold: false);
         name.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         name.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
         name.ClipText = true;
         line.AddChild(name);
 
-        var option = new Option { Button = button, Radio = radio, Name = name, Highlight = highlight };
+        var option = new Option { Button = button, Visuals = visuals, Radio = radio, Material = material, Name = name };
         var mouseInside = false;
         void Enter()
         {
             if (option.Hovered) return;
             option.Hovered = true;
+            Animate(option, HoverScale, HoverV, 0.05, quick: true);
             Paint(option);
         }
         void Exit()
         {
             if (!option.Hovered || button.HasFocus() || mouseInside) return;
             option.Hovered = false;
+            Animate(option, 1, 1, 0.5, quick: false);
             Paint(option);
         }
+        // The checkbox's press: shrink and darken, then pop back to the hover state on release.
+        button.GuiInput += input =>
+        {
+            if (input is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true })
+                Animate(option, PressScale, 0.8f, 0.5, quick: false);
+        };
+        button.Connect(NClickableControl.SignalName.Released,
+            Callable.From<NButton>(_ => Animate(option, HoverScale, HoverV, 0.05, quick: true)));
         button.MouseEntered += () => { mouseInside = true; Enter(); };
         button.MouseExited += () => { mouseInside = false; Exit(); };
         button.FocusEntered += Enter;
@@ -229,13 +244,28 @@ internal static class DeckPickerUi
         return option;
     }
 
+    // NTickbox's numbers: base scale 0.8, hover x1.05 and brightness 1.2, press x0.95 and brightness 0.8.
+    private const float RadioScale = 0.8f, HoverScale = 1.05f, PressScale = 0.95f, HoverV = 1.2f;
+
+    private static void Animate(Option option, float scale, float brightness, double seconds, bool quick)
+    {
+        option.Tween?.Kill();
+        if (!GodotObject.IsInstanceValid(option.Visuals) || !option.Visuals.IsInsideTree()) return;
+        option.Tween = option.Visuals.CreateTween().SetParallel();
+        var from = (float)option.Material.GetShaderParameter("v");
+        var size = option.Tween.TweenProperty(option.Visuals, "scale", Vector2.One * RadioScale * scale, seconds);
+        var light = option.Tween.TweenMethod(Callable.From<float>(value => option.Material.SetShaderParameter("v", value)),
+            from, brightness, seconds);
+        if (quick) return;
+        size.SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
+        light.SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
+    }
+
     private static void Paint(Option option)
     {
         if (!GodotObject.IsInstanceValid(option.Button)) return;
-        option.Highlight.Visible = option.Selected;
         option.Radio.Texture = Radio(option.Selected);
         option.Name.AddThemeColorOverride("font_color", option.Selected || option.Hovered ? VanillaUi.Gold : VanillaUi.Cream);
-        option.Name.AddThemeFontOverride("font", ResourceLoader.Load<Font>(option.Selected ? VanillaUi.BoldFont : VanillaUi.RegularFont));
     }
 
     internal static void Refresh(NCustomRunModifiersList list)
@@ -359,6 +389,7 @@ internal static class DeckPickerUi
     private static void Select(NCustomRunModifiersList list, State state, Choice choice)
     {
         if (!state.Editable || Current(state) == choice) return;
+        SfxCmd.Play("event:/sfx/ui/clicks/ui_checkbox_on");
         foreach (var (rowChoice, row) in state.Rows) row.IsTicked = rowChoice == choice;
         var source = state.Rows.GetValueOrDefault(choice) ?? state.Rows.Values.First();
         // Same path as a native click: exclusivity, value rows, start order and co-op sync all follow.
