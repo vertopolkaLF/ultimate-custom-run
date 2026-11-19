@@ -250,9 +250,8 @@ internal static class ModifierGroupsUi
         var russian = MegaCrit.Sts2.Core.Localization.LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
         return ModifierRandomizerUi.AddOption(list, content, "AdvancedModeToggle",
             russian ? "Расширенный режим" : "Advanced mode",
-            russian
-                ? "Открывает параметры забега, ползунки значений и самые безумные модификаторы: Headstart, 20/20, Super Draft, Ultimate Starter, No Starting Deck, Dill и Handicap. Выключение сбрасывает значения к стандартным и снимает эти модификаторы."
-                : "Unlocks Run Parameters, value sliders, and the wildest modifiers: Headstart, 20/20, Super Draft, Ultimate Starter, No Starting Deck, Dill, and Handicap. Turning it off resets values to their defaults and unticks those modifiers.",
+            russian ? "Параметры забега, ползунки значений и безумные модификаторы."
+                : "Run Parameters, value sliders and the wild modifiers.",
             () => AdvancedMode.Enabled, value => AdvancedMode.SetEnabled(list, value));
     }
 
