@@ -250,8 +250,7 @@ internal static class ModifierGroupsUi
         var russian = MegaCrit.Sts2.Core.Localization.LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
         return ModifierRandomizerUi.AddOption(list, content, "AdvancedModeToggle",
             russian ? "Расширенный режим" : "Advanced mode",
-            russian ? "Параметры забега, ползунки значений и безумные модификаторы."
-                : "Run Parameters, value sliders and the wild modifiers.",
+            russian ? "Параметры забега и ползунки значений." : "Run Parameters and value sliders.",
             () => AdvancedMode.Enabled, value => AdvancedMode.SetEnabled(list, value));
     }
 
@@ -319,7 +318,7 @@ internal static class ModifierGroupsUi
         }
     }
 
-    // Without Advanced mode, its modifiers disappear entirely; their extra rows follow because they are unticked.
+    // Without Advanced mode, slider-only modifiers disappear entirely; their extra rows follow because they are unticked.
     private static void ApplyAdvanced(NCustomRunModifiersList list, Layout layout)
     {
         RefreshAdvancedToggle(list);

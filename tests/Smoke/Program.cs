@@ -1108,17 +1108,14 @@ internal static class Program
 
     private static void TestAdvancedModeClassification()
     {
-        foreach (var model in new ModifierModel[]
-        {
-            ModelDb.Modifier<CustomRunParameters>(), ModelDb.Modifier<Headstart>(), ModelDb.Modifier<TwentyTwentyDraft>(),
-            ModelDb.Modifier<SuperDraft>(), ModelDb.Modifier<UltimateStarter>(), ModelDb.Modifier<NoStarterDeck>(),
-            ModelDb.Modifier<Dill>(), ModelDb.Modifier<CoopHandicap>()
-        })
+        foreach (var model in new ModifierModel[] { ModelDb.Modifier<CustomRunParameters>(), ModelDb.Modifier<CoopHandicap>() })
             Check(AdvancedMode.IsAdvancedModifier(model), "Advanced mode hides " + model.GetType().Name);
         foreach (var model in new ModifierModel[]
         {
             ModelDb.Modifier<Specialized>(), ModelDb.Modifier<SealedDeck>(), ModelDb.Modifier<DoubleTrouble>(),
-            ModelDb.Modifier<MysteryEvents>(), ModelDb.Modifier<RichLoot>(), ModelDb.Modifier<MustHave>(), ModelDb.Modifier<SharedGold>()
+            ModelDb.Modifier<MysteryEvents>(), ModelDb.Modifier<RichLoot>(), ModelDb.Modifier<MustHave>(), ModelDb.Modifier<SharedGold>(),
+            ModelDb.Modifier<Headstart>(), ModelDb.Modifier<TwentyTwentyDraft>(), ModelDb.Modifier<SuperDraft>(),
+            ModelDb.Modifier<UltimateStarter>(), ModelDb.Modifier<NoStarterDeck>(), ModelDb.Modifier<Dill>()
         })
             Check(!AdvancedMode.IsAdvancedModifier(model), "Basic mode keeps " + model.GetType().Name);
         var sealedDeck = (ModifierModel)ModelDb.Modifier<SealedDeck>().MutableClone();
@@ -1129,6 +1126,12 @@ internal static class Program
         AdvancedMode.ResetValues(sealedDeck);
         Check(ModifierValues.Get(sealedDeck) == 10 && ModifierValues.GetSealedPool(sealedDeck) == 30 && !AdvancedMode.Uses([sealedDeck]),
             "Leaving Advanced mode restores both Sealed Deck sliders to their defaults");
+        var dill = (Dill)ModelDb.Modifier<Dill>().MutableClone();
+        dill.MaxHpPerFight = 5;
+        Check(AdvancedMode.Uses([dill]), "A changed Dill growth needs Advanced mode");
+        AdvancedMode.ResetValues(dill);
+        Check(dill.MaxHpPerFight == Dill.GrowthSpec.Default && !AdvancedMode.Uses([dill]),
+            "Leaving Advanced mode restores Dill growth to its default");
     }
 
     private static void TestPresetManagement()

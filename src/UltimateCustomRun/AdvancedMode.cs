@@ -15,8 +15,9 @@ internal sealed class AdvancedModeSettings
     public bool Enabled { get; set; }
 }
 
-// Advanced mode reveals Run Parameters, value sliders and the wildest modifiers.
-// Without it the list stays close to vanilla: those modifiers are hidden and every value uses its default.
+// Advanced mode reveals Run Parameters and value sliders.
+// Without it every modifier stays available, but uses its default values.
+// Run Parameters and Handicap consist only of sliders, so they are hidden entirely.
 internal static class AdvancedMode
 {
     private const string FilePath = "user://ultimate_custom_run_options.json";
@@ -37,12 +38,12 @@ internal static class AdvancedMode
     }
 
     internal static bool IsAdvancedModifier(ModifierModel? modifier) =>
-        modifier is CustomRunParameters or Headstart or TwentyTwentyModifier or SuperDraft or UltimateStarter
-            or NoStarterDeck or Dill or CoopHandicap;
+        modifier is CustomRunParameters or CoopHandicap;
 
     internal static bool HasCustomValue(ModifierModel modifier)
     {
         if (modifier is SealedDeck && ModifierValues.GetSealedPool(modifier) != ModifierValues.SealedPoolSpec.Default) return true;
+        if (modifier is Dill dill && dill.MaxHpPerFight != Dill.GrowthSpec.Default) return true;
         return ModifierValues.For(modifier) is { } spec && ModifierValues.Get(modifier) != spec.Default;
     }
 
@@ -54,6 +55,7 @@ internal static class AdvancedMode
         // The Sealed Deck pick limit depends on the pool, so restore the pool first.
         if (modifier is SealedDeck) ModifierValues.SetSealedPool(modifier, ModifierValues.SealedPoolSpec.Default);
         if (ModifierValues.For(modifier) is { } spec) ModifierValues.Set(modifier, spec.Default);
+        if (modifier is Dill dill) dill.MaxHpPerFight = Dill.GrowthSpec.Default;
     }
 
     private static List<NRunModifierTickbox> Tickboxes(NCustomRunModifiersList list) =>
