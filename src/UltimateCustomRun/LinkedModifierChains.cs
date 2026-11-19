@@ -56,7 +56,8 @@ internal static class LinkedModifierChains
             {
                 if (!GodotObject.IsInstanceValid(overlay) || !GodotObject.IsInstanceValid(upper) || !GodotObject.IsInstanceValid(lower)) return;
                 // A row moved to the Disabled section (singleplayer or Blitz) breaks the pair.
-                if (!body.IsAncestorOf(previous) || !body.IsAncestorOf(next))
+                // So does a row hidden without Advanced mode.
+                if (!body.IsAncestorOf(previous) || !body.IsAncestorOf(next) || !previous.Visible || !next.Visible)
                 {
                     foreach (var tile in tiles) tile.Visible = false;
                     return;
@@ -86,6 +87,8 @@ internal static class LinkedModifierChains
             next.ItemRectChanged += ScheduleUpdate;
             previous.TreeEntered += ScheduleUpdate;
             next.TreeEntered += ScheduleUpdate;
+            previous.VisibilityChanged += ScheduleUpdate;
+            next.VisibilityChanged += ScheduleUpdate;
             overlay.Resized += ScheduleUpdate;
             ScheduleUpdate();
         }

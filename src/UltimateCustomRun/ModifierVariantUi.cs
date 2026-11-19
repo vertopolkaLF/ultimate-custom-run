@@ -392,6 +392,7 @@ internal static class ModifierVariantSetTickedPatch
     [HarmonyPrefix]
     private static void Prefix(NCustomRunModifiersList __instance, IReadOnlyCollection<ModifierModel> __0)
     {
+        AdvancedMode.BeforeIncoming(__instance, __0);
         ModifierValueUi.ApplyIncoming(__instance, __0);
         StartOrder.ApplyIncoming(__instance, __0);
         // The native method emits ModifiersChanged before our postfix runs.

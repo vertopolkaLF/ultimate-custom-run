@@ -10,6 +10,7 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 ## Features
 
+- **Advanced mode** checkbox at the top of the modifier list (off by default, stored locally). Without it the list stays close to vanilla: every modifier uses its default value, value sliders are hidden, and the Run Parameters group, Headstart, 20/20, Super Draft, Ultimate Starter, No Starting Deck, Dill, and Handicap are hidden. Turning it on reveals all of them. Turning it off resets every slider to its default and unticks those modifiers. Loading a preset that uses any of them, or a changed value, switches Advanced mode on. The Randomizer rolls slider values and hidden modifiers only in Advanced mode. Co-op clients always see the host's selection.
 - Collapsible modifier groups: **Improved Start**, **Run Parameters**, **Modifiers**, **Card Pool**, **Ascension**, **Negatives**, and **Co-op**. Options unavailable in singleplayer appear under **Disabled**. A group with no available modifiers, such as Co-op in singleplayer, is hidden.
 - **Blitz** custom runs move modifiers that cannot affect Blitz to **Disabled** and drop them from the run: Flight, Deadly Events, Big Game Hunter, Midas, Blitz Merchant — Random, and the independent Swarming Elites, Poverty, Inflation, and Scarcity Ascension effects. Blitz has a fixed linear map, no gold, no normal Merchant, and fixed-rarity rewards. **Blitz Merchant** is shown enabled and locked in Blitz; its slider sets the native Blitz Merchant's picks (default 3). The Floors per act parameter is locked. Double Trouble (including 3 bosses and Campfires between bosses) and Neow!! work in Blitz. Switching to another mode restores the previous Blitz Merchant selection.
 - **Run Parameters** can set floors per act (vanilla or 8–30), base hand size (vanilla or 0–10, capped by the engine's 10-card hand limit), base energy (vanilla or 0–10), and enemy HP, enemy damage, and player HP multipliers (25–500%, step 25%).
@@ -48,7 +49,7 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 ## Adjustable values
 
-Enable a modifier to reveal its slider. Original values remain the defaults.
+Turn on **Advanced mode**, then enable a modifier to reveal its slider. Original values remain the defaults.
 
 | Modifier | Range | Step | Default |
 | --- | --- | --- | --- |

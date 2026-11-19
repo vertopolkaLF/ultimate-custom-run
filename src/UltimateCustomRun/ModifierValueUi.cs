@@ -142,14 +142,16 @@ internal static class ModifierValueUi
     {
         SubmodifierUi.Refresh(list);
         if (!Rows.TryGetValue(list, out var rows)) return;
+        // Sliders belong to Advanced mode; without it every modifier keeps its default value.
+        var advanced = AdvancedMode.IsActive(list);
         foreach (var row in rows)
         {
             row.Applying = true;
             try
             {
-                row.Root.Visible = row.Parent.IsTicked;
+                row.Root.Visible = row.Parent.IsTicked && advanced;
                 if (row.Root.GetParent() is VBoxContainer group && (group.Name == "SealedDeckValues" || group.Name == "DillValues"))
-                    group.Visible = row.Parent.IsTicked;
+                    group.Visible = row.Parent.IsTicked && advanced;
                 var editable = Editable(list) && !ModifierGroupsUi.IsLocked(list, row.Parent.Modifier);
                 row.Spec = SpecFor(row.Parent.Modifier, row.Kind)!;
                 editable &= row.Spec.Max > row.Spec.Min;

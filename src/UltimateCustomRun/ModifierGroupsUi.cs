@@ -33,6 +33,7 @@ internal static class ModifierGroupsUi
     private sealed class Layout
     {
         internal required VBoxContainer Content;
+        internal NRunModifierTickbox? AdvancedToggle;
         internal List<Section> Sections = [];
         internal List<LockEntry> Lockable = [];
         internal Dictionary<Section, List<Node>> OriginalChildren = [];
@@ -80,6 +81,7 @@ internal static class ModifierGroupsUi
         var layout = new Layout { Content = content };
         Layouts.Add(list, layout);
         content.AddThemeConstantOverride("separation", 12);
+        layout.AdvancedToggle = CreateAdvancedToggle(list, content);
 
         foreach (var (group, title) in ModifierGroups.Sections)
         {
@@ -243,6 +245,27 @@ internal static class ModifierGroupsUi
         Callable.From(() => ResizeContent(content)).CallDeferred();
     }
 
+    private static NRunModifierTickbox CreateAdvancedToggle(NCustomRunModifiersList list, VBoxContainer content)
+    {
+        var russian = MegaCrit.Sts2.Core.Localization.LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
+        return ModifierRandomizerUi.AddOption(list, content, "AdvancedModeToggle",
+            russian ? "Расширенный режим" : "Advanced mode",
+            russian
+                ? "Открывает параметры забега, ползунки значений и самые безумные модификаторы: Headstart, 20/20, Super Draft, Ultimate Starter, No Starting Deck, Dill и Handicap. Выключение сбрасывает значения к стандартным и снимает эти модификаторы."
+                : "Unlocks Run Parameters, value sliders, and the wildest modifiers: Headstart, 20/20, Super Draft, Ultimate Starter, No Starting Deck, Dill, and Handicap. Turning it off resets values to their defaults and unticks those modifiers.",
+            () => AdvancedMode.Enabled, value => AdvancedMode.SetEnabled(list, value));
+    }
+
+    internal static void RefreshAdvancedToggle(NCustomRunModifiersList list)
+    {
+        if (!GodotObject.IsInstanceValid(list) || !Layouts.TryGetValue(list, out var layout) ||
+            layout.AdvancedToggle is not { } toggle || !GodotObject.IsInstanceValid(toggle)) return;
+        // Clients follow the host's selection and cannot change the run, so the option is the host's alone.
+        toggle.Visible = IsEditable(list);
+        toggle.FocusMode = toggle.Visible ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
+        if (toggle.IsNodeReady()) toggle.IsTicked = AdvancedMode.Enabled;
+    }
+
     internal static void ApplyMode(NCustomRunModifiersList list)
     {
         if (!GodotObject.IsInstanceValid(list) || !Layouts.TryGetValue(list, out var layout)) return;
@@ -285,15 +308,31 @@ internal static class ModifierGroupsUi
             foreach (var section in layout.Sections) Reorder(layout, section);
         var forcedChanged = ApplyForced(list, layout);
         if (unticked || forcedChanged) ModifierVariantUi.RefreshFromTickboxes(list);
+        ApplyAdvanced(list, layout);
         // A group whose modifiers all moved to Disabled (or Disabled itself when empty) hides its header too.
         foreach (var section in layout.Sections.Where(section => section.Group != ModifierGroup.Randomizer))
         {
-            var visible = section.Rows.Count > 0;
+            var visible = section.Rows.Any(row => row.Visible);
             if (!visible && section.Root.Visible && layout.Content.GetViewport()?.GuiGetFocusOwner() is { } focus &&
                 section.Root.IsAncestorOf(focus))
                 layout.Sections.FirstOrDefault(other => other != section && other.Root.Visible)?.Header.GrabFocus();
             section.Root.Visible = visible;
         }
+    }
+
+    // Without Advanced mode, its modifiers disappear entirely; their extra rows follow because they are unticked.
+    private static void ApplyAdvanced(NCustomRunModifiersList list, Layout layout)
+    {
+        RefreshAdvancedToggle(list);
+        var advanced = AdvancedMode.IsActive(list);
+        var focus = layout.Content.GetViewport()?.GuiGetFocusOwner();
+        foreach (var section in layout.Sections)
+            foreach (var row in section.Rows.Where(row => AdvancedMode.IsAdvancedModifier(row.Modifier)))
+            {
+                if (!advanced && focus != null && (row == focus || row.IsAncestorOf(focus))) section.Header.GrabFocus();
+                row.Visible = advanced;
+                row.FocusMode = advanced && !IsLocked(list, row.Modifier) ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
+            }
     }
 
     // Lockable nodes return to their original positions; nodes moved in from other sections follow in build order.
@@ -399,6 +438,7 @@ internal static class ModifierGroupsUi
     private static void UpdateFocus(Layout layout)
     {
         var controls = layout.Sections.SelectMany(FocusableControls).ToList();
+        if (layout.AdvancedToggle is { Visible: true } toggle) controls.Insert(0, toggle);
         for (var i = 0; i < controls.Count; i++)
         {
             var previous = controls[(i + controls.Count - 1) % controls.Count];

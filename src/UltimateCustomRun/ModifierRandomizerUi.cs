@@ -53,7 +53,7 @@ internal static class ModifierRandomizerUi
             russian ? "Случайные значения" : "Random values",
             russian ? "Выпавшие модификаторы получают случайные настройки: числа на ползунках (например, сколько карт даёт Insanity), вариант (Normal / Draft / Pick Any) и доп. опции. Без галочки берутся ваши текущие настройки."
                 : "Picked modifiers get random settings: slider numbers (like Insanity's card count), variant (Normal / Draft / Pick Any) and sub-options. Unticked, they use your current settings.",
-            () => settings.Values, value => settings.Values = value);
+            () => settings.Values, value => { settings.Values = value; ModifierRandomizer.Save(); });
 
         var totals = Candidates(list, ignoreLocks: true);
         foreach (var group in ModifierRandomizer.RollGroups)
@@ -82,7 +82,7 @@ internal static class ModifierRandomizerUi
         Refresh(list);
     }
 
-    private static void AddOption(NCustomRunModifiersList list, HBoxContainer parent, string name, string title, string description,
+    internal static NRunModifierTickbox AddOption(NCustomRunModifiersList list, Container parent, string name, string title, string description,
         Func<bool> get, Action<bool> set)
     {
         // A display copy only lends the native checkbox scene; it never joins the modifier list.
@@ -109,9 +109,9 @@ internal static class ModifierRandomizerUi
         {
             if (applying) return;
             set(toggled.IsTicked);
-            ModifierRandomizer.Save();
         };
         parent.AddChild(tickbox);
+        return tickbox;
     }
 
     private static RangeRow CreateRangeRow(NCustomRunModifiersList list, ModifierGroup group, int total)
@@ -183,6 +183,7 @@ internal static class ModifierRandomizerUi
             .Where(modifier => !ModifierVariantUi.IsHiddenVariant(modifier) && modifier is not SubmodifierModel)
             .Where(modifier => ignoreLocks || !ModifierGroupsUi.IsLocked(list, modifier))
             .Where(modifier => !(blitz && BlitzCompatibility.IsForced(modifier)))
+            .Where(modifier => ignoreLocks || AdvancedMode.IsActive(list) || !AdvancedMode.IsAdvancedModifier(modifier))
             .GroupBy(modifier => ModifierGroups.Classify(modifier, negatives))
             .ToDictionary(group => group.Key, group => (IReadOnlyList<ModifierModel>)group.ToList());
     }
@@ -208,6 +209,7 @@ internal static class ModifierRandomizerUi
             }
 
             var blitz = BlitzCompatibility.IsBlitz(list);
+            var advanced = AdvancedMode.IsActive(list);
             var tickboxes = Tickboxes(list);
             // Each picked modifier remembers its checkbox position, so the result keeps the native list order.
             var selected = new List<(int Row, ModifierModel Modifier)>();
@@ -218,7 +220,8 @@ internal static class ModifierRandomizerUi
                 if (ModifierVariantUi.Variants(list, source) is { } variants)
                     chosen = settings.Values ? variants.All[rng.Next(variants.All.Count)] : variants.Current;
                 var modifier = (ModifierModel)chosen.MutableClone();
-                if (settings.Values) ModifierRandomizer.RandomizeValues(modifier, rng, blitz);
+                // Slider values stay at their defaults unless Advanced mode shows them.
+                if (settings.Values && advanced) ModifierRandomizer.RandomizeValues(modifier, rng, blitz);
                 selected.Add((RowOf(source), modifier));
                 foreach (var child in tickboxes.Where(row => row.Modifier is SubmodifierModel sub && sub.ParentType == source.GetType()))
                     if (settings.Values ? rng.Next(2) == 0 : child.IsTicked)

@@ -77,6 +77,7 @@ internal static class Program
 
             TestNeowModifier();
             TestPresetApplication();
+            TestAdvancedModeClassification();
             TestRandomizer();
             if (draftOnly)
             {
@@ -1062,7 +1063,9 @@ internal static class Program
             savedDill.MaxHpPerFight = 4;
             var preset = System.Text.Json.JsonSerializer.Deserialize<ModifierPreset>(System.Text.Json.JsonSerializer.Serialize(
                 ModifierPresetStore.Capture("Regression", [savedDraft, savedSealed, savedParameters, savedDill])))!;
+            AdvancedMode.UseInMemorySettings(false);
             AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null, [list, preset]);
+            Check(AdvancedMode.Enabled, "A loadout with Run Parameters, Dill or custom values switches Advanced mode on");
             Check(list.GetModifiersTickedOn().Any(model => model is SpecializedDraft) && choices[1].IsTicked,
                 "Loadout visually selects the saved Draft variant");
             Check(_presetNotification?.Any(model => model is SpecializedDraft && ModifierValues.Get(model) == 8) == true,
@@ -1090,10 +1093,42 @@ internal static class Program
             Check(CustomRunParameterValuesStore.From(_presetNotification) == CustomRunParameterValues.Default,
                 "Legacy loadouts without parameters restore defaults instead of inheriting the previous loadout");
             AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null, [list, ModifierPresetStore.Empty]);
+            AdvancedMode.UseInMemorySettings(false);
+            var vanillaDraft = (ModifierModel)draft.Modifier!.MutableClone();
+            AdvancedMode.ResetValues(vanillaDraft);
+            AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null,
+                [list, ModifierPresetStore.Capture("Vanilla", [vanillaDraft])]);
+            Check(!AdvancedMode.Enabled, "A loadout with only vanilla-like modifiers at default values keeps Advanced mode off");
+            AccessTools.Method(typeof(ModifierPresetUi), "ApplyPreset").Invoke(null, [list, ModifierPresetStore.Empty]);
             Check(_presetNotification is { Count: 0 } && list.GetModifiersTickedOn().Count == 0,
                 "Empty loadout clears both the run notification and visual selection");
         }
         finally { headless.UnpatchAll(headless.Id); HeadlessTicks.Clear(); }
+    }
+
+    private static void TestAdvancedModeClassification()
+    {
+        foreach (var model in new ModifierModel[]
+        {
+            ModelDb.Modifier<CustomRunParameters>(), ModelDb.Modifier<Headstart>(), ModelDb.Modifier<TwentyTwentyDraft>(),
+            ModelDb.Modifier<SuperDraft>(), ModelDb.Modifier<UltimateStarter>(), ModelDb.Modifier<NoStarterDeck>(),
+            ModelDb.Modifier<Dill>(), ModelDb.Modifier<CoopHandicap>()
+        })
+            Check(AdvancedMode.IsAdvancedModifier(model), "Advanced mode hides " + model.GetType().Name);
+        foreach (var model in new ModifierModel[]
+        {
+            ModelDb.Modifier<Specialized>(), ModelDb.Modifier<SealedDeck>(), ModelDb.Modifier<DoubleTrouble>(),
+            ModelDb.Modifier<MysteryEvents>(), ModelDb.Modifier<RichLoot>(), ModelDb.Modifier<MustHave>(), ModelDb.Modifier<SharedGold>()
+        })
+            Check(!AdvancedMode.IsAdvancedModifier(model), "Basic mode keeps " + model.GetType().Name);
+        var sealedDeck = (ModifierModel)ModelDb.Modifier<SealedDeck>().MutableClone();
+        Check(!AdvancedMode.Uses([sealedDeck]), "Default slider values do not need Advanced mode");
+        ModifierValues.SetSealedPool(sealedDeck, 60);
+        ModifierValues.Set(sealedDeck, 40);
+        Check(AdvancedMode.Uses([sealedDeck]), "A changed slider value needs Advanced mode");
+        AdvancedMode.ResetValues(sealedDeck);
+        Check(ModifierValues.Get(sealedDeck) == 10 && ModifierValues.GetSealedPool(sealedDeck) == 30 && !AdvancedMode.Uses([sealedDeck]),
+            "Leaving Advanced mode restores both Sealed Deck sliders to their defaults");
     }
 
     private static void TestPresetManagement()
