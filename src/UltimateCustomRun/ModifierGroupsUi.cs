@@ -35,6 +35,7 @@ internal static class ModifierGroupsUi
         internal required Label BadgeLabel;
         internal bool Selected;
         internal bool Hovered;
+        internal bool Disabled;
         internal Tween? Tween;
     }
     private sealed class LockEntry
@@ -379,7 +380,7 @@ internal static class ModifierGroupsUi
     {
         if (!GodotObject.IsInstanceValid(visual.Label)) return;
         visual.Banner.Modulate = new Color(1, 1, 1, visual.Selected ? 1 : visual.Hovered ? 0.45f : 0);
-        visual.Label.AddThemeColorOverride("font_color",
+        visual.Label.AddThemeColorOverride("font_color", visual.Disabled ? new Color(VanillaUi.Cream, 0.2f) :
             visual.Hovered ? VanillaUi.Gold : visual.Selected ? VanillaUi.Cream : VanillaUi.HalfCream);
     }
 
@@ -565,8 +566,17 @@ internal static class ModifierGroupsUi
         {
             var selected = section.Available && section.Group == layout.Selected;
             section.Root.Visible = selected;
-            section.Tab.Visible = section.Available;
+            // Empty groups keep their place in the rail but cannot be opened.
+            section.Tab.Visible = true;
             section.Tab.FocusMode = section.Available ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
+            section.Tab.MouseFilter = section.Available ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
+            section.Visual.Disabled = !section.Available;
+            if (section.Visual.Disabled && section.Visual.Hovered)
+            {
+                section.Visual.Hovered = false;
+                section.Visual.Tween?.Kill();
+                section.Tab.Scale = Vector2.One;
+            }
             section.Visual.Selected = selected;
             PaintTab(section.Visual);
         }

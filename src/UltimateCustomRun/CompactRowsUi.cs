@@ -99,11 +99,15 @@ internal static partial class CompactRowsUi
         var font = parts.Summary.GetThemeFont("normal_font");
         var plain = Tags().Replace(parts.Full, "");
         var width = parts.Summary.Size.X - 6;
-        float Measure(string text) => font.GetStringSize(text, HorizontalAlignment.Left, -1, SummarySize).X;
+        // Keywords may render in other fonts, so scale the estimate by the label's real line width.
+        parts.Summary.Text = parts.Full;
+        var estimate = font.GetStringSize(plain, HorizontalAlignment.Left, -1, SummarySize).X;
+        var actual = parts.Summary.GetContentWidth();
+        var scale = estimate > 0 && actual > 0 ? actual / estimate : 1;
+        float Measure(string text) => font.GetStringSize(text, HorizontalAlignment.Left, -1, SummarySize).X * scale;
         if (width <= 0 || Measure(plain) <= width)
         {
             parts.Truncated = false;
-            parts.Summary.Text = parts.Full;
             return;
         }
         var room = width - Measure(Ellipsis);
