@@ -90,6 +90,8 @@ internal static class ActiveModifiersUi
         if (players?.GetNodeOrNull<Container>("Container") is { } flow)
             flow.SortChildren += () => Callable.From(() => Place(panel)).CallDeferred();
         if (players != null) players.VisibilityChanged += () => Place(panel);
+        // Wrapped chip rows change the height the panel needs.
+        margin.MinimumSizeChanged += () => Callable.From(() => Place(panel)).CallDeferred();
         Place(panel);
     }
 
@@ -122,17 +124,18 @@ internal static class ActiveModifiersUi
         return System.Text.RegularExpressions.Regex.Replace(text, @"\[[^\]]*\]", "").Trim();
     }
 
-    // Fills the free space between the lobby players (or the title in singleplayer) and the seed row.
+    // Sits between the lobby players (or the title in singleplayer) and the seed row, lined up with the
+    // game mode dropdown on the left, and grows with its chips instead of leaving an empty box.
     private static void Place(Panel panel)
     {
         if (!GodotObject.IsInstanceValid(panel.Root)) return;
         var players = panel.Players;
-        float left = 263, right = 888, top = 235;
-        if (players != null && GodotObject.IsInstanceValid(players))
+        // The game mode dropdown and seed row start here; the modifier panel starts just right of 866.
+        var left = panel.Left.GetNodeOrNull<Control>("HBoxContainer")?.OffsetLeft ?? 170;
+        const float right = 866;
+        float top = 200;
+        if (players != null && GodotObject.IsInstanceValid(players) && players.Visible)
         {
-            left = players.OffsetLeft;
-            // Leave a gap before the modifier panel, which starts left of the right column.
-            right = Math.Min(players.OffsetRight, 866);
             top = players.OffsetTop;
             if (players.Visible && players.GetNodeOrNull<Control>("Container") is { } flow)
             {
@@ -145,7 +148,9 @@ internal static class ActiveModifiersUi
         panel.Root.OffsetLeft = left;
         panel.Root.OffsetRight = right;
         panel.Root.OffsetTop = top;
-        panel.Root.OffsetBottom = Bottom;
+        var margin = panel.Root.GetChildren().OfType<MarginContainer>().FirstOrDefault();
+        var wanted = Math.Max(MinimumHeight, margin?.GetCombinedMinimumSize().Y ?? MinimumHeight);
+        panel.Root.OffsetBottom = Math.Min(Bottom, top + wanted);
         panel.Root.Visible = Bottom - top >= MinimumHeight;
     }
 

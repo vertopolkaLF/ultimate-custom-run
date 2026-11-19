@@ -64,6 +64,7 @@ internal static class ModifierGroupsUi
     private const float TabWidth = 172;
     private const float TabHeight = 50;
     private const float ScrollbarWidth = 52;
+    private const float TopGap = 16;
     // Remembered for the session, so reopening the screen returns to the last tab.
     private static ModifierGroup SelectedGroup = ModifierGroup.ImprovedStart;
 
@@ -125,6 +126,8 @@ internal static class ModifierGroupsUi
     {
         if (!GodotObject.IsInstanceValid(list) || Layouts.TryGetValue(list, out _)) return;
         var content = list.GetNode<VBoxContainer>("ScrollContainer/Mask/Content");
+        // The native scene grows Content both ways, so anything too wide pushed the checkboxes under the left mask edge.
+        content.GrowHorizontal = Control.GrowDirection.End;
         var rows = (List<NRunModifierTickbox>)AccessTools.Field(typeof(NCustomRunModifiersList), "_modifierTickboxes").GetValue(list)!;
         var negatives = ModelDb.BadModifiers.Select(m => m.GetType()).ToHashSet();
         var rail = CreateRail(list);
@@ -271,7 +274,7 @@ internal static class ModifierGroupsUi
         panel.AnchorLeft = panel.AnchorTop = 0;
         panel.AnchorRight = panel.AnchorBottom = 1;
         panel.OffsetLeft = PanelLeft;
-        panel.OffsetTop = top - PanelPadding;
+        panel.OffsetTop = top + TopGap - PanelPadding;
         panel.OffsetRight = listRight + ScrollbarWidth + PanelPadding;
         panel.OffsetBottom = bottom + PanelPadding;
 
@@ -282,11 +285,13 @@ internal static class ModifierGroupsUi
         divider.AnchorBottom = 1;
         divider.OffsetLeft = PanelLeft + PanelPadding + TabWidth + 8;
         divider.OffsetRight = divider.OffsetLeft + 2;
-        divider.OffsetTop = top + 4;
+        divider.OffsetTop = top + TopGap + 4;
         divider.OffsetBottom = bottom - 4;
 
-        // The list keeps its height and right edge and starts after the tab column.
+        // The list keeps its right edge and starts after the tab column.
         list.OffsetLeft = divider.OffsetRight + 14;
+        // Leave room below the loadout dropdown, which hangs a little below the title row.
+        list.OffsetTop = top + TopGap;
         // Align the Modifiers title, loadout picker and Save button with the panel edge.
         if (parent.GetNodeOrNull<Control>("HBoxContainer") is { } header) header.OffsetLeft = PanelLeft;
 
@@ -296,8 +301,8 @@ internal static class ModifierGroupsUi
         rail.AnchorLeft = rail.AnchorRight = rail.AnchorTop = rail.AnchorBottom = 0;
         rail.OffsetLeft = PanelLeft + PanelPadding;
         rail.OffsetRight = rail.OffsetLeft + TabWidth;
-        rail.OffsetTop = top + 6;
-        rail.OffsetBottom = top + 6 + 10 * (TabHeight + 6);
+        rail.OffsetTop = top + TopGap + 6;
+        rail.OffsetBottom = top + TopGap + 6 + 10 * (TabHeight + 6);
         return rail;
     }
 
@@ -615,8 +620,33 @@ internal static class ModifierGroupsUi
 
     private static void ResizeContent(VBoxContainer content)
     {
-        if (GodotObject.IsInstanceValid(content))
-            content.Size = new Vector2(content.Size.X, content.GetCombinedMinimumSize().Y);
+        if (!GodotObject.IsInstanceValid(content)) return;
+        content.Size = new Vector2(content.Size.X, content.GetCombinedMinimumSize().Y);
+        ReportOverflow(content);
+    }
+
+    private static string? lastOverflow;
+
+    // Logs the chain of controls that make the list wider than its mask, once per distinct cause.
+    private static void ReportOverflow(VBoxContainer content)
+    {
+        if (content.GetParent() is not Control mask) return;
+        var limit = mask.Size.X * 0.979f;
+        if (content.GetCombinedMinimumSize().X <= limit + 1) return;
+        var chain = new List<string>();
+        Control node = content;
+        while (true)
+        {
+            chain.Add($"{node.Name}({node.GetType().Name}) {node.GetCombinedMinimumSize().X:0}");
+            var widest = node.GetChildren().OfType<Control>().Where(child => child.Visible)
+                .OrderByDescending(child => child.GetCombinedMinimumSize().X).FirstOrDefault();
+            if (widest == null || widest.GetCombinedMinimumSize().X < 1) break;
+            node = widest;
+        }
+        var text = string.Join(" > ", chain);
+        if (text == lastOverflow) return;
+        lastOverflow = text;
+        GD.Print($"[Ultimate Custom Run] Modifier list is wider than its panel ({limit:0}): {text}");
     }
 
     internal static void Refresh(NCustomRunModifiersList list)
