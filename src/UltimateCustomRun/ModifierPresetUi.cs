@@ -57,7 +57,7 @@ internal static class ModifierPresetUi
         var dropdownSlot = new Control
         {
             Name = "ModifierPresetSlot",
-            CustomMinimumSize = new Vector2(272, 56),
+            CustomMinimumSize = new Vector2(CustomRunHeaderUi.SelectWidth, 56),
             SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
             MouseFilter = Control.MouseFilterEnum.Ignore
         };
@@ -69,7 +69,7 @@ internal static class ModifierPresetUi
         dropdown.CustomMinimumSize = Vector2.Zero;
         dropdown.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         dropdown.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-        dropdown.GetNode<Control>("CurrentOption").CustomMinimumSize = new Vector2(272, 40);
+        dropdown.GetNode<Control>("CurrentOption").CustomMinimumSize = new Vector2(CustomRunHeaderUi.SelectWidth, 40);
         Dropdowns.Add(dropdown, new DropdownState { ModifierList = modifierList });
         dropdownSlot.AddChild(dropdown);
         dropdown.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);

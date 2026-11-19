@@ -27,7 +27,9 @@ internal static class CustomRunHeaderUi
     internal const float ContentTop = 118;
     // Column content ends this far above the bottom of the screen.
     private const float BottomMargin = 60;
-    private const float ControlHeight = 56, ModeWidth = 240, SeedWidth = 84, HeaderGap = 16;
+    // The game mode and loadout selects share one width.
+    internal const float SelectWidth = 240;
+    private const float ControlHeight = 56, ModeWidth = SelectWidth, SeedWidth = 84, HeaderGap = 16;
     // Vanilla offsets from the bottom of the left column, moved down into the space the seed row used to take.
     private const float AscensionTop = -366, AscensionBottom = -249;
     private const float CharactersTop = -50, CharactersBottom = -10;
