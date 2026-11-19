@@ -10,7 +10,7 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 ## Features
 
-- **Advanced mode** checkbox at the top of the modifier list (off by default, stored locally). Without it every modifier stays available with its default values: value sliders are hidden, as are the slider-only Run Parameters and Handicap. Turning it on reveals them. Turning it off resets every slider to its default and unticks Run Parameters and Handicap. Loading a preset that uses them, or a changed value, switches Advanced mode on. The Randomizer rolls slider values, Run Parameters, and Handicap only in Advanced mode. Co-op clients always see the host's selection.
+- **Unbalanced** checkbox under the modifier tabs (internally Advanced mode; off by default, stored locally). Without it every modifier stays available with its default values: value sliders are hidden, as are the slider-only Run Parameters and Handicap. Turning it on reveals them. Turning it off resets every slider to its default and unticks Run Parameters and Handicap. Loading a preset that uses them, or a changed value, switches Unbalanced on. The Randomizer rolls slider values, Run Parameters, and Handicap only when Unbalanced is on. Co-op clients always see the host's selection.
 - Modifier groups on tabs beside the list: **Randomize**, **Start**, **Parameters**, **Modifiers**, **Card Pool**, **Ascension**, **Negatives**, and **Co-op**, each with a count of its selected modifiers. Options unavailable in singleplayer appear under **Disabled**. A group with no available modifiers, such as Co-op in singleplayer, has no tab.
 - **Starting deck** choice at the top of the Start tab: Starter, Draft, Sealed Deck, Insanity, or Empty (No Starting Deck). The selected option's settings appear right below it.
 - **Active modifiers** panel in the left column lists every selected modifier (below the lobby players in co-op). Click an entry to open its tab.
@@ -51,7 +51,7 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 ## Adjustable values
 
-Turn on **Advanced mode**, then enable a modifier to reveal its slider. Original values remain the defaults.
+Turn on **Unbalanced**, then enable a modifier to reveal its slider. Original values remain the defaults.
 
 | Modifier | Range | Step | Default |
 | --- | --- | --- | --- |

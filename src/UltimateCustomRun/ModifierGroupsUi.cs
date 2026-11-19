@@ -396,7 +396,7 @@ internal static class ModifierGroupsUi
     private static NRunModifierTickbox CreateAdvancedToggle(NCustomRunModifiersList list, VBoxContainer rail)
     {
         var russian = LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
-        var title = russian ? "Расширенный режим" : "Advanced mode";
+        var title = russian ? "Дисбаланс" : "Unbalanced";
         var description = russian ? "Параметры забега и ползунки значений модификаторов." : "Run Parameters and modifier value sliders.";
         LocManager.Instance.GetTable("modifiers").MergeWith(new Dictionary<string, string>
         {
