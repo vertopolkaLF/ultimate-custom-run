@@ -307,8 +307,12 @@ internal static class ModifierGroupsUi
         list.OffsetLeft = divider.OffsetRight + 14;
         // Leave room below the loadout dropdown, which hangs a little below the title row.
         list.OffsetTop = top + TopGap;
-        // Align the Modifiers title, loadout picker and Save button with the panel edge.
-        if (parent.GetNodeOrNull<Control>("HBoxContainer") is { } header) header.OffsetLeft = PanelLeft;
+        // The Modifiers title starts at the panel's left edge; the loadout picker and Save button end at its right edge.
+        if (parent.GetNodeOrNull<Control>("HBoxContainer") is { } header)
+        {
+            header.OffsetLeft = PanelLeft;
+            header.OffsetRight = panel.OffsetRight;
+        }
 
         var rail = new VBoxContainer { Name = "ModifierTabs", MouseFilter = Control.MouseFilterEnum.Ignore };
         rail.AddThemeConstantOverride("separation", 6);
@@ -337,6 +341,7 @@ internal static class ModifierGroupsUi
         bar.OffsetTop += box.Position.Y + ScrollbarInsetTop - track.Position.Y;
         bar.OffsetBottom += box.End.Y - ScrollbarInsetBottom - track.End.Y;
         panel.OffsetRight += track.End.X - box.End.X;
+        if (panel.GetParent().GetNodeOrNull<Control>("HBoxContainer") is { } header) header.OffsetRight = panel.OffsetRight;
     }
 
     // Text tabs; the open one sits on the card library's teal header banner. Hover matches the settings tabs.

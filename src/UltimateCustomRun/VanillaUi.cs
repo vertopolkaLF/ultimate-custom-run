@@ -88,12 +88,12 @@ internal static class VanillaUi
     }
 
     private static Texture2D? radioOn, radioOff;
+    private static readonly Dictionary<string, Texture2D?> Assets = [];
 
-    // The mod's radio art (drawn to match the game's checkbox), bundled in the assembly.
-    internal static Texture2D Radio(bool on)
+    // A PNG bundled in the assembly's Assets folder, or null when it is missing.
+    internal static Texture2D? Asset(string name)
     {
-        if ((on ? radioOn : radioOff) is { } cached) return cached;
-        var name = on ? "radio_ticked.png" : "radio_unticked.png";
+        if (Assets.TryGetValue(name, out var cached)) return cached;
         Texture2D? texture = null;
         using (var stream = typeof(VanillaUi).Assembly.GetManifestResourceStream("UltimateCustomRun.Assets." + name))
         {
@@ -105,6 +105,14 @@ internal static class VanillaUi
                 if (image.LoadPngFromBuffer(buffer.ToArray()) == Error.Ok) texture = ImageTexture.CreateFromImage(image);
             }
         }
+        return Assets[name] = texture;
+    }
+
+    // The mod's radio art (drawn to match the game's checkbox), bundled in the assembly.
+    internal static Texture2D Radio(bool on)
+    {
+        if ((on ? radioOn : radioOff) is { } cached) return cached;
+        var texture = Asset(on ? "radio_ticked.png" : "radio_unticked.png");
         // Without the bundled art, fall back to the game's own checkbox.
         texture ??= ResourceLoader.Load<Texture2D>(on
             ? "res://images/packed/common_ui/checkbox_ticked.png" : "res://images/packed/common_ui/checkbox_unticked.png");

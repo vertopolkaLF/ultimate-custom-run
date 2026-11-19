@@ -31,9 +31,9 @@ internal static class ActiveModifiersUi
     private static readonly Color Cream = new(1, 0.9647059f, 0.8862745f);
     private static readonly Color Red = Color.FromHtml("ff6b64");
     private static readonly StringName ShaderV = new("v");
-    // The game mode dropdown and seed row start below this line of the left column.
-    private const float Bottom = 516;
     private const float MinimumHeight = 110;
+    // Space kept above the Ascension panel's box.
+    private const float AscensionGap = 12;
 
     private static bool Russian => LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
 
@@ -100,6 +100,7 @@ internal static class ActiveModifiersUi
         if (players?.GetNodeOrNull<Container>("Container") is { } flow)
             flow.SortChildren += () => Callable.From(() => Place(panel)).CallDeferred();
         if (players != null) players.VisibilityChanged += () => Place(panel);
+        left.Resized += () => Place(panel);
         // Wrapped chip rows change the height the panel needs.
         margin.MinimumSizeChanged += () => Callable.From(() => Place(panel)).CallDeferred();
         chips.MinimumSizeChanged += () => Callable.From(() => Place(panel)).CallDeferred();
@@ -135,16 +136,15 @@ internal static class ActiveModifiersUi
         return System.Text.RegularExpressions.Regex.Replace(text, @"\[[^\]]*\]", "").Trim();
     }
 
-    // Sits between the lobby players (or the title in singleplayer) and the seed row, lined up with the
-    // game mode dropdown on the left, and grows with its chips instead of leaving an empty box.
+    // Sits between the lobby players (or the header in singleplayer) and the Ascension panel, across the left
+    // column, and grows with its chips instead of leaving an empty box.
     private static void Place(Panel panel)
     {
         if (!GodotObject.IsInstanceValid(panel.Root)) return;
         var players = panel.Players;
-        // The game mode dropdown and seed row start here; the modifier panel starts just right of 866.
-        var left = panel.Left.GetNodeOrNull<Control>("HBoxContainer")?.OffsetLeft ?? 170;
-        const float right = 866;
-        float top = 200;
+        const float left = CustomRunHeaderUi.ColumnLeft, right = CustomRunHeaderUi.ColumnRight;
+        float top = CustomRunHeaderUi.ContentTop;
+        var bottom = AscensionTop(panel.Left) - AscensionGap;
         if (players != null && GodotObject.IsInstanceValid(players) && players.Visible)
         {
             top = players.OffsetTop;
@@ -163,8 +163,18 @@ internal static class ActiveModifiersUi
         // The scroll area reports no height of its own, so add the wrapped chip rows to the rest.
         var wanted = Math.Max(MinimumHeight, (margin?.GetCombinedMinimumSize().Y ?? MinimumHeight) +
             (panel.Chips.Visible ? panel.Chips.GetCombinedMinimumSize().Y : 0));
-        panel.Root.OffsetBottom = Math.Min(Bottom, top + wanted);
-        panel.Root.Visible = Bottom - top >= MinimumHeight;
+        panel.Root.OffsetBottom = Math.Min(bottom, top + wanted);
+        panel.Root.Visible = bottom - top >= MinimumHeight;
+    }
+
+    // Top of the Ascension panel's visible box; the panel is anchored to the bottom of the left column.
+    private static float AscensionTop(Control left)
+    {
+        var height = left.Size.Y > 0 ? left.Size.Y : 1080;
+        if (left.GetNodeOrNull<Control>("AscensionPanel") is not { } ascension) return height - 380;
+        var box = ascension.GetNodeOrNull<Control>("Background");
+        var inset = box != null ? (ascension.OffsetBottom - ascension.OffsetTop) / 2 + box.OffsetTop : 0;
+        return height + ascension.OffsetTop + Math.Max(0, inset);
     }
 
     private static Label CreateLabel(string text, int size, Color color, string font)

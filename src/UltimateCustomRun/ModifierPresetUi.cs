@@ -89,6 +89,7 @@ internal static class ModifierPresetUi
 
         Screens.Add(screen, new ScreenState { Dropdown = dropdown, SaveButton = saveButton, ModifierList = modifierList });
         UpdateAvailability(screen);
+        CustomRunHeaderUi.Attach(screen);
     }
 
     internal static void UpdateAvailability(NCustomRunScreen screen)
@@ -105,8 +106,8 @@ internal static class ModifierPresetUi
     private static NButton CreateSaveButton() =>
         CreateButton("SaveModifierPresetButton", IsRussian() ? "Сохранить" : "Save", 136);
 
-    // Green hexagonal button, the same art and tint as the game's Proceed and Feedback buttons.
-    internal static NButton CreateButton(string name, string text, float width)
+    // Green hexagonal button, the same art and tint as the game's Proceed and Feedback buttons; teal is the Skip button.
+    internal static NButton CreateButton(string name, string text, float width, bool teal = false)
     {
         var button = new NButton
         {
@@ -118,7 +119,7 @@ internal static class ModifierPresetUi
         };
         button.Resized += () => button.PivotOffset = button.Size / 2;
         // The hex art is teal; h shifts its hue by (h - 1) turns, so 0.76 lands on the Feedback button's green.
-        var (background, material) = VanillaUi.Hex(0.76f, 1.3f, GreenV);
+        var (background, material) = teal ? VanillaUi.Hex(1, 1, TealV) : VanillaUi.Hex(0.76f, 1.3f, GreenV);
         background.Name = "Background";
         button.AddChild(background);
         background.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
@@ -134,19 +135,19 @@ internal static class ModifierPresetUi
         label.AddThemeFontOverride("font", ResourceLoader.Load<Font>("res://themes/kreon_bold_shared.tres"));
         label.AddThemeFontSizeOverride("font_size", 25);
         label.AddThemeColorOverride("font_color", Color.FromHtml("fff6e2"));
-        label.AddThemeColorOverride("font_outline_color", new Color(0.13f, 0.24f, 0.1f));
+        label.AddThemeColorOverride("font_outline_color", teal ? new Color(0.2166f, 0.317363f, 0.38f) : new Color(0.13f, 0.24f, 0.1f));
         label.AddThemeConstantOverride("outline_size", 10);
         button.AddChild(label);
         label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         label.OffsetBottom = -2;
-        AddHover(button, button, material, GreenV);
+        AddHover(button, button, material, teal ? TealV : GreenV);
         return button;
     }
 
-    private const float GreenV = 0.8f, TealV = 0.9f;
+    internal const float GreenV = 0.8f, TealV = 0.9f;
 
     // The settings-button hover used across the mod: grow and brighten at once, ease back over half a second.
-    private static void AddHover(Control target, Control scaled, ShaderMaterial material, float baseV)
+    internal static void AddHover(Control target, Control scaled, ShaderMaterial material, float baseV)
     {
         Tween? tween = null;
         var hovered = false;
