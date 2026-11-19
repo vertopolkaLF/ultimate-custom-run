@@ -344,7 +344,7 @@ internal static class ModifierGroupsUi
         margin.AddChild(row);
         var label = VanillaUi.Label(title, 24, VanillaUi.HalfCream);
         label.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        label.ClipText = true;
+        // No clipping: the outline would be cut at the label edge.
         VanillaUi.Outline(label);
         row.AddChild(label);
         var (badge, badgeLabel) = VanillaUi.Badge(30);
