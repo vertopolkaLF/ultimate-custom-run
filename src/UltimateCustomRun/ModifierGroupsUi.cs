@@ -28,7 +28,7 @@ internal static class ModifierGroupsUi
     }
     private sealed class TabVisual
     {
-        internal required TextureRect Banner;
+        internal required Control Banner;
         internal required ShaderMaterial Material;
         internal required Label Label;
         internal required Control Badge;
@@ -303,7 +303,22 @@ internal static class ModifierGroupsUi
         rail.OffsetRight = rail.OffsetLeft + TabWidth;
         rail.OffsetTop = top + TopGap + 6;
         rail.OffsetBottom = top + TopGap + 6 + 10 * (TabHeight + 6);
+        void Fit() => FitScrollbar(list, panel);
+        list.Resized += Fit;
+        Callable.From(Fit).CallDeferred();
         return rail;
+    }
+
+    // The scrollbar track runs the full height of the panel and its right edge closes the panel.
+    private static void FitScrollbar(NCustomRunModifiersList list, Control panel)
+    {
+        if (!GodotObject.IsInstanceValid(panel) || list.GetNodeOrNull<Control>("Scrollbar") is not { } bar) return;
+        var box = panel.GetGlobalRect();
+        var track = bar.GetGlobalRect();
+        if (track.Size.Y <= 0) return;
+        bar.OffsetTop += box.Position.Y - track.Position.Y;
+        bar.OffsetBottom += box.End.Y - track.End.Y;
+        panel.OffsetRight += track.End.X - box.End.X;
     }
 
     // Text tabs; the open one sits on the card library's teal header banner. Hover matches the settings tabs.

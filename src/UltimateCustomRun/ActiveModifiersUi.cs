@@ -204,7 +204,7 @@ internal static class ActiveModifiersUi
             material.SetShaderParameter(ShaderV, 1.15f);
             chip.Scale = Vector2.One * 1.05f;
             NHoverTipSet.Remove(chip);
-            NHoverTipSet.CreateAndShow(chip, new HoverTip(modifier.Title, modifier.Description, null!), HoverTipAlignment.Right);
+            NHoverTipSet.CreateAndShow(chip, VanillaUi.Tip(modifier.Title, modifier.Description), HoverTipAlignment.Right);
         };
         chip.MouseExited += () =>
         {

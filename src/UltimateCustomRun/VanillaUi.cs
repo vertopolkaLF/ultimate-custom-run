@@ -54,19 +54,37 @@ internal static class VanillaUi
         return box;
     }
 
-    internal static (TextureRect Image, ShaderMaterial Material) Banner(float value = 0.8f)
+    // The banner texture only has a finished end on the left, so the right half mirrors the left half.
+    internal static (Control Image, ShaderMaterial Material) Banner(float value = 0.8f)
     {
         var material = new ShaderMaterial { Shader = ResourceLoader.Load<Shader>("res://shaders/hsv.gdshader") };
         material.SetShaderParameter("h", 1.0f);
         material.SetShaderParameter("s", 0.8f);
         material.SetShaderParameter(ShaderV, value);
-        var image = new TextureRect
+        var texture = ResourceLoader.Load<Texture2D>(BannerTexture);
+        var half = new AtlasTexture { Atlas = texture, Region = new Rect2(0, 0, texture.GetWidth() / 2f, texture.GetHeight()) };
+        var root = new Control { Name = "Banner", MouseFilter = Control.MouseFilterEnum.Ignore };
+        foreach (var right in new[] { false, true })
         {
-            Texture = ResourceLoader.Load<Texture2D>(BannerTexture),
-            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.Scale,
-            Material = material, MouseFilter = Control.MouseFilterEnum.Ignore
-        };
-        return (image, material);
+            var image = new TextureRect
+            {
+                Texture = half, FlipH = right, Material = material, MouseFilter = Control.MouseFilterEnum.Ignore,
+                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.Scale,
+                AnchorLeft = right ? 0.5f : 0, AnchorRight = right ? 1 : 0.5f, AnchorTop = 0, AnchorBottom = 1
+            };
+            root.AddChild(image);
+        }
+        return (root, material);
+    }
+
+    // Modifier titles may carry bbcode, which hover tip titles show as raw text.
+    internal static MegaCrit.Sts2.Core.HoverTips.HoverTip Tip(MegaCrit.Sts2.Core.Localization.LocString title,
+        MegaCrit.Sts2.Core.Localization.LocString description)
+    {
+        object tip = new MegaCrit.Sts2.Core.HoverTips.HoverTip(title, description, null!);
+        var plain = System.Text.RegularExpressions.Regex.Replace(title.GetFormattedText(), @"\[[^\]]*\]", "").Trim();
+        typeof(MegaCrit.Sts2.Core.HoverTips.HoverTip).GetProperty("Title")!.SetValue(tip, plain);
+        return (MegaCrit.Sts2.Core.HoverTips.HoverTip)tip;
     }
 
     internal static void SetBrightness(ShaderMaterial material, float value) => material.SetShaderParameter(ShaderV, value);

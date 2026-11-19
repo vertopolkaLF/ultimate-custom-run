@@ -179,14 +179,12 @@ internal static class DeckPickerUi
         {
             if (card.Hovered) return;
             card.Hovered = true;
-            VanillaUi.HoverIn(button, null, ref card.Tween);
             Paint(card);
         }
         void Exit()
         {
             if (!card.Hovered || button.HasFocus() || mouseInside) return;
             card.Hovered = false;
-            VanillaUi.HoverOut(button, null, ref card.Tween);
             Paint(card);
         }
         button.MouseEntered += () => { mouseInside = true; Enter(); };
@@ -247,7 +245,7 @@ internal static class DeckPickerUi
         NHoverTipSet.Remove(owner);
         var tip = choice == Choice.Starter
             ? new HoverTip(new LocString("modifiers", StarterTitleKey), new LocString("modifiers", StarterDescriptionKey), null!)
-            : new HoverTip(state.Rows[choice].Modifier!.Title, state.Rows[choice].Modifier!.Description, null!);
+            : VanillaUi.Tip(state.Rows[choice].Modifier!.Title, state.Rows[choice].Modifier!.Description);
         NHoverTipSet.CreateAndShow(owner, tip, HoverTipAlignment.Left);
     }
 

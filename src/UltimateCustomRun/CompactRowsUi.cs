@@ -147,6 +147,6 @@ internal static partial class CompactRowsUi
         if (row.Modifier is not { } modifier || !row.IsVisibleInTree()) return;
         NHoverTipSet.Remove(row);
         if (!Rows.TryGetValue(row, out var parts) || !parts.Truncated) return;
-        NHoverTipSet.CreateAndShow(row, new HoverTip(modifier.Title, modifier.Description, null!), HoverTipAlignment.Left);
+        NHoverTipSet.CreateAndShow(row, VanillaUi.Tip(modifier.Title, modifier.Description), HoverTipAlignment.Left);
     }
 }
