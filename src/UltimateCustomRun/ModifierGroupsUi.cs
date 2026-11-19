@@ -3,6 +3,8 @@ using OpCodes = System.Reflection.Emit.OpCodes;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.UI;
+using MegaCrit.Sts2.Core.HoverTips;
+using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
@@ -135,7 +137,7 @@ internal static class ModifierGroupsUi
         var layout = new Layout { List = list, Content = content, Rail = rail };
         Layouts.Add(list, layout);
         content.AddThemeConstantOverride("separation", 12);
-        layout.AdvancedToggle = CreateAdvancedToggle(list, content);
+        layout.AdvancedToggle = CreateAdvancedToggle(list, rail);
 
         foreach (var (group, _) in ModifierGroups.Sections)
         {
@@ -386,14 +388,56 @@ internal static class ModifierGroupsUi
             visual.Hovered ? VanillaUi.Gold : visual.Selected ? VanillaUi.Cream : VanillaUi.HalfCream);
     }
 
-    private static NRunModifierTickbox CreateAdvancedToggle(NCustomRunModifiersList list, VBoxContainer content)
+    private const string AdvancedTitleKey = "ultimate_custom_run.advanced.title";
+    private const string AdvancedDescriptionKey = "ultimate_custom_run.advanced.description";
+
+    // Advanced mode is a setting for the whole list, so it sits under the tab rail instead of heading every tab.
+    // The full explanation is in a hover tip; the row itself only names the setting.
+    private static NRunModifierTickbox CreateAdvancedToggle(NCustomRunModifiersList list, VBoxContainer rail)
     {
         var russian = LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
-        return ModifierRandomizerUi.AddOption(list, content, "AdvancedModeToggle",
-            russian ? "Расширенный режим" : "Advanced mode",
-            russian ? "Параметры забега и ползунки значений." : "Run Parameters and value sliders.",
+        var title = russian ? "Расширенный режим" : "Advanced mode";
+        var description = russian ? "Параметры забега и ползунки значений модификаторов." : "Run Parameters and modifier value sliders.";
+        LocManager.Instance.GetTable("modifiers").MergeWith(new Dictionary<string, string>
+        {
+            [AdvancedTitleKey] = title, [AdvancedDescriptionKey] = description
+        });
+
+        var parent = rail.GetParent<Control>();
+        var slot = new VBoxContainer { Name = "AdvancedModeSlot", MouseFilter = Control.MouseFilterEnum.Ignore };
+        slot.AddThemeConstantOverride("separation", 6);
+        parent.AddChild(slot);
+        // Anchored to the bottom like the panel, so it stays at the panel's lower edge.
+        slot.AnchorLeft = slot.AnchorRight = 0;
+        slot.AnchorTop = slot.AnchorBottom = 1;
+        slot.OffsetLeft = rail.OffsetLeft;
+        slot.OffsetRight = rail.OffsetRight;
+        slot.OffsetBottom = PanelBottom(parent) - 8;
+        slot.OffsetTop = slot.OffsetBottom - 90;
+        slot.Alignment = BoxContainer.AlignmentMode.End;
+        slot.AddChild(new ColorRect
+        {
+            Color = new Color(VanillaUi.Cream, 0.12f), CustomMinimumSize = new Vector2(0, 2), MouseFilter = Control.MouseFilterEnum.Ignore
+        });
+
+        var toggle = ModifierRandomizerUi.AddOption(list, slot, "AdvancedModeToggle", title, "",
             () => AdvancedMode.Enabled, value => AdvancedMode.SetEnabled(list, value));
+        toggle.Ready += () =>
+        {
+            var label = toggle.GetNode<MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel>("HBoxContainer/Description");
+            label.AutoSizeEnabled = false;
+            foreach (var size in new[] { "normal_font_size", "bold_font_size" }) label.AddThemeFontSizeOverride(size, 22);
+            label.Text = $"[gold]{title}[/gold]";
+        };
+        toggle.MouseEntered += () => NHoverTipSet.CreateAndShow(toggle,
+            new HoverTip(new LocString("modifiers", AdvancedTitleKey), new LocString("modifiers", AdvancedDescriptionKey), null!),
+            HoverTipAlignment.Right);
+        toggle.MouseExited += () => NHoverTipSet.Remove(toggle);
+        return toggle;
     }
+
+    // The modifier panel's bottom offset (it is anchored to the bottom of its parent).
+    private static float PanelBottom(Control parent) => parent.GetNodeOrNull<Control>("ModifierPanel")?.OffsetBottom ?? 0;
 
     internal static void RefreshAdvancedToggle(NCustomRunModifiersList list)
     {
@@ -689,9 +733,7 @@ internal static class ModifierGroupsUi
 
     private static List<Control> ContentControls(Layout layout)
     {
-        var controls = SelectedSection(layout) is { } section ? FocusableControls(section).ToList() : [];
-        if (layout.AdvancedToggle is { Visible: true } toggle && toggle.FocusMode == Control.FocusModeEnum.All) controls.Insert(0, toggle);
-        return controls;
+        return SelectedSection(layout) is { } section ? FocusableControls(section).ToList() : [];
     }
 
     // Up and down move within the open tab; right jumps to the tab column and left returns to the list.
@@ -699,6 +741,8 @@ internal static class ModifierGroupsUi
     {
         var controls = ContentControls(layout);
         var tabs = layout.Sections.Where(section => section.Available).Select(section => (Control)section.Tab).ToList();
+        // The Advanced mode switch closes the rail's focus column.
+        if (layout.AdvancedToggle is { Visible: true } toggle && toggle.FocusMode == Control.FocusModeEnum.All) tabs.Add(toggle);
         var selectedTab = SelectedSection(layout)?.Tab;
         for (var i = 0; i < controls.Count; i++)
         {
