@@ -1,8 +1,10 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.HoverTips;
+using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Runs;
@@ -12,7 +14,7 @@ namespace UltimateCustomRun;
 
 // The top bar lays modifier icons in one row after the room icons, so a long modifier list runs under
 // the timer, map and deck on the right. Icons that do not fit are hidden and replaced by one "+N" icon
-// whose hover shows the tips of every hidden modifier. Runs after the ascension grouping.
+// whose hover lists the hidden modifiers. Runs after the ascension grouping.
 [HarmonyPatch(typeof(NTopBar), nameof(NTopBar.Initialize))]
 internal static class TopBarModifierOverflow
 {
@@ -25,7 +27,7 @@ internal static class TopBarModifierOverflow
         internal required NTopBarModifier Overflow;
         internal required TextureRect Icon;
         internal required Label Count;
-        internal List<IHoverTip> Tips = new();
+        internal HoverTip? Tip;
         internal int Shown = -1;
         internal int Total = -1;
     }
@@ -105,12 +107,13 @@ internal static class TopBarModifierOverflow
         }
     }
 
+    // One compact tip listing the hidden titles: a stack of full tips for a long list runs off the screen.
     private static void ShowTips(State state)
     {
-        if (state.Tips.Count == 0) return;
+        if (state.Tip is not { } tip) return;
         var overflow = state.Overflow;
-        NHoverTipSet.CreateAndShow(overflow, state.Tips)
-            ?.SetAlignmentBelow(overflow.GlobalPosition + new Vector2(0, overflow.Size.Y * overflow.GetGlobalTransform().Scale.Y + 20));
+        NHoverTipSet.CreateAndShow(overflow, tip)
+            ?.SetGlobalPosition(overflow.GlobalPosition + new Vector2(0, overflow.Size.Y * overflow.GetGlobalTransform().Scale.Y + 20));
     }
 
     private static void Fit(State state)
@@ -134,7 +137,7 @@ internal static class TopBarModifierOverflow
         for (var i = 0; i < icons.Count; i++) icons[i].Visible = i < shown;
         var hidden = icons.Skip(shown).ToList();
         state.Overflow.Visible = hidden.Count > 0;
-        state.Tips = hidden.Select(TipOf).OfType<IHoverTip>().ToList();
+        state.Tip = hidden.Count > 0 ? CreateTip(hidden) : null;
         state.Icon.Texture = hidden.FirstOrDefault()?.GetNodeOrNull<TextureRect>("Icon")?.Texture;
         state.Count.Text = "+" + hidden.Count;
         NHoverTipSet.Remove(state.Overflow);
@@ -142,13 +145,18 @@ internal static class TopBarModifierOverflow
         Callable.From(state.TopBar.UpdateNavigation).CallDeferred();
     }
 
-    // The modifier's own tip (or the grouped ascension tip), with its icon so the list stays recognizable.
-    private static IHoverTip? TipOf(NTopBarModifier icon)
+    private static HoverTip CreateTip(IReadOnlyList<NTopBarModifier> hidden)
     {
-        var tip = HoverTipField.GetValue(icon);
-        if (tip is not HoverTip) return null;
-        var texture = icon.GetNodeOrNull<TextureRect>("Icon")?.Texture;
-        if (texture != null) typeof(HoverTip).GetProperty(nameof(HoverTip.Icon))!.SetValue(tip, texture);
-        return (HoverTip)tip;
+        // Each icon's own tip title, which for the grouped ascension icon is the combined ascension title.
+        var titles = hidden.Select(icon => HoverTipField.GetValue(icon) is HoverTip tip ? tip.Title : null)
+            .Where(title => !string.IsNullOrWhiteSpace(title))
+            .Select(title => Regex.Replace(title!, @"\[[^\]]*\]", "").Trim());
+        object result = new HoverTip(new LocString("main_menu_ui", "CUSTOM_RUN_SCREEN.CUSTOM_MODE_TITLE"),
+            string.Join("\n", titles.Select(title => "• " + title)), null);
+        var heading = Russian ? $"Ещё модификаторов: {hidden.Count}" : $"{hidden.Count} more modifiers";
+        typeof(HoverTip).GetProperty(nameof(HoverTip.Title))!.SetValue(result, heading);
+        return (HoverTip)result;
     }
+
+    private static bool Russian => LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
 }
