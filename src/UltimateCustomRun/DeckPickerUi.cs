@@ -171,11 +171,18 @@ internal static class DeckPickerUi
         button.AddChild(line);
         line.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         // Sized like the modifier rows' checkbox: a 48px image at the tickbox scene's 0.8 base scale.
+        // Containers reset their direct children's scale on every layout, so the scaled node sits one level down.
+        var slot = new Control
+        {
+            CustomMinimumSize = new Vector2(48, 48), SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
+            MouseFilter = Control.MouseFilterEnum.Ignore
+        };
         var visuals = new Control
         {
-            CustomMinimumSize = new Vector2(48, 48), PivotOffset = new Vector2(24, 24), Scale = Vector2.One * RadioScale,
-            SizeFlagsVertical = Control.SizeFlags.ShrinkCenter, MouseFilter = Control.MouseFilterEnum.Ignore
+            Size = new Vector2(48, 48), PivotOffset = new Vector2(24, 24), Scale = Vector2.One * RadioScale,
+            MouseFilter = Control.MouseFilterEnum.Ignore
         };
+        slot.AddChild(visuals);
         var material = new ShaderMaterial { Shader = ResourceLoader.Load<Shader>("res://shaders/hsv.gdshader") };
         material.SetShaderParameter("h", 1.0f);
         material.SetShaderParameter("s", 1.0f);
@@ -187,7 +194,7 @@ internal static class DeckPickerUi
         };
         visuals.AddChild(radio);
         radio.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        line.AddChild(visuals);
+        line.AddChild(slot);
         var name = VanillaUi.Label(title, 22, VanillaUi.Cream, bold: false);
         name.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         name.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
