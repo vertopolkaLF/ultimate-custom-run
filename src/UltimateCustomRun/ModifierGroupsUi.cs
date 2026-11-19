@@ -304,6 +304,8 @@ internal static class ModifierGroupsUi
         rail.OffsetRight = rail.OffsetLeft + TabWidth;
         rail.OffsetTop = top + TopGap + 6;
         rail.OffsetBottom = top + TopGap + 6 + 10 * (TabHeight + 6);
+        // The header holds the loadout select; its open list must draw and take clicks above the panel and tabs.
+        if (parent.GetNodeOrNull<Control>("HBoxContainer") is { } headerRow) parent.MoveChild(headerRow, -1);
         void Fit() => FitScrollbar(list, panel);
         list.Resized += Fit;
         Callable.From(Fit).CallDeferred();

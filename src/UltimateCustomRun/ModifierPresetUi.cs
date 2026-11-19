@@ -214,11 +214,12 @@ internal static class ModifierPresetUi
         // The open list uses the same dark nine-patch as the game's info panels.
         var optionsPanel = dropdown.GetNode<Panel>("DropdownContainer/Highlight");
         optionsPanel.Modulate = Colors.White;
-        optionsPanel.AddThemeStyleboxOverride("panel", new StyleBoxTexture
+        optionsPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
-            Texture = ResourceLoader.Load<Texture2D>(VanillaUi.BoxTexture),
-            TextureMarginLeft = 12, TextureMarginTop = 12, TextureMarginRight = 12, TextureMarginBottom = 12,
-            ModulateColor = new Color(0.06f, 0.09f, 0.11f, 0.97f)
+            BgColor = Color.FromHtml("0d1519"), BorderColor = new Color(VanillaUi.Teal, 0.6f),
+            BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2,
+            CornerRadiusTopLeft = 8, CornerRadiusTopRight = 8, CornerRadiusBottomLeft = 8, CornerRadiusBottomRight = 8,
+            ShadowColor = new Color(0, 0, 0, 0.5f), ShadowSize = 8
         });
     }
 
@@ -292,15 +293,27 @@ internal static class ModifierPresetUi
         banner.OffsetTop = 2;
         banner.OffsetBottom = -2;
         var idle = current ? VanillaUi.Gold : reset ? new Color(VanillaUi.Cream, 0.5f) : VanillaUi.Cream;
+        // Moving onto the trash button unfocuses the row in the game's logic; the row stays lit meanwhile, and
+        // the button itself never hides, so it can always be clicked.
+        var onRemove = false;
         void Paint()
         {
             if (!GodotObject.IsInstanceValid(label)) return;
-            banner.Visible = highlight.Visible;
-            label.AddThemeColorOverride("font_color", highlight.Visible ? VanillaUi.Gold : idle);
-            if (item.GetNodeOrNull<CanvasItem>("RemovePresetButton") is { } remove) remove.Visible = highlight.Visible;
+            var lit = highlight.Visible || onRemove;
+            banner.Visible = lit;
+            label.AddThemeColorOverride("font_color", lit ? VanillaUi.Gold : idle);
+            if (item.GetNodeOrNull<CanvasItem>("RemovePresetButton") is { } remove) remove.Modulate = new Color(1, 1, 1, lit ? 1 : 0.35f);
         }
         highlight.VisibilityChanged += Paint;
-        Callable.From(Paint).CallDeferred();
+        Callable.From(() =>
+        {
+            if (item.GetNodeOrNull<Control>("RemovePresetButton") is { } remove)
+            {
+                remove.MouseEntered += () => { onRemove = true; Paint(); };
+                remove.MouseExited += () => { onRemove = false; Paint(); };
+            }
+            Paint();
+        }).CallDeferred();
     }
 
     private static void AddRemoveButton(NDropdownItem item, ModifierPreset preset, NActDropdown dropdown, DropdownState state)
