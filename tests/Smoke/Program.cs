@@ -349,20 +349,20 @@ internal static class Program
     {
         var cases = new (ModifierModel Model, int Min, int Max, int Step, int Default)[]
         {
-            (ModelDb.Modifier<Specialized>(), 1, 10, 1, 5),
-            (ModelDb.Modifier<SpecializedDraft>(), 1, 10, 1, 5),
-            (ModelDb.Modifier<SpecializedPickAny>(), 1, 10, 1, 5),
-            (ModelDb.Modifier<AllStar>(), 1, 10, 1, 5),
-            (ModelDb.Modifier<AllStarDraft>(), 1, 10, 1, 5),
-            (ModelDb.Modifier<Friendship>(), 1, 10, 1, 5),
-            (ModelDb.Modifier<FriendshipDraft>(), 1, 10, 1, 5),
-            (ModelDb.Modifier<Draft>(), 5, 20, 5, 10),
+            (ModelDb.Modifier<Specialized>(), 1, 100, 1, 5),
+            (ModelDb.Modifier<SpecializedDraft>(), 1, 100, 1, 5),
+            (ModelDb.Modifier<SpecializedPickAny>(), 1, 100, 1, 5),
+            (ModelDb.Modifier<AllStar>(), 1, 100, 1, 5),
+            (ModelDb.Modifier<AllStarDraft>(), 1, 100, 1, 5),
+            (ModelDb.Modifier<Friendship>(), 1, 100, 1, 5),
+            (ModelDb.Modifier<FriendshipDraft>(), 1, 100, 1, 5),
+            (ModelDb.Modifier<Draft>(), 5, 100, 5, 10),
             (ModelDb.Modifier<SealedDeck>(), 5, 25, 5, 10),
-            (ModelDb.Modifier<Insanity>(), 5, 60, 5, 30),
-            (ModelDb.Modifier<Hoarder>(), 1, 5, 1, 2),
-            (ModelDb.Modifier<Midas>(), 150, 300, 5, 200),
-            (ModelDb.Modifier<RichLoot>(), 1, 3, 1, 1),
-            (ModelDb.Modifier<CardSwarm>(), 1, 3, 1, 1),
+            (ModelDb.Modifier<Insanity>(), 5, 100, 5, 30),
+            (ModelDb.Modifier<Hoarder>(), 1, 10, 1, 2),
+            (ModelDb.Modifier<Midas>(), 150, 1000, 5, 200),
+            (ModelDb.Modifier<RichLoot>(), 1, 10, 1, 1),
+            (ModelDb.Modifier<CardSwarm>(), 1, 7, 1, 1),
             (ModelDb.Modifier<BlitzMerchant>(), 1, 6, 1, 3),
             (ModelDb.Modifier<BlitzMerchantRandom>(), 1, 6, 1, 3)
         };
@@ -787,14 +787,15 @@ internal static class Program
     {
         var canonical = ModelDb.Modifier<SealedDeck>();
         Check(ModifierValues.Get(canonical) == 10 && ModifierValues.GetSealedPool(canonical) == 30 &&
-            ModifierValues.SealedPoolSpec == new ModifierValues.Spec(10, 60, 5, 30, "offers"),
-            "Sealed Deck defaults to 10 of 30; pool slider uses 10..60, step 5");
-        for (var pool = 10; pool <= 60; pool += 5)
+            ModifierValues.SealedPoolSpec == new ModifierValues.Spec(10, 120, 5, 30, "offers"),
+            "Sealed Deck defaults to 10 of 30; pool slider uses 10..120, step 5");
+        for (var pool = 10; pool <= 120; pool += 5)
         {
             var model = canonical.ToMutable();
             ModifierValues.SetSealedPool(model, pool);
-            Check(ModifierValues.For(model)!.Max == pool - 5, "Sealed Deck pick maximum is pool minus five: " + pool);
-            for (var selected = 5; selected <= pool - 5; selected += 5)
+            var maxPicks = Math.Min(100, pool - 5);
+            Check(ModifierValues.For(model)!.Max == maxPicks, "Sealed Deck pick maximum is pool minus five, up to 100: " + pool);
+            for (var selected = 5; selected <= maxPicks; selected += 5)
             {
                 ModifierValues.Set(model, selected);
                 var saved = model.ToSerializable();
@@ -809,7 +810,7 @@ internal static class Program
                         $"Sealed Deck {selected} of {pool} survives save, network or clone");
             }
             ModifierValues.Set(model, int.MaxValue);
-            Check(ModifierValues.Get(model) == pool - 5, "Pick count clamps to the current pool limit");
+            Check(ModifierValues.Get(model) == maxPicks, "Pick count clamps to the current pool limit");
         }
         var shrinking = canonical.ToMutable();
         ModifierValues.SetSealedPool(shrinking, 60);
@@ -820,8 +821,8 @@ internal static class Program
         Check(ModifierValues.GetSealedPool(shrinking) == 10 && ModifierValues.Get(shrinking) == 5,
             "Minimum pool leaves five selected cards");
         ModifierValues.SetSealedPool(shrinking, int.MaxValue);
-        Check(ModifierValues.GetSealedPool(shrinking) == 60 && ModifierValues.Get(shrinking) == 5,
-            "Increasing the pool preserves the current selected count and caps at sixty");
+        Check(ModifierValues.GetSealedPool(shrinking) == 120 && ModifierValues.Get(shrinking) == 5,
+            "Increasing the pool preserves the current selected count and caps at 120");
         ModifierValues.SetSealedPool(shrinking, 33);
         Check(ModifierValues.GetSealedPool(shrinking) == 35, "Pool values snap to step five");
         var oldSave = canonical.ToMutable();
@@ -854,8 +855,8 @@ internal static class Program
     private static void TestSpeedrun()
     {
         var canonical = ModelDb.Modifier<Speedrun>();
-        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(10, 60, 5, 30, "minutes"),
-            "Speedrun limit uses 10..60 minutes, step 5, default 30");
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(10, 180, 5, 30, "minutes"),
+            "Speedrun limit uses 10..180 minutes, step 5, default 30");
         Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.Negatives &&
             ModifierListPatch.IsCustomOnly(canonical) &&
             ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<Speedrun>().Count() == 1,
@@ -889,7 +890,7 @@ internal static class Program
         ModifierValues.Set(adjustable, int.MinValue);
         Check(ModifierValues.Get(adjustable) == 10, "Speedrun clamps its lower limit");
         ModifierValues.Set(adjustable, int.MaxValue);
-        Check(ModifierValues.Get(adjustable) == 60 && ModifierValues.Get(canonical) == 30,
+        Check(ModifierValues.Get(adjustable) == 180 && ModifierValues.Get(canonical) == 30,
             "Speedrun clamps its upper limit without changing canonical defaults");
         var pulseWriter = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
         new NetSpeedrunPenaltyAction { Due = 7 }.Serialize(pulseWriter);
@@ -1002,11 +1003,11 @@ internal static class Program
             var parameters = (CustomRunParameters)ModelDb.Modifier<CustomRunParameters>().ToMutable();
             ModifierRandomizer.RandomizeValues(parameters, rng, blitz: true);
             var values = CustomRunParameterValuesStore.Get(parameters);
-            valuesValid &= pool is >= 10 and <= 60 && chosen >= 5 && chosen <= pool - 5 &&
-                ModifierValues.Get(dill) is >= 1 and <= 20 && dill.MaxHpPerFight is >= 1 and <= 5 &&
+            valuesValid &= pool is >= 10 and <= 120 && chosen >= 5 && chosen <= Math.Min(100, pool - 5) &&
+                ModifierValues.Get(dill) is >= 1 and <= 100 && dill.MaxHpPerFight is >= 1 and <= 20 &&
                 values.FloorsPerAct == CustomRunParameterValues.Default.FloorsPerAct &&
                 values.BaseHandSize != 0 && values.BaseEnergy != 0 &&
-                values.EnemyHpPercent is >= 25 and <= 500 && values.EnemyHpPercent % 25 == 0;
+                values.EnemyHpPercent is >= 25 and <= 1000 && values.EnemyHpPercent % 25 == 0;
         }
         Check(valuesValid, "Randomized values stay valid; Blitz keeps floors and hand size or energy never roll zero");
     }
@@ -1387,9 +1388,9 @@ internal static class Program
                 ModifierListPatch.IsCustomOnly(model) &&
                 ModifierGroups.Classify(model, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
                 ModifierVariantUi.BelongsTo(model, ModifierVariantUi.Family.TwentyTwenty) &&
-                ModifierValues.For(model) == new ModifierValues.Spec(1, 10, 1, 1, "cards") &&
+                ModifierValues.For(model) == new ModifierValues.Spec(1, 100, 1, 1, "cards") &&
                 model.GenerateNeowOption(neow) != null && !model.ClearsPlayerDeck,
-                "20/20 modes appear once in Improved Start, with a 1..10 slider and a Neow callback");
+                "20/20 modes appear once in Improved Start, with a 1..100 slider and a Neow callback");
             foreach (var other in models.Where(other => other != model))
                 Check(SpecializedExclusivityPatch.ShouldUntick(model, other), "20/20 modes are mutually exclusive");
             for (var count = 1; count <= 10; count++)
@@ -1493,16 +1494,16 @@ internal static class Program
     private static void TestDill()
     {
         var canonical = ModelDb.Modifier<Dill>();
-        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 20, 1, 1, "initial max HP") &&
-            Dill.GrowthSpec == new ModifierValues.Spec(1, 5, 1, 2, "max HP per fight") &&
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 100, 1, 1, "initial max HP") &&
+            Dill.GrowthSpec == new ModifierValues.Spec(1, 20, 1, 2, "max HP per fight") &&
             canonical.MaxHpPerFight == 2,
             "Dill has independent initial-HP and per-fight sliders with the requested ranges and defaults");
         Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.Negatives &&
             ModifierListPatch.IsCustomOnly(canonical) &&
             ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<Dill>().Count() == 1,
             "Dill appears once under Negatives without entering Daily pools");
-        for (var initial = 1; initial <= 20; initial++)
-        for (var growth = 1; growth <= 5; growth++)
+        for (var initial = 1; initial <= 100; initial++)
+        for (var growth = 1; growth <= 20; growth++)
         {
             var modifier = (Dill)canonical.ToMutable();
             ModifierValues.Set(modifier, initial);
@@ -1528,7 +1529,7 @@ internal static class Program
             "Dill sliders clamp at their lower limits");
         ModifierValues.Set(configurable, int.MaxValue);
         configurable.MaxHpPerFight = int.MaxValue;
-        Check(ModifierValues.Get(configurable) == 20 && configurable.MaxHpPerFight == 5 &&
+        Check(ModifierValues.Get(configurable) == 100 && configurable.MaxHpPerFight == 20 &&
             ModifierValues.Get(canonical) == 1 && canonical.MaxHpPerFight == 2,
             "Dill sliders clamp at their upper limits without changing canonical defaults");
         var missingGrowth = configurable.ToSerializable();
@@ -1691,7 +1692,7 @@ internal static class Program
 
         // Handicap values: defaults, clamping, save, replay/network packet and clone.
         var handicapCanonical = ModelDb.Modifier<CoopHandicap>();
-        Check(handicapCanonical.IsDefault && CoopHandicap.PercentSpec == new ModifierValues.Spec(25, 500, 25, 100, "%"),
+        Check(handicapCanonical.IsDefault && CoopHandicap.PercentSpec == new ModifierValues.Spec(25, 1000, 25, 100, "%"),
             "Handicap defaults every player to 100% damage dealt and taken");
         foreach (var name in new[] { nameof(CoopHandicap.DamageDealtPercents), nameof(CoopHandicap.DamageTakenPercents) })
             Check(MegaCrit.Sts2.Core.Multiplayer.Serialization.ModelIdSerializationCache.GetNetIdForPropertyName(name) >= 0,
@@ -1701,9 +1702,9 @@ internal static class Program
         handicap.Set(HandicapStat.DamageDealt, 3, 9999);
         handicap.Set(HandicapStat.DamageTaken, 1, 210);
         handicap.Set(HandicapStat.DamageTaken, 2, 1);
-        Check(handicap.DamageDealtPercents.SequenceEqual(new[] { 50, 100, 100, 500 }) &&
+        Check(handicap.DamageDealtPercents.SequenceEqual(new[] { 50, 100, 100, 1000 }) &&
             handicap.DamageTakenPercents.SequenceEqual(new[] { 100, 200, 25, 100 }) && handicapCanonical.IsDefault,
-            "Handicap values snap to 25% steps, clamp to 25-500% and leave the canonical model unchanged");
+            "Handicap values snap to 25% steps, clamp to 25-1000% and leave the canonical model unchanged");
         var saved = handicap.ToSerializable();
         var writer = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
         writer.WriteList(new List<MegaCrit.Sts2.Core.Saves.Runs.SerializableModifier> { saved });
@@ -1732,7 +1733,7 @@ internal static class Program
             "Presets preserve every Handicap slider");
         var description = handicap.DescriptionText(false);
         Check(description.Contains("Player 1: deals [gold]50%[/gold], takes [gold]100%[/gold]") &&
-            description.Contains("Player 4: deals [gold]500%[/gold]") && description.Split('\n').Length == 4 &&
+            description.Contains("Player 4: deals [gold]1000%[/gold]") && description.Split('\n').Length == 4 &&
             handicapCanonical.DescriptionText(false) == CoopHandicap.DisplayDescription,
             "Handicap description lists changed players and falls back to the default text");
 
@@ -2145,10 +2146,10 @@ internal static class Program
             "Exhausted, conditional-only and empty pools never repeat or select forbidden events");
 
         var canonical = ModelDb.Modifier<MysteryEvents>();
-        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 5, 1, 3, "events") &&
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 10, 1, 3, "events") &&
             MysteryEvents.DescriptionText(1) == "Encounter [blue]1[/blue] additional Event after Neow." &&
             MysteryEvents.DescriptionText(3) == MysteryEvents.DisplayDescription,
-            "??? slider spans 1..5 events, defaults to three, and uses singular/plural descriptions");
+            "??? slider spans 1..10 events, defaults to three, and uses singular/plural descriptions");
         Check(ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
             ModifierListPatch.IsCustomOnly(canonical) &&
             ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<MysteryEvents>().Count() == 1,
@@ -2180,7 +2181,7 @@ internal static class Program
         var manager = (RunManager)RuntimeHelpers.GetUninitializedObject(typeof(RunManager));
         AccessTools.PropertySetter(typeof(RunManager), "State").Invoke(manager, [run]);
         modifier.OnRunLoaded(run);
-        for (var count = 1; count <= 5; count++)
+        for (var count = 1; count <= 10; count++)
         {
             var adjustable = (MysteryEvents)canonical.ToMutable();
             ModifierValues.Set(adjustable, count);
@@ -2212,8 +2213,8 @@ internal static class Program
         ModifierValues.Set(clamped, int.MinValue);
         Check(clamped.EventLimit == 1, "??? slider clamps its lower bound to one event");
         ModifierValues.Set(clamped, int.MaxValue);
-        Check(clamped.EventLimit == 5 && ModifierValues.Get(canonical) == 3,
-            "??? slider clamps its upper bound to five without changing canonical defaults");
+        Check(clamped.EventLimit == 10 && ModifierValues.Get(canonical) == 3,
+            "??? slider clamps its upper bound to ten without changing canonical defaults");
         for (var stage = 1; stage <= 3; stage++)
         {
             modifier.MysteryStage = stage;
@@ -2335,24 +2336,24 @@ internal static class Program
         legacy.Props.ints.Add(new("CustomValue", 10));
         restored = (MysteryEvents)ModifierModel.FromSerializable(legacy);
         AccessTools.Field(typeof(RunState), "<Modifiers>k__BackingField").SetValue(run, new ModifierModel[] { restored });
-        Check(restored.EventLimit == 5 && restored.MysteryHistoryFloors == 8 && MysteryEvents.HistoryIndex(run, 0, 1) == 9,
-            "Legacy ten-event saves clamp to five while preserving already-entered floors");
+        Check(restored.EventLimit == 10 && restored.MysteryHistoryFloors == 8 && MysteryEvents.HistoryIndex(run, 0, 1) == 9,
+            "Legacy ten-event saves keep ten events while preserving already-entered floors");
     }
 
     private static void TestHeadstart()
     {
         var canonical = ModelDb.Modifier<Headstart>();
-        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 5, 1, 1, "relics") &&
+        Check(ModifierValues.For(canonical) == new ModifierValues.Spec(1, 25, 1, 1, "relics") &&
             ModifierGroups.Classify(canonical, new HashSet<Type>()) == ModifierGroup.ImprovedStart &&
             ModifierListPatch.IsCustomOnly(canonical) &&
             ModifierListPatch.ForCustomRun(ModifierListPatch.ForCustomRun(ModelDb.GoodModifiers)).OfType<Headstart>().Count() == 1,
-            "Headstart appears once in Improved Start with a 1..5 relic slider, step one, default one");
+            "Headstart appears once in Improved Start with a 1..25 relic slider, step one, default one");
         var neow = (Neow)RuntimeHelpers.GetUninitializedObject(typeof(Neow));
         typeof(EventModel).GetProperty(nameof(EventModel.Owner))!.SetValue(neow,
             (Player)RuntimeHelpers.GetUninitializedObject(typeof(Player)));
         Check(canonical.GenerateNeowOption(neow)?.Method.DeclaringType?.Assembly == typeof(Headstart).Assembly,
             "Headstart provides a Neow relic-selection callback");
-        for (var count = 1; count <= 5; count++)
+        for (var count = 1; count <= 25; count++)
         {
             var model = canonical.ToMutable();
             ModifierValues.Set(model, count);
@@ -2366,14 +2367,14 @@ internal static class Program
                 (ModifierModel)model.MutableClone() })
                 Check(restored is Headstart && ModifierValues.Get(restored) == count,
                     "Headstart count survives save, co-op settings and clone: " + count);
-            var selection = new HeadstartSelection(count, 20);
-            Check(!selection.CanConfirm && !selection.Toggle(-1) && !selection.Toggle(20),
+            var selection = new HeadstartSelection(count, 40);
+            Check(!selection.CanConfirm && !selection.Toggle(-1) && !selection.Toggle(40),
                 "Headstart ignores invalid indexes and requires a complete selection");
             for (var index = 0; index < count; index++) Check(selection.Toggle(index), "Headstart accepts a distinct relic");
             Check(selection.CanConfirm && !selection.Toggle(count), "Headstart enforces exactly the configured count");
             Check(selection.Toggle(0) && !selection.CanConfirm && selection.Toggle(count) && selection.CanConfirm,
                 "Headstart supports deselecting and replacing a relic");
-            Headstart.ValidateSelection(selection.Indexes, count, 20);
+            Headstart.ValidateSelection(selection.Indexes, count, 40);
             var choice = MegaCrit.Sts2.Core.GameActions.PlayerChoiceResult.FromIndexes(selection.Indexes.ToList());
             var choiceWriter = new MegaCrit.Sts2.Core.Multiplayer.Serialization.PacketWriter();
             choice.ToNetData().Serialize(choiceWriter);

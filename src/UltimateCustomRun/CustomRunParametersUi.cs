@@ -28,10 +28,10 @@ internal static class CustomRunParametersUi
     [
         (CustomRunParameter.FloorsPerAct, "Floors per act", "Этажей за акт", 23),
         (CustomRunParameter.BaseHandSize, "Base hand size", "Размер базовой руки", 11),
-        (CustomRunParameter.BaseEnergy, "Base energy", "Базовая энергия", 11),
-        (CustomRunParameter.EnemyHpPercent, "Enemy HP", "Здоровье врагов", 19),
-        (CustomRunParameter.EnemyDamagePercent, "Enemy damage", "Урон врагов", 19),
-        (CustomRunParameter.PlayerHpPercent, "Player HP", "Здоровье игрока", 19)
+        (CustomRunParameter.BaseEnergy, "Base energy", "Базовая энергия", 21),
+        (CustomRunParameter.EnemyHpPercent, "Enemy HP", "Здоровье врагов", 39),
+        (CustomRunParameter.EnemyDamagePercent, "Enemy damage", "Урон врагов", 39),
+        (CustomRunParameter.PlayerHpPercent, "Player HP", "Здоровье игрока", 39)
     ];
 
     internal static Control? Create(NCustomRunModifiersList list, NRunModifierTickbox parent)

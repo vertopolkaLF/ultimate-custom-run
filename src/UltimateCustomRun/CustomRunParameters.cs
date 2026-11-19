@@ -110,8 +110,8 @@ internal static class CustomRunParameterValuesStore
     {
         CustomRunParameter.FloorsPerAct => value < 0 ? -1 : Math.Clamp(value, 8, 30),
         CustomRunParameter.BaseHandSize => value < 0 ? -1 : Math.Clamp(value, 0, 10),
-        CustomRunParameter.BaseEnergy => value < 0 ? -1 : Math.Clamp(value, 0, 10),
-        _ => Math.Clamp((int)Math.Round(Math.Clamp(value, 25, 500) / 25d, MidpointRounding.AwayFromZero) * 25, 25, 500)
+        CustomRunParameter.BaseEnergy => value < 0 ? -1 : Math.Clamp(value, 0, 20),
+        _ => Math.Clamp((int)Math.Round(Math.Clamp(value, 25, 1000) / 25d, MidpointRounding.AwayFromZero) * 25, 25, 1000)
     };
 
     private static string SaveKey(CustomRunParameter parameter) =>

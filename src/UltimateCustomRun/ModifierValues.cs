@@ -16,7 +16,7 @@ internal static class ModifierValues
 {
     internal const string SaveKey = nameof(SpecializedDraft.CustomValue);
     internal const string SealedPoolKey = nameof(SpecializedDraft.SealedPoolSize);
-    internal static readonly Spec SealedPoolSpec = new(10, 60, 5, 30, "offers");
+    internal static readonly Spec SealedPoolSpec = new(10, 120, 5, 30, "offers");
     internal sealed record Spec(int Min, int Max, int Step, int Default, string Unit)
     {
         internal int Normalize(int value) => Min + (int)Math.Round(
@@ -28,20 +28,20 @@ internal static class ModifierValues
     internal static Spec? For(ModifierModel? modifier) => modifier switch
     {
         Specialized or SpecializedDraft or SpecializedPickAny or AllStar or AllStarDraft or Friendship or FriendshipDraft
-            => new(1, 10, 1, 5, "cards"),
-        TwentyTwentyModifier => new(1, 10, 1, 1, "cards"),
-        Draft => new(5, 20, 5, 10, "cards"),
-        SealedDeck => new(5, GetSealedPool(modifier) - 5, 5, 10, "cards"),
-        Insanity => new(5, 60, 5, 30, "cards"),
-        Hoarder => new(1, 5, 1, 2, "extra copies"),
-        Midas => new(150, 300, 5, 200, "% gold"),
+            => new(1, 100, 1, 5, "cards"),
+        TwentyTwentyModifier => new(1, 100, 1, 1, "cards"),
+        Draft => new(5, 100, 5, 10, "cards"),
+        SealedDeck => new(5, Math.Min(100, GetSealedPool(modifier) - 5), 5, 10, "cards"),
+        Insanity => new(5, 100, 5, 30, "cards"),
+        Hoarder => new(1, 10, 1, 2, "extra copies"),
+        Midas => new(150, 1000, 5, 200, "% gold"),
         DoubleTrouble => new(2, 3, 1, 2, "bosses"),
-        Speedrun => new(10, 60, 5, 30, "minutes"),
-        Dill => new(1, 20, 1, 1, "initial max HP"),
-        Headstart => new(1, 5, 1, 1, "relics"),
-        RichLoot => new(1, 3, 1, 1, "extra relics"),
-        CardSwarm => new(1, 3, 1, 1, "extra cards"),
-        MysteryEvents => new(1, 5, 1, MysteryEvents.EventCount, "events"),
+        Speedrun => new(10, 180, 5, 30, "minutes"),
+        Dill => new(1, 100, 1, 1, "initial max HP"),
+        Headstart => new(1, 25, 1, 1, "relics"),
+        RichLoot => new(1, 10, 1, 1, "extra relics"),
+        CardSwarm => new(1, 7, 1, 1, "extra cards"),
+        MysteryEvents => new(1, 10, 1, MysteryEvents.EventCount, "events"),
         BlitzMerchantModifier => BlitzMerchantModifier.PicksSpec,
         _ => null
     };

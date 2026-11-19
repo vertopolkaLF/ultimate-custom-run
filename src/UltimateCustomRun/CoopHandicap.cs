@@ -18,7 +18,7 @@ public sealed class CoopHandicap : ModifierModel
     internal const int MaxPlayers = 4;
     internal const string DisplayTitle = "Handicap";
     internal const string DisplayDescription = "Set the damage each player deals and takes.";
-    internal static readonly ModifierValues.Spec PercentSpec = new(25, 500, 25, 100, "%");
+    internal static readonly ModifierValues.Spec PercentSpec = new(25, 1000, 25, 100, "%");
 
     private int[] _damageDealt = Defaults();
     private int[] _damageTaken = Defaults();

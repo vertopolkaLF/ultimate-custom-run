@@ -14,7 +14,7 @@ public sealed class Dill : ModifierModel
 {
     internal const string DisplayTitle = "Dill";
     internal const string DisplayDescription = "Start the game with [blue]1[/blue] max HP. Each fight increases max HP by [blue]2[/blue].";
-    internal static readonly ModifierValues.Spec GrowthSpec = new(1, 5, 1, 2, "max HP per fight");
+    internal static readonly ModifierValues.Spec GrowthSpec = new(1, 20, 1, 2, "max HP per fight");
     private static readonly MethodInfo SetMaxHp = AccessTools.PropertySetter(typeof(Creature), nameof(Creature.MaxHp));
     private static readonly MethodInfo SetCurrentHp = AccessTools.PropertySetter(typeof(Creature), nameof(Creature.CurrentHp));
     private int _maxHpPerFight = 2;

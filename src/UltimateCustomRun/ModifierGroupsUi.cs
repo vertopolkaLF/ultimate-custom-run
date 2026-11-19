@@ -234,6 +234,14 @@ internal static class ModifierGroupsUi
                 try { DeckPickerUi.Create(list, childList, children, attachments, () => Refresh(list)); }
                 catch (Exception ex) { GD.PushError($"[Ultimate Custom Run] Could not build the starting deck picker: {ex}"); }
                 childList.AddChild(StartOrderUi.Create(list));
+                // Neow!! leads the tab, above the starting deck picker.
+                if (children.FirstOrDefault(row => row.Modifier is NeowStarterChoice) is { } neow)
+                {
+                    var nodes = new List<Control> { neow };
+                    nodes.AddRange(attachments.GetValueOrDefault(neow) ?? []);
+                    for (var i = 0; i < nodes.Count; i++) childList.MoveChild(nodes[i], i);
+                    if (visibleRows.Remove(neow)) visibleRows.Insert(0, neow);
+                }
             }
             if (variantRows.Count > 0) ModifierVariantUi.InitializeChoices(list);
             LinkedModifierChains.Attach(body, visibleRows);
