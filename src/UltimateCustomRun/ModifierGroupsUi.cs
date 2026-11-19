@@ -67,7 +67,9 @@ internal static class ModifierGroupsUi
     private const float TabWidth = 172;
     private const float TabHeight = 50;
     private const float ScrollbarWidth = 52;
-    private const float ScrollbarInsetTop = 26, ScrollbarInsetBottom = 14;
+    // scrollbar.tscn draws its pointed track ends outside the bar: a 48px-wide 64x64 edge sprite whose art is the
+    // lower 36 rows, so 27px beyond each end. Insetting by that keeps the whole track inside the panel.
+    private const float ScrollbarInsetTop = 27, ScrollbarInsetBottom = 27;
     private const float TopGap = 16;
     // Remembered for the session, so reopening the screen returns to the last tab.
     private static ModifierGroup SelectedGroup = ModifierGroup.ImprovedStart;
