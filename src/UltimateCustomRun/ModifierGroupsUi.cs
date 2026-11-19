@@ -3,13 +3,16 @@ using OpCodes = System.Reflection.Emit.OpCodes;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.UI;
+using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
+using MegaCrit.Sts2.Core.Nodes.Screens.Settings;
 using MegaCrit.Sts2.Core.Models;
 
 namespace UltimateCustomRun;
 
+// Modifier groups are shown one at a time and picked from a column of native settings tabs beside the list.
 [HarmonyPatch(typeof(NCustomRunModifiersList), nameof(NCustomRunModifiersList._Ready))]
 internal static class ModifierGroupsUi
 {
@@ -17,12 +20,13 @@ internal static class ModifierGroupsUi
     {
         internal required ModifierGroup Group;
         internal required VBoxContainer Root;
-        internal required NButton Header;
+        internal required NSettingsTab Tab;
+        internal required Control Badge;
+        internal required Label BadgeLabel;
         internal required MarginContainer Body;
         internal required VBoxContainer ChildList;
-        internal required TextureRect Arrow;
         internal required List<NRunModifierTickbox> Rows;
-        internal bool Expanded = true;
+        internal bool Available = true;
     }
     private sealed class LockEntry
     {
@@ -32,7 +36,9 @@ internal static class ModifierGroupsUi
     }
     private sealed class Layout
     {
+        internal required NCustomRunModifiersList List;
         internal required VBoxContainer Content;
+        internal required VBoxContainer Rail;
         internal NRunModifierTickbox? AdvancedToggle;
         internal List<Section> Sections = [];
         internal List<LockEntry> Lockable = [];
@@ -40,9 +46,16 @@ internal static class ModifierGroupsUi
         internal Dictionary<Section, List<NRunModifierTickbox>> OriginalRows = [];
         // Forced rows and their tick state from before the game mode forced them.
         internal Dictionary<NRunModifierTickbox, bool> Forced = [];
+        internal ModifierGroup Selected = SelectedGroup;
     }
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, Layout> Layouts = new();
-    private static readonly Color NegativeColor = Color.FromHtml("ff6b64");
+    private static readonly Color BadgeColor = new(0.333333f, 0.580392f, 0.647059f);
+    private static readonly Color Cream = new(1, 0.9647059f, 0.8862745f);
+    private const string TabScene = "res://scenes/screens/settings_tab.tscn";
+    private const float TabWidth = 176;
+    private const float TabHeight = 60;
+    // Remembered for the session, so reopening the screen returns to the last tab.
+    private static ModifierGroup SelectedGroup = ModifierGroup.ImprovedStart;
 
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -67,8 +80,36 @@ internal static class ModifierGroupsUi
         Callable.From(() => Build(__instance)).CallDeferred();
     }
 
-    internal static Control? DefaultFocus(NCustomRunModifiersList list) =>
-        Layouts.TryGetValue(list, out var layout) ? layout.Sections.FirstOrDefault(section => section.Root.Visible)?.Header : null;
+    internal static Control? DefaultFocus(NCustomRunModifiersList list)
+    {
+        if (!Layouts.TryGetValue(list, out var layout)) return null;
+        return ContentControls(layout).FirstOrDefault() ?? SelectedSection(layout)?.Tab;
+    }
+
+    internal static string Title(ModifierGroup group)
+    {
+        var russian = LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
+        if (russian)
+            return group switch
+            {
+                ModifierGroup.Randomizer => "Случайно",
+                ModifierGroup.ImprovedStart => "Старт",
+                ModifierGroup.RunParameters => "Параметры",
+                ModifierGroup.Modifiers => "Модификаторы",
+                ModifierGroup.CardPool => "Пул карт",
+                ModifierGroup.Ascension => "Возвышение",
+                ModifierGroup.Negatives => "Негативные",
+                ModifierGroup.Coop => "Кооператив",
+                ModifierGroup.Disabled => "Отключено",
+                _ => group.ToString()
+            };
+        return group switch
+        {
+            ModifierGroup.ImprovedStart => "Start",
+            ModifierGroup.RunParameters => "Parameters",
+            _ => ModifierGroups.Sections.First(section => section.Group == group).Title
+        };
+    }
 
     private static void Build(NCustomRunModifiersList list)
     {
@@ -76,82 +117,27 @@ internal static class ModifierGroupsUi
         var content = list.GetNode<VBoxContainer>("ScrollContainer/Mask/Content");
         var rows = (List<NRunModifierTickbox>)AccessTools.Field(typeof(NCustomRunModifiersList), "_modifierTickboxes").GetValue(list)!;
         var negatives = ModelDb.BadModifiers.Select(m => m.GetType()).ToHashSet();
-        var font = ResourceLoader.Load<Font>("res://themes/kreon_bold_shared.tres");
-        var arrowTexture = ResourceLoader.Load<Texture2D>("res://images/packed/common_ui/settings_tiny_right_arrow.png");
-        var layout = new Layout { Content = content };
+        var rail = CreateRail(list);
+        var layout = new Layout { List = list, Content = content, Rail = rail };
         Layouts.Add(list, layout);
         content.AddThemeConstantOverride("separation", 12);
         layout.AdvancedToggle = CreateAdvancedToggle(list, content);
 
-        foreach (var (group, title) in ModifierGroups.Sections)
+        foreach (var (group, _) in ModifierGroups.Sections)
         {
             var children = rows.Where(row => row.Modifier != null && ModifierGroups.Classify(row.Modifier, negatives) == group).ToList();
-            var visibleRows = children.Where(row => !ModifierVariantUi.IsHiddenVariant(row.Modifier) && row.Modifier is not SubmodifierModel).ToList();
-            var sectionRoot = new VBoxContainer { Name = group.ToString(), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+            var visibleRows = children.Where(row => !ModifierVariantUi.IsHiddenVariant(row.Modifier) &&
+                row.Modifier is not SubmodifierModel && !DeckPickerUi.IsDeckModifier(row.Modifier)).ToList();
+            var sectionRoot = new VBoxContainer { Name = group.ToString(), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, Visible = false };
             if (group == ModifierGroup.Disabled) sectionRoot.Modulate = new Color(1, 1, 1, 0.6f);
             sectionRoot.AddThemeConstantOverride("separation", 4);
-            var header = new NButton
-            {
-                Name = "SectionHeader", CustomMinimumSize = new Vector2(0, 56),
-                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, FocusMode = Control.FocusModeEnum.All,
-                MouseFilter = Control.MouseFilterEnum.Stop
-            };
-            var highlight = new ColorRect
-            {
-                Name = "Highlight", Color = new Color(1, 0.6392157f, 0.44705883f, 0.15f),
-                MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false
-            };
-            header.AddChild(highlight);
-            highlight.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-            var margin = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-            margin.AddThemeConstantOverride("margin_left", 8);
-            margin.AddThemeConstantOverride("margin_right", 8);
-            header.AddChild(margin);
-            margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-            var heading = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-            heading.AddThemeConstantOverride("separation", 8);
-            margin.AddChild(heading);
-            var arrowSlot = new Control { CustomMinimumSize = new Vector2(40, 48), MouseFilter = Control.MouseFilterEnum.Ignore };
-            var arrow = new TextureRect
-            {
-                Texture = arrowTexture, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-                MouseFilter = Control.MouseFilterEnum.Ignore, Rotation = Mathf.Pi / 2,
-                PivotOffset = new Vector2(16, 16)
-            };
-            arrowSlot.AddChild(arrow);
-            arrow.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
-            arrow.OffsetLeft = -16; arrow.OffsetTop = -16; arrow.OffsetRight = 16; arrow.OffsetBottom = 16;
-            heading.AddChild(arrowSlot);
-            var label = new Label
-            {
-                Text = title, VerticalAlignment = VerticalAlignment.Center,
-                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = Control.MouseFilterEnum.Ignore
-            };
-            label.AddThemeFontOverride("font", font);
-            label.AddThemeFontSizeOverride("font_size", 28);
-            label.AddThemeColorOverride("font_color", group is ModifierGroup.Ascension or ModifierGroup.Negatives ? NegativeColor : new Color(1, 0.9647059f, 0.8862745f));
-            label.AddThemeColorOverride("font_shadow_color", new Color(0, 0, 0, 0.5f));
-            label.AddThemeConstantOverride("shadow_offset_x", 3);
-            label.AddThemeConstantOverride("shadow_offset_y", 2);
-            heading.AddChild(label);
-            var line = new ColorRect
-            {
-                Color = new Color(1, 0.9647059f, 0.8862745f, 0.15f),
-                MouseFilter = Control.MouseFilterEnum.Ignore
-            };
-            header.AddChild(line);
-            line.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomWide);
-            line.OffsetTop = -1;
             var body = new MarginContainer { Name = "Children", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            // Native checkbox center is 28 px; header arrow center is 8 + 40/2 = 28 px.
             body.AddThemeConstantOverride("margin_left", 0);
             var childList = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
             childList.AddThemeConstantOverride("separation", 8);
             body.AddChild(childList);
             if (group == ModifierGroup.Disabled)
                 body.AddChild(new Control { Name = "ClickBlocker", MouseFilter = Control.MouseFilterEnum.Stop });
-            sectionRoot.AddChild(header);
             sectionRoot.AddChild(body);
             content.AddChild(sectionRoot);
             if (group == ModifierGroup.Randomizer) ModifierRandomizerUi.Create(list, childList);
@@ -171,10 +157,12 @@ internal static class ModifierGroupsUi
             {
                 GD.PushError($"[Ultimate Custom Run] Could not build modifier sub-options: {ex}");
             }
+            var attachments = new Dictionary<NRunModifierTickbox, List<Control>>();
             foreach (var row in children)
             {
                 row.Reparent(childList);
                 row.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+                var attached = attachments[row] = [];
                 var lockEntry = ModifierGroups.IsSingleplayerDisabled(row.Modifier) || BlitzCompatibility.IsDisabled(row.Modifier)
                     ? new LockEntry { Row = row, Nodes = [row] } : null;
                 if (lockEntry != null) layout.Lockable.Add(lockEntry);
@@ -188,7 +176,7 @@ internal static class ModifierGroupsUi
                 if (row.Modifier is { } modifier &&
                     (ModifierListPatch.IsCustomOnly(modifier) || ModifierVariantUi.IsParent(modifier)))
                 {
-                    var text = new MegaCrit.Sts2.Core.Localization.LocString("main_menu_ui", "CUSTOM_RUN_SCREEN.MODIFIER_LABEL");
+                    var text = new LocString("main_menu_ui", "CUSTOM_RUN_SCREEN.MODIFIER_LABEL");
                     var modifierTitle = modifier.Title.GetFormattedText();
                     if (ModifierVariantUi.IsParent(modifier)) modifierTitle += " [color=#ff9c3d]*[/color]";
                     text.Add("color", group is ModifierGroup.Ascension or ModifierGroup.Negatives ? "red" : "green");
@@ -199,34 +187,43 @@ internal static class ModifierGroupsUi
                 foreach (var variantRow in variantRows.Where(variantRow => ReferenceEquals(row, variantRow.ParentRow)))
                 {
                     childList.AddChild(variantRow.Container);
+                    attached.Add(variantRow.Container);
                     lockEntry?.Nodes.Add(variantRow.Container);
                 }
                 if (ModifierValueUi.Create(list, row) is { } valueRow)
                 {
                     childList.AddChild(valueRow);
+                    attached.Add(valueRow);
                     lockEntry?.Nodes.Add(valueRow);
                 }
                 if (CustomRunParametersUi.Create(list, row) is { } parameterRows)
+                {
                     childList.AddChild(parameterRows);
+                    attached.Add(parameterRows);
+                }
                 if (CoopHandicapUi.Create(list, row) is { } handicapRows)
                 {
                     childList.AddChild(handicapRows);
+                    attached.Add(handicapRows);
                     lockEntry?.Nodes.Add(handicapRows);
                 }
             }
-            if (group == ModifierGroup.ImprovedStart) childList.AddChild(StartOrderUi.Create(list));
+            if (group == ModifierGroup.ImprovedStart)
+            {
+                try { DeckPickerUi.Create(list, childList, children, attachments, () => Refresh(list)); }
+                catch (Exception ex) { GD.PushError($"[Ultimate Custom Run] Could not build the starting deck picker: {ex}"); }
+                childList.AddChild(StartOrderUi.Create(list));
+            }
             if (variantRows.Count > 0) ModifierVariantUi.InitializeChoices(list);
             LinkedModifierChains.Attach(body, visibleRows);
+            var (tab, badge, badgeLabel) = CreateTab(rail, Title(group));
             var section = new Section
             {
-                Group = group, Root = sectionRoot, Header = header, Body = body,
-                ChildList = childList, Arrow = arrow, Rows = visibleRows
+                Group = group, Root = sectionRoot, Tab = tab, Badge = badge, BadgeLabel = badgeLabel,
+                Body = body, ChildList = childList, Rows = visibleRows
             };
-            if (group == ModifierGroup.Randomizer) SetExpanded(section, ModifierRandomizer.Settings.Expanded);
             layout.Sections.Add(section);
-            header.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => Toggle(content, layout, section)));
-            header.MouseEntered += () => highlight.Visible = true;
-            header.MouseExited += () => highlight.Visible = false;
+            tab.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => Select(layout, section.Group, true)));
         }
 
         SubmodifierUi.Attach(list, rows);
@@ -238,16 +235,78 @@ internal static class ModifierGroupsUi
         foreach (var entry in layout.Lockable)
             entry.Home = layout.Sections.First(section => section.ChildList == entry.Row.GetParent());
         content.MinimumSizeChanged += () => Callable.From(() => ResizeContent(content)).CallDeferred();
+        list.ModifiersChanged += () => RefreshSummary(layout);
+        ActiveModifiersUi.Create(list, modifier => Reveal(list, modifier));
         ApplyMode(list, layout);
+        DeckPickerUi.Refresh(list);
         ModifierValueUi.Refresh(list);
         UpdateFocus(layout);
         ResizeContent(content);
         Callable.From(() => ResizeContent(content)).CallDeferred();
     }
 
+    private static VBoxContainer CreateRail(NCustomRunModifiersList list)
+    {
+        var rail = new VBoxContainer { Name = "ModifierTabs", MouseFilter = Control.MouseFilterEnum.Ignore };
+        rail.AddThemeConstantOverride("separation", 4);
+        // The list is anchored to the right container with a wide right margin; the tabs fill that margin.
+        var parent = list.GetParent<Control>();
+        parent.AddChild(rail);
+        rail.AnchorLeft = rail.AnchorRight = 1;
+        rail.AnchorTop = rail.AnchorBottom = 0;
+        rail.OffsetLeft = -TabWidth - 16;
+        rail.OffsetRight = -16;
+        rail.OffsetTop = list.OffsetTop;
+        rail.OffsetBottom = list.OffsetTop + 10 * (TabHeight + 4);
+        return rail;
+    }
+
+    private static (NSettingsTab Tab, Control Badge, Label BadgeLabel) CreateTab(VBoxContainer rail, string title)
+    {
+        var tab = ResourceLoader.Load<PackedScene>(TabScene).Instantiate<NSettingsTab>();
+        tab.Name = "Tab";
+        tab.CustomMinimumSize = new Vector2(TabWidth, TabHeight);
+        tab.PivotOffset = new Vector2(TabWidth / 2, TabHeight / 2);
+        tab.FocusMode = Control.FocusModeEnum.All;
+        rail.AddChild(tab);
+        tab.SetLabel(title);
+
+        // Count of selected modifiers, drawn on the card library's cost tickbox like a native filter chip.
+        var badge = new Control
+        {
+            Name = "Badge", MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false,
+            CustomMinimumSize = new Vector2(34, 34)
+        };
+        tab.AddChild(badge);
+        badge.AnchorLeft = badge.AnchorRight = 1;
+        badge.AnchorTop = badge.AnchorBottom = 0;
+        badge.OffsetLeft = -30; badge.OffsetRight = 4; badge.OffsetTop = -6; badge.OffsetBottom = 28;
+        var image = new TextureRect
+        {
+            Texture = ResourceLoader.Load<Texture2D>("res://images/packed/card_library/cost_tickbox.png"),
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            SelfModulate = BadgeColor, MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+        badge.AddChild(image);
+        image.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        var label = new Label
+        {
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+        label.AddThemeFontOverride("font", ResourceLoader.Load<Font>("res://themes/kreon_bold_shared.tres"));
+        label.AddThemeFontSizeOverride("font_size", 20);
+        label.AddThemeColorOverride("font_color", Cream);
+        label.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.5f));
+        label.AddThemeConstantOverride("outline_size", 8);
+        badge.AddChild(label);
+        label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        return (tab, badge, label);
+    }
+
     private static NRunModifierTickbox CreateAdvancedToggle(NCustomRunModifiersList list, VBoxContainer content)
     {
-        var russian = MegaCrit.Sts2.Core.Localization.LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
+        var russian = LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
         return ModifierRandomizerUi.AddOption(list, content, "AdvancedModeToggle",
             russian ? "Расширенный режим" : "Advanced mode",
             russian ? "Параметры забега и ползунки значений." : "Run Parameters and value sliders.",
@@ -276,7 +335,7 @@ internal static class ModifierGroupsUi
         // Only the player who sets the modifiers can roll them.
         if (layout.Sections.FirstOrDefault(section => section.Group == ModifierGroup.Randomizer) is { } randomizer)
         {
-            randomizer.Root.Visible = IsEditable(list);
+            randomizer.Available = IsEditable(list);
             ModifierRandomizerUi.Refresh(list);
         }
         var disabled = layout.Sections.FirstOrDefault(section => section.Group == ModifierGroup.Disabled);
@@ -293,7 +352,7 @@ internal static class ModifierGroupsUi
                 var source = target == disabled ? entry.Home : disabled;
                 var focus = layout.Content.GetViewport()?.GuiGetFocusOwner();
                 if (focus != null && entry.Nodes.Any(node => node == focus || node.IsAncestorOf(focus)))
-                    source.Header.GrabFocus();
+                    source.Tab.GrabFocus();
                 foreach (var node in entry.Nodes) node.Reparent(target.ChildList, false);
                 moved = true;
             }
@@ -307,15 +366,11 @@ internal static class ModifierGroupsUi
         var forcedChanged = ApplyForced(list, layout);
         if (unticked || forcedChanged) ModifierVariantUi.RefreshFromTickboxes(list);
         ApplyAdvanced(list, layout);
-        // A group whose modifiers all moved to Disabled (or Disabled itself when empty) hides its header too.
+        // A group whose modifiers all moved to Disabled (or Disabled itself when empty) hides its tab.
         foreach (var section in layout.Sections.Where(section => section.Group != ModifierGroup.Randomizer))
-        {
-            var visible = section.Rows.Any(row => row.Visible);
-            if (!visible && section.Root.Visible && layout.Content.GetViewport()?.GuiGetFocusOwner() is { } focus &&
-                section.Root.IsAncestorOf(focus))
-                layout.Sections.FirstOrDefault(other => other != section && other.Root.Visible)?.Header.GrabFocus();
-            section.Root.Visible = visible;
-        }
+            section.Available = section.Rows.Any(row => row.Visible);
+        ApplySelection(layout);
+        RefreshSummary(layout);
     }
 
     // Without Advanced mode, slider-only modifiers disappear entirely; their extra rows follow because they are unticked.
@@ -327,7 +382,7 @@ internal static class ModifierGroupsUi
         foreach (var section in layout.Sections)
             foreach (var row in section.Rows.Where(row => AdvancedMode.IsAdvancedModifier(row.Modifier)))
             {
-                if (!advanced && focus != null && (row == focus || row.IsAncestorOf(focus))) section.Header.GrabFocus();
+                if (!advanced && focus != null && (row == focus || row.IsAncestorOf(focus))) section.Tab.GrabFocus();
                 row.Visible = advanced;
                 row.FocusMode = advanced && !IsLocked(list, row.Modifier) ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
             }
@@ -381,7 +436,7 @@ internal static class ModifierGroupsUi
     internal static bool IsSingleplayer(NCustomRunModifiersList list) =>
         (MultiplayerUiMode)AccessTools.Field(typeof(NCustomRunModifiersList), "_mode").GetValue(list)! == MultiplayerUiMode.Singleplayer;
 
-    private static bool IsEditable(NCustomRunModifiersList list) =>
+    internal static bool IsEditable(NCustomRunModifiersList list) =>
         (MultiplayerUiMode)AccessTools.Field(typeof(NCustomRunModifiersList), "_mode").GetValue(list)!
             is MultiplayerUiMode.Singleplayer or MultiplayerUiMode.Host;
 
@@ -398,25 +453,106 @@ internal static class ModifierGroupsUi
             if (!modifiers.Any(modifier => modifier.GetType() == forced.GetType())) modifiers.Add(forced);
     }
 
-    private static void Toggle(VBoxContainer content, Layout layout, Section section)
+    private static Section? SelectedSection(Layout layout) =>
+        layout.Sections.FirstOrDefault(section => section.Group == layout.Selected && section.Available);
+
+    private static void Select(Layout layout, ModifierGroup group, bool userChoice)
     {
-        var focus = content.GetViewport().GuiGetFocusOwner();
-        if (section.Expanded && focus != null && section.Body.IsAncestorOf(focus)) section.Header.GrabFocus();
-        SetExpanded(section, !section.Expanded);
-        if (section.Group == ModifierGroup.Randomizer)
+        var focus = layout.Content.GetViewport()?.GuiGetFocusOwner();
+        var previous = SelectedSection(layout);
+        layout.Selected = group;
+        if (userChoice) SelectedGroup = group;
+        ApplySelection(layout);
+        if (previous != null && previous.Group != group)
         {
-            ModifierRandomizer.Settings.Expanded = section.Expanded;
-            ModifierRandomizer.Save();
+            try { layout.List.GetNodeOrNull<NScrollableContainer>("ScrollContainer")?.InstantlyScrollToTop(); }
+            catch (InvalidOperationException) { }
+            // Keep controller focus on the tab column instead of a control that was just hidden.
+            if (focus != null && previous.Root.IsAncestorOf(focus)) SelectedSection(layout)?.Tab.GrabFocus();
         }
-        UpdateFocus(layout);
-        Callable.From(() => ResizeContent(content)).CallDeferred();
+        Refresh(layout.List);
     }
 
-    private static void SetExpanded(Section section, bool expanded)
+    private static void ApplySelection(Layout layout)
     {
-        section.Expanded = expanded;
-        section.Body.Visible = expanded;
-        section.Arrow.Rotation = expanded ? Mathf.Pi / 2 : 0;
+        if (SelectedSection(layout) == null)
+        {
+            var fallback = layout.Sections.FirstOrDefault(section => section.Available && section.Group == ModifierGroup.ImprovedStart)
+                ?? layout.Sections.FirstOrDefault(section => section.Available && section.Group != ModifierGroup.Randomizer)
+                ?? layout.Sections.FirstOrDefault(section => section.Available);
+            if (fallback != null) layout.Selected = fallback.Group;
+        }
+        foreach (var section in layout.Sections)
+        {
+            var selected = section.Available && section.Group == layout.Selected;
+            section.Root.Visible = selected;
+            section.Tab.Visible = section.Available;
+            section.Tab.FocusMode = section.Available ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
+            if (!section.Tab.IsNodeReady()) continue;
+            if (selected) section.Tab.Select();
+            else section.Tab.Deselect();
+        }
+    }
+
+    // Opens the tab that holds a selected modifier and brings its row into view.
+    private static void Reveal(NCustomRunModifiersList list, ModifierModel modifier)
+    {
+        if (!GodotObject.IsInstanceValid(list) || !Layouts.TryGetValue(list, out var layout)) return;
+        var tickboxes = (List<NRunModifierTickbox>)AccessTools.Field(typeof(NCustomRunModifiersList), "_modifierTickboxes").GetValue(list)!;
+        var row = tickboxes.FirstOrDefault(row => ReferenceEquals(row.Modifier, modifier))
+            ?? tickboxes.FirstOrDefault(row => row.Modifier?.GetType() == modifier.GetType());
+        if (row == null) return;
+        var section = layout.Sections.FirstOrDefault(section => section.ChildList.IsAncestorOf(row));
+        if (section == null || !section.Available) return;
+        Select(layout, section.Group, true);
+        // Hidden rows (variants, starting deck) are represented by the visible control that drives them.
+        Control? target = row.Visible ? row
+            : DeckPickerUi.IsDeckModifier(modifier) ? section.ChildList.GetNodeOrNull<Control>(DeckPickerUi.NodeName)
+            : tickboxes.FirstOrDefault(parent => parent.Visible && parent.GetParent() == row.GetParent() &&
+                ModifierVariantUi.Families.Any(family => ModifierVariantUi.IsParent(parent.Modifier, family) &&
+                    ModifierVariantUi.BelongsTo(modifier, family)));
+        if (target == null) return;
+        // Wait one frame so the newly shown tab has a layout to scroll through.
+        Callable.From(() => ScrollTo(layout, target)).CallDeferred();
+    }
+
+    private static void ScrollTo(Layout layout, Control target)
+    {
+        if (!GodotObject.IsInstanceValid(target) || !target.IsVisibleInTree() || !GodotObject.IsInstanceValid(layout.Content)) return;
+        var scroll = layout.List.GetNodeOrNull<NScrollableContainer>("ScrollContainer");
+        if (scroll == null) return;
+        try
+        {
+            // The scroll container eases toward this private target each frame; it only follows focus for controllers.
+            var limit = (float)AccessTools.Property(typeof(NScrollableContainer), "ScrollLimitBottom").GetValue(scroll)!;
+            var value = layout.Content.Position.Y + (scroll.GlobalPosition.Y - target.GlobalPosition.Y) + 24;
+            value = Mathf.Clamp(value, Mathf.Min(limit, 0), Mathf.Max(limit, 0));
+            AccessTools.Field(typeof(NScrollableContainer), "_targetDragPosY").SetValue(scroll, value);
+        }
+        catch (Exception ex)
+        {
+            GD.PushWarning($"[Ultimate Custom Run] Could not scroll to the selected modifier: {ex.Message}");
+        }
+    }
+
+    private static void RefreshBadges(Layout layout)
+    {
+        foreach (var section in layout.Sections)
+        {
+            if (!GodotObject.IsInstanceValid(section.Badge)) continue;
+            var count = section.Group is ModifierGroup.Randomizer or ModifierGroup.Disabled ? 0 :
+                section.ChildList.GetChildren().OfType<NRunModifierTickbox>().Count(row =>
+                    row.IsTicked && row.Modifier != null && !ModifierVariantUi.IsHiddenVariant(row.Modifier));
+            section.Badge.Visible = count > 0;
+            section.BadgeLabel.Text = count.ToString();
+        }
+    }
+
+    private static void RefreshSummary(Layout layout)
+    {
+        if (!GodotObject.IsInstanceValid(layout.List)) return;
+        RefreshBadges(layout);
+        ActiveModifiersUi.Refresh(layout.List);
     }
 
     private static void ResizeContent(VBoxContainer content)
@@ -433,10 +569,19 @@ internal static class ModifierGroupsUi
         Callable.From(() => ResizeContent(layout.Content)).CallDeferred();
     }
 
+    private static List<Control> ContentControls(Layout layout)
+    {
+        var controls = SelectedSection(layout) is { } section ? FocusableControls(section).ToList() : [];
+        if (layout.AdvancedToggle is { Visible: true } toggle && toggle.FocusMode == Control.FocusModeEnum.All) controls.Insert(0, toggle);
+        return controls;
+    }
+
+    // Up and down move within the open tab; right jumps to the tab column and left returns to the list.
     private static void UpdateFocus(Layout layout)
     {
-        var controls = layout.Sections.SelectMany(FocusableControls).ToList();
-        if (layout.AdvancedToggle is { Visible: true } toggle) controls.Insert(0, toggle);
+        var controls = ContentControls(layout);
+        var tabs = layout.Sections.Where(section => section.Available).Select(section => (Control)section.Tab).ToList();
+        var selectedTab = SelectedSection(layout)?.Tab;
         for (var i = 0; i < controls.Count; i++)
         {
             var previous = controls[(i + controls.Count - 1) % controls.Count];
@@ -445,15 +590,24 @@ internal static class ModifierGroupsUi
             controls[i].FocusPrevious = controls[i].GetPathTo(previous);
             controls[i].FocusNeighborBottom = controls[i].GetPathTo(next);
             controls[i].FocusNext = controls[i].GetPathTo(next);
+            if (selectedTab != null && controls[i] is not Godot.Range) controls[i].FocusNeighborRight = controls[i].GetPathTo(selectedTab);
         }
-
+        for (var i = 0; i < tabs.Count; i++)
+        {
+            var previous = tabs[Math.Max(0, i - 1)];
+            var next = tabs[Math.Min(tabs.Count - 1, i + 1)];
+            tabs[i].FocusNeighborTop = tabs[i].GetPathTo(previous);
+            tabs[i].FocusNeighborBottom = tabs[i].GetPathTo(next);
+            tabs[i].FocusPrevious = tabs[i].GetPathTo(previous);
+            tabs[i].FocusNext = tabs[i].GetPathTo(next);
+            tabs[i].FocusNeighborRight = tabs[i].GetPathTo(tabs[i]);
+            tabs[i].FocusNeighborLeft = controls.Count > 0 ? tabs[i].GetPathTo(controls[0]) : tabs[i].GetPathTo(tabs[i]);
+        }
     }
 
     private static IEnumerable<Control> FocusableControls(Section section)
     {
-        if (!section.Root.Visible) yield break;
-        yield return section.Header;
-        if (!section.Expanded || section.Group == ModifierGroup.Disabled) yield break;
+        if (!section.Root.Visible || section.Group == ModifierGroup.Disabled) yield break;
         foreach (var child in section.ChildList.GetChildren().OfType<Control>())
         {
             if (!child.Visible) continue;
