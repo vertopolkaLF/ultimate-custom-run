@@ -31,6 +31,9 @@ internal static class CustomRunHeaderUi
     // Vanilla offsets from the bottom of the left column, moved down into the space the seed row used to take.
     private const float AscensionTop = -366, AscensionBottom = -249;
     private const float CharactersTop = -50, CharactersBottom = -10;
+    // The row is centered a little right of the column, so the page arrow that RitsuLib or BaseLib puts right of
+    // the scrolling strip ran into the modifier panel. This keeps that arrow clear of the panel's left edge.
+    private const float CharactersShiftLeft = 53;
     private const float WarningIconRoom = 56;
     private const string PopupScene = "res://scenes/ui/generic_popup.tscn";
 
@@ -118,6 +121,8 @@ internal static class CustomRunHeaderUi
         {
             characters.OffsetTop = CharactersTop;
             characters.OffsetBottom = CharactersBottom;
+            characters.OffsetLeft -= CharactersShiftLeft;
+            characters.OffsetRight -= CharactersShiftLeft;
         }
 
         // The modifier list grows into the old top and bottom margins; ModifierGroupsUi builds its panel from these
