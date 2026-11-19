@@ -1,9 +1,11 @@
 using System.Runtime.CompilerServices;
 using Godot;
 using MegaCrit.Sts2.Core.Entities.UI;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
+using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 
 namespace UltimateCustomRun;
@@ -109,7 +111,7 @@ internal static class ActiveModifiersUi
         foreach (var modifier in modifiers)
         {
             var group = ModifierGroups.Classify(modifier, negatives);
-            panel.Chips.AddChild(CreateChip(Text(modifier),
+            panel.Chips.AddChild(CreateChip(modifier, Text(modifier),
                 group is ModifierGroup.Negatives or ModifierGroup.Ascension ? Red : Gold,
                 () => panel.Reveal(modifier)));
         }
@@ -164,7 +166,7 @@ internal static class ActiveModifiersUi
     }
 
     // A small version of the card library's sort buttons: the same banner texture, HSV hover and gold text.
-    private static NButton CreateChip(string text, Color color, Action pressed)
+    private static NButton CreateChip(ModifierModel modifier, string text, Color color, Action pressed)
     {
         var font = ResourceLoader.Load<Font>("res://themes/kreon_bold_shared.tres");
         const int fontSize = 20;
@@ -172,7 +174,7 @@ internal static class ActiveModifiersUi
         var chip = new NButton
         {
             Name = "Chip", CustomMinimumSize = new Vector2(width, 40), FocusMode = Control.FocusModeEnum.None,
-            MouseFilter = Control.MouseFilterEnum.Stop, MouseDefaultCursorShape = Control.CursorShape.PointingHand,
+            MouseFilter = Control.MouseFilterEnum.Stop,
             PivotOffset = new Vector2(width / 2, 20)
         };
         var material = new ShaderMaterial { Shader = ResourceLoader.Load<Shader>("res://shaders/hsv.gdshader") };
@@ -201,16 +203,20 @@ internal static class ActiveModifiersUi
             tween?.Kill();
             material.SetShaderParameter(ShaderV, 1.15f);
             chip.Scale = Vector2.One * 1.05f;
+            NHoverTipSet.Remove(chip);
+            NHoverTipSet.CreateAndShow(chip, new HoverTip(modifier.Title, modifier.Description, null!), HoverTipAlignment.Right);
         };
         chip.MouseExited += () =>
         {
             tween?.Kill();
+            NHoverTipSet.Remove(chip);
             if (!GodotObject.IsInstanceValid(chip) || !chip.IsInsideTree()) return;
             tween = chip.CreateTween().SetParallel();
             tween.TweenProperty(chip, "scale", Vector2.One, 0.5).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
             tween.TweenMethod(Callable.From<float>(value => material.SetShaderParameter(ShaderV, value)), 1.15f, 0.8f, 0.5)
                 .SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
         };
+        chip.TreeExiting += () => NHoverTipSet.Remove(chip);
         chip.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => pressed()));
         return chip;
     }
