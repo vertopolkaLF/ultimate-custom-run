@@ -67,7 +67,7 @@ internal static class ModifierGroupsUi
     private const float TabWidth = 172;
     private const float TabHeight = 50;
     private const float ScrollbarWidth = 52;
-    private const float ScrollbarInsetTop = 22, ScrollbarInsetBottom = 26;
+    private const float ScrollbarInsetTop = 30, ScrollbarInsetBottom = 18;
     private const float TopGap = 16;
     // Remembered for the session, so reopening the screen returns to the last tab.
     private static ModifierGroup SelectedGroup = ModifierGroup.ImprovedStart;
