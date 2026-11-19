@@ -44,6 +44,7 @@ internal static class ModifierPresetUi
     internal static void AddControls(NCustomRunScreen screen)
     {
         if (Screens.TryGetValue(screen, out _)) return;
+        DisclaimerUi.Attach(screen);
 
         var randomizeButton = screen.GetNode<NCustomRunRandomizeButton>("%CustomRunRandomizeButton");
         var row = randomizeButton.GetParent<HBoxContainer>();
