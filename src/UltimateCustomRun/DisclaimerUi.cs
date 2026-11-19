@@ -45,8 +45,18 @@ internal static class DisclaimerUi
                 HorizontalAlignment.Right => title.Size.X - width,
                 _ => 0
             };
-            icon.Position = new Vector2(start + width + 14, (title.Size.Y - IconSize) / 2);
+            // Center on the drawn line of text, not on the label box (which can be taller than the text).
+            var lineHeight = font.GetHeight(size);
+            var lineTop = title.VerticalAlignment switch
+            {
+                VerticalAlignment.Center => (title.Size.Y - lineHeight) / 2,
+                VerticalAlignment.Bottom => title.Size.Y - lineHeight,
+                _ => 0
+            };
+            icon.Position = new Vector2(start + width + 14, lineTop + (lineHeight - IconSize) / 2);
         }
+        // The title shrinks its font to fit after layout; follow every redraw so the icon tracks the final text.
+        title.Draw += Place;
         title.Resized += Place;
         Callable.From(Place).CallDeferred();
 
