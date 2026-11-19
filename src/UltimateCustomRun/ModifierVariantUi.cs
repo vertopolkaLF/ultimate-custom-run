@@ -371,6 +371,7 @@ internal static class ModifierVariantAfterChangedPatch
         ModifierVariantUi.RefreshFromTickboxes(__instance);
         ModifierVariantUi.UpdateInteractionMode(__instance);
         ModifierValueUi.Refresh(__instance);
+        DeckPickerUi.Refresh(__instance);
     }
 }
 
@@ -383,6 +384,7 @@ internal static class ModifierVariantInitializePatch
         ModifierVariantUi.UpdateInteractionMode(__instance);
         ModifierGroupsUi.ApplyMode(__instance);
         ModifierValueUi.Refresh(__instance);
+        DeckPickerUi.Refresh(__instance);
     }
 }
 
@@ -406,6 +408,7 @@ internal static class ModifierVariantSetTickedPatch
         ModifierVariantUi.ApplyIncomingModifiers(__instance, __0);
         ModifierGroupsUi.ApplyMode(__instance);
         ModifierValueUi.Refresh(__instance);
+        DeckPickerUi.Refresh(__instance);
     }
 }
 
@@ -425,5 +428,6 @@ internal static class ModifierVariantSyncPatch
         ModifierVariantUi.ApplyIncomingModifiers(__instance, __0);
         ModifierGroupsUi.ApplyMode(__instance);
         ModifierValueUi.Refresh(__instance);
+        DeckPickerUi.Refresh(__instance);
     }
 }
