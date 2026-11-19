@@ -67,6 +67,7 @@ internal static class ModifierGroupsUi
     private const float TabWidth = 172;
     private const float TabHeight = 50;
     private const float ScrollbarWidth = 52;
+    private const float ScrollbarInsetTop = 22, ScrollbarInsetBottom = 26;
     private const float TopGap = 16;
     // Remembered for the session, so reopening the screen returns to the last tab.
     private static ModifierGroup SelectedGroup = ModifierGroup.ImprovedStart;
@@ -321,8 +322,9 @@ internal static class ModifierGroupsUi
         var box = panel.GetGlobalRect();
         var track = bar.GetGlobalRect();
         if (track.Size.Y <= 0) return;
-        bar.OffsetTop += box.Position.Y - track.Position.Y;
-        bar.OffsetBottom += box.End.Y - track.End.Y;
+        // The handle gem and the track's pointed end draw past the bar's rect, so keep the rect inset.
+        bar.OffsetTop += box.Position.Y + ScrollbarInsetTop - track.Position.Y;
+        bar.OffsetBottom += box.End.Y - ScrollbarInsetBottom - track.End.Y;
         panel.OffsetRight += track.End.X - box.End.X;
     }
 
