@@ -40,6 +40,9 @@ internal static class LinkedModifierChains
         {
             var previous = rows[index - 1];
             var next = rows[index];
+            // Linked rows exclude each other, so they read as radio buttons.
+            VanillaUi.UseRadio(previous);
+            VanillaUi.UseRadio(next);
             var upper = previous.GetNode<Control>("HBoxContainer/TickboxVisuals");
             var lower = next.GetNode<Control>("HBoxContainer/TickboxVisuals");
             // Reserve enough tiles for unusually tall localized descriptions; no per-frame work.

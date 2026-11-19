@@ -87,6 +87,39 @@ internal static class VanillaUi
         return (MegaCrit.Sts2.Core.HoverTips.HoverTip)tip;
     }
 
+    private static Texture2D? radioOn, radioOff;
+
+    // The mod's radio art (drawn to match the game's checkbox), bundled in the assembly.
+    internal static Texture2D Radio(bool on)
+    {
+        if ((on ? radioOn : radioOff) is { } cached) return cached;
+        var name = on ? "radio_ticked.png" : "radio_unticked.png";
+        Texture2D? texture = null;
+        using (var stream = typeof(VanillaUi).Assembly.GetManifestResourceStream("UltimateCustomRun.Assets." + name))
+        {
+            if (stream != null)
+            {
+                using var buffer = new MemoryStream();
+                stream.CopyTo(buffer);
+                var image = new Image();
+                if (image.LoadPngFromBuffer(buffer.ToArray()) == Error.Ok) texture = ImageTexture.CreateFromImage(image);
+            }
+        }
+        // Without the bundled art, fall back to the game's own checkbox.
+        texture ??= ResourceLoader.Load<Texture2D>(on
+            ? "res://images/packed/common_ui/checkbox_ticked.png" : "res://images/packed/common_ui/checkbox_unticked.png");
+        if (on) radioOn = texture; else radioOff = texture;
+        return texture;
+    }
+
+    // Turns a game tickbox (modifier row, variant choice) into a radio button: one of several exclusive options.
+    internal static void UseRadio(Control tickbox)
+    {
+        var visuals = tickbox.GetNodeOrNull<Control>("HBoxContainer/TickboxVisuals") ?? tickbox.GetNodeOrNull<Control>("%TickboxVisuals");
+        if (visuals?.GetNodeOrNull<TextureRect>("Ticked") is { } ticked) ticked.Texture = Radio(true);
+        if (visuals?.GetNodeOrNull<TextureRect>("NotTicked") is { } unticked) unticked.Texture = Radio(false);
+    }
+
     internal static void SetBrightness(ShaderMaterial material, float value) => material.SetShaderParameter(ShaderV, value);
 
     // Count badge drawn on the card library's cost tickbox.

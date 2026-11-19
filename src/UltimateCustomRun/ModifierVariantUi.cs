@@ -236,6 +236,8 @@ internal static class ModifierVariantUi
         var choice = NRunModifierTickbox.Create(modifier)
             ?? throw new InvalidOperationException("Could not create a modifier variant checkbox.");
         choice.Name = "ModifierVariant" + index;
+        // Variants of one modifier are exclusive, so they read as radio buttons.
+        VanillaUi.UseRadio(choice);
         choice.FocusMode = Control.FocusModeEnum.None;
         choice.MouseFilter = Control.MouseFilterEnum.Stop;
         return choice;

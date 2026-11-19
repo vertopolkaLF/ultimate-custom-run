@@ -49,7 +49,6 @@ internal static class DeckPickerUi
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, State> States = new();
     private static readonly System.Reflection.MethodInfo AfterModifiersChanged =
         AccessTools.Method(typeof(NCustomRunModifiersList), "AfterModifiersChanged");
-    private static Texture2D? radioOn, radioOff;
 
     internal static bool IsDeckModifier(ModifierModel? modifier) => ChoiceOf(modifier) != null;
 
@@ -160,23 +159,6 @@ internal static class DeckPickerUi
         }
     }
 
-    private static Texture2D? Radio(bool on)
-    {
-        if ((on ? radioOn : radioOff) is { } cached) return cached;
-        var name = on ? "radio_ticked.png" : "radio_unticked.png";
-        using var stream = typeof(DeckPickerUi).Assembly.GetManifestResourceStream("UltimateCustomRun.Assets." + name);
-        // Without the bundled radio art, fall back to the game's own checkbox.
-        if (stream == null)
-            return ResourceLoader.Load<Texture2D>(on ? "res://images/packed/common_ui/checkbox_ticked.png" : "res://images/packed/common_ui/checkbox_unticked.png");
-        using var buffer = new MemoryStream();
-        stream.CopyTo(buffer);
-        var image = new Image();
-        if (image.LoadPngFromBuffer(buffer.ToArray()) != Error.Ok) return null;
-        var texture = ImageTexture.CreateFromImage(image);
-        if (on) radioOn = texture; else radioOff = texture;
-        return texture;
-    }
-
     private static Option CreateOption(string title)
     {
         var button = new NButton
@@ -200,7 +182,7 @@ internal static class DeckPickerUi
         material.SetShaderParameter("v", 1.0f);
         var radio = new TextureRect
         {
-            Texture = Radio(false), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, Material = material,
+            Texture = VanillaUi.Radio(false), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, Material = material,
             StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, MouseFilter = Control.MouseFilterEnum.Ignore
         };
         visuals.AddChild(radio);
@@ -264,7 +246,7 @@ internal static class DeckPickerUi
     private static void Paint(Option option)
     {
         if (!GodotObject.IsInstanceValid(option.Button)) return;
-        option.Radio.Texture = Radio(option.Selected);
+        option.Radio.Texture = VanillaUi.Radio(option.Selected);
         option.Name.AddThemeColorOverride("font_color", option.Selected || option.Hovered ? VanillaUi.Gold : VanillaUi.Cream);
     }
 
