@@ -131,7 +131,8 @@ internal static class ActiveModifiersUi
         if (players != null && GodotObject.IsInstanceValid(players))
         {
             left = players.OffsetLeft;
-            right = players.OffsetRight;
+            // Leave a gap before the modifier panel, which starts left of the right column.
+            right = Math.Min(players.OffsetRight, 866);
             top = players.OffsetTop;
             if (players.Visible && players.GetNodeOrNull<Control>("Container") is { } flow)
             {

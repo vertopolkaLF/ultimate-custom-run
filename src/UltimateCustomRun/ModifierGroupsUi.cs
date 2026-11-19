@@ -7,12 +7,11 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
-using MegaCrit.Sts2.Core.Nodes.Screens.Settings;
 using MegaCrit.Sts2.Core.Models;
 
 namespace UltimateCustomRun;
 
-// Modifier groups are shown one at a time and picked from a column of native settings tabs beside the list.
+// Modifier groups are shown one at a time inside a dark panel, picked from a column of tabs on its left.
 [HarmonyPatch(typeof(NCustomRunModifiersList), nameof(NCustomRunModifiersList._Ready))]
 internal static class ModifierGroupsUi
 {
@@ -20,13 +19,23 @@ internal static class ModifierGroupsUi
     {
         internal required ModifierGroup Group;
         internal required VBoxContainer Root;
-        internal required NSettingsTab Tab;
-        internal required Control Badge;
-        internal required Label BadgeLabel;
+        internal required NButton Tab;
+        internal required TabVisual Visual;
         internal required MarginContainer Body;
         internal required VBoxContainer ChildList;
         internal required List<NRunModifierTickbox> Rows;
         internal bool Available = true;
+    }
+    private sealed class TabVisual
+    {
+        internal required TextureRect Banner;
+        internal required ShaderMaterial Material;
+        internal required Label Label;
+        internal required Control Badge;
+        internal required Label BadgeLabel;
+        internal bool Selected;
+        internal bool Hovered;
+        internal Tween? Tween;
     }
     private sealed class LockEntry
     {
@@ -49,11 +58,12 @@ internal static class ModifierGroupsUi
         internal ModifierGroup Selected = SelectedGroup;
     }
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, Layout> Layouts = new();
-    private static readonly Color BadgeColor = new(0.333333f, 0.580392f, 0.647059f);
-    private static readonly Color Cream = new(1, 0.9647059f, 0.8862745f);
-    private const string TabScene = "res://scenes/screens/settings_tab.tscn";
-    private const float TabWidth = 176;
-    private const float TabHeight = 60;
+    // The modifier panel spans from just right of the left column to the scrollbar; tabs run down its left edge.
+    private const float PanelLeft = -70;
+    private const float PanelPadding = 10;
+    private const float TabWidth = 172;
+    private const float TabHeight = 50;
+    private const float ScrollbarWidth = 52;
     // Remembered for the session, so reopening the screen returns to the last tab.
     private static ModifierGroup SelectedGroup = ModifierGroup.ImprovedStart;
 
@@ -184,6 +194,8 @@ internal static class ModifierGroupsUi
                     text.Add("modifier_description", modifier.Description.GetFormattedText());
                     row.GetNode<MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel>("HBoxContainer/Description").Text = text.GetFormattedText();
                 }
+                if (!DeckPickerUi.IsDeckModifier(row.Modifier))
+                    CompactRowsUi.Attach(row, group is ModifierGroup.Ascension or ModifierGroup.Negatives);
                 foreach (var variantRow in variantRows.Where(variantRow => ReferenceEquals(row, variantRow.ParentRow)))
                 {
                     childList.AddChild(variantRow.Container);
@@ -216,10 +228,10 @@ internal static class ModifierGroupsUi
             }
             if (variantRows.Count > 0) ModifierVariantUi.InitializeChoices(list);
             LinkedModifierChains.Attach(body, visibleRows);
-            var (tab, badge, badgeLabel) = CreateTab(rail, Title(group));
+            var (tab, visual) = CreateTab(rail, Title(group));
             var section = new Section
             {
-                Group = group, Root = sectionRoot, Tab = tab, Badge = badge, BadgeLabel = badgeLabel,
+                Group = group, Root = sectionRoot, Tab = tab, Visual = visual,
                 Body = body, ChildList = childList, Rows = visibleRows
             };
             layout.Sections.Add(section);
@@ -247,61 +259,108 @@ internal static class ModifierGroupsUi
 
     private static VBoxContainer CreateRail(NCustomRunModifiersList list)
     {
-        var rail = new VBoxContainer { Name = "ModifierTabs", MouseFilter = Control.MouseFilterEnum.Ignore };
-        rail.AddThemeConstantOverride("separation", 4);
-        // The list is anchored to the right container with a wide right margin; the tabs fill that margin.
         var parent = list.GetParent<Control>();
+        var top = list.OffsetTop;
+        var bottom = list.OffsetBottom;
+        var listRight = list.OffsetRight;
+
+        var panel = VanillaUi.Box(new Color(0, 0, 0, 0.5f));
+        panel.Name = "ModifierPanel";
+        parent.AddChild(panel);
+        parent.MoveChild(panel, list.GetIndex());
+        panel.AnchorLeft = panel.AnchorTop = 0;
+        panel.AnchorRight = panel.AnchorBottom = 1;
+        panel.OffsetLeft = PanelLeft;
+        panel.OffsetTop = top - PanelPadding;
+        panel.OffsetRight = listRight + ScrollbarWidth + PanelPadding;
+        panel.OffsetBottom = bottom + PanelPadding;
+
+        var divider = new ColorRect { Color = new Color(VanillaUi.Cream, 0.12f), MouseFilter = Control.MouseFilterEnum.Ignore };
+        parent.AddChild(divider);
+        parent.MoveChild(divider, list.GetIndex());
+        divider.AnchorLeft = divider.AnchorRight = divider.AnchorTop = 0;
+        divider.AnchorBottom = 1;
+        divider.OffsetLeft = PanelLeft + PanelPadding + TabWidth + 8;
+        divider.OffsetRight = divider.OffsetLeft + 2;
+        divider.OffsetTop = top + 4;
+        divider.OffsetBottom = bottom - 4;
+
+        // The list keeps its height and right edge and starts after the tab column.
+        list.OffsetLeft = divider.OffsetRight + 14;
+        // Align the Modifiers title, loadout picker and Save button with the panel edge.
+        if (parent.GetNodeOrNull<Control>("HBoxContainer") is { } header) header.OffsetLeft = PanelLeft;
+
+        var rail = new VBoxContainer { Name = "ModifierTabs", MouseFilter = Control.MouseFilterEnum.Ignore };
+        rail.AddThemeConstantOverride("separation", 6);
         parent.AddChild(rail);
-        rail.AnchorLeft = rail.AnchorRight = 1;
-        rail.AnchorTop = rail.AnchorBottom = 0;
-        rail.OffsetLeft = -TabWidth - 16;
-        rail.OffsetRight = -16;
-        rail.OffsetTop = list.OffsetTop;
-        rail.OffsetBottom = list.OffsetTop + 10 * (TabHeight + 4);
+        rail.AnchorLeft = rail.AnchorRight = rail.AnchorTop = rail.AnchorBottom = 0;
+        rail.OffsetLeft = PanelLeft + PanelPadding;
+        rail.OffsetRight = rail.OffsetLeft + TabWidth;
+        rail.OffsetTop = top + 6;
+        rail.OffsetBottom = top + 6 + 10 * (TabHeight + 6);
         return rail;
     }
 
-    private static (NSettingsTab Tab, Control Badge, Label BadgeLabel) CreateTab(VBoxContainer rail, string title)
+    // Text tabs; the open one sits on the card library's teal header banner. Hover matches the settings tabs.
+    private static (NButton Tab, TabVisual Visual) CreateTab(VBoxContainer rail, string title)
     {
-        var tab = ResourceLoader.Load<PackedScene>(TabScene).Instantiate<NSettingsTab>();
-        tab.Name = "Tab";
-        tab.CustomMinimumSize = new Vector2(TabWidth, TabHeight);
-        tab.PivotOffset = new Vector2(TabWidth / 2, TabHeight / 2);
-        tab.FocusMode = Control.FocusModeEnum.All;
+        var tab = new NButton
+        {
+            Name = "Tab", CustomMinimumSize = new Vector2(TabWidth, TabHeight), FocusMode = Control.FocusModeEnum.All,
+            MouseFilter = Control.MouseFilterEnum.Stop, PivotOffset = new Vector2(TabWidth / 2, TabHeight / 2)
+        };
         rail.AddChild(tab);
-        tab.SetLabel(title);
+        var (banner, material) = VanillaUi.Banner(0.9f);
+        tab.AddChild(banner);
+        banner.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        var margin = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        margin.AddThemeConstantOverride("margin_left", 14);
+        margin.AddThemeConstantOverride("margin_right", 8);
+        tab.AddChild(margin);
+        margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        row.AddThemeConstantOverride("separation", 6);
+        margin.AddChild(row);
+        var label = VanillaUi.Label(title, 24, VanillaUi.HalfCream);
+        label.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        label.ClipText = true;
+        VanillaUi.Outline(label);
+        row.AddChild(label);
+        var (badge, badgeLabel) = VanillaUi.Badge(30);
+        badge.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+        badge.Visible = false;
+        row.AddChild(badge);
 
-        // Count of selected modifiers, drawn on the card library's cost tickbox like a native filter chip.
-        var badge = new Control
+        var visual = new TabVisual { Banner = banner, Material = material, Label = label, Badge = badge, BadgeLabel = badgeLabel };
+        var mouseInside = false;
+        void Enter()
         {
-            Name = "Badge", MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false,
-            CustomMinimumSize = new Vector2(34, 34)
-        };
-        tab.AddChild(badge);
-        badge.AnchorLeft = badge.AnchorRight = 1;
-        badge.AnchorTop = badge.AnchorBottom = 0;
-        badge.OffsetLeft = -30; badge.OffsetRight = 4; badge.OffsetTop = -6; badge.OffsetBottom = 28;
-        var image = new TextureRect
+            if (visual.Hovered) return;
+            visual.Hovered = true;
+            VanillaUi.HoverIn(tab, material, ref visual.Tween);
+            PaintTab(visual);
+        }
+        void Exit()
         {
-            Texture = ResourceLoader.Load<Texture2D>("res://images/packed/card_library/cost_tickbox.png"),
-            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-            SelfModulate = BadgeColor, MouseFilter = Control.MouseFilterEnum.Ignore
-        };
-        badge.AddChild(image);
-        image.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        var label = new Label
-        {
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-            MouseFilter = Control.MouseFilterEnum.Ignore
-        };
-        label.AddThemeFontOverride("font", ResourceLoader.Load<Font>("res://themes/kreon_bold_shared.tres"));
-        label.AddThemeFontSizeOverride("font_size", 20);
-        label.AddThemeColorOverride("font_color", Cream);
-        label.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.5f));
-        label.AddThemeConstantOverride("outline_size", 8);
-        badge.AddChild(label);
-        label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        return (tab, badge, label);
+            if (!visual.Hovered || tab.HasFocus() || mouseInside) return;
+            visual.Hovered = false;
+            VanillaUi.HoverOut(tab, material, ref visual.Tween, 1.2f, 0.9f);
+            PaintTab(visual);
+        }
+        tab.MouseEntered += () => { mouseInside = true; Enter(); };
+        tab.FocusEntered += Enter;
+        tab.MouseExited += () => { mouseInside = false; Exit(); };
+        tab.FocusExited += () => Callable.From(Exit).CallDeferred();
+        PaintTab(visual);
+        return (tab, visual);
+    }
+
+    private static void PaintTab(TabVisual visual)
+    {
+        if (!GodotObject.IsInstanceValid(visual.Label)) return;
+        visual.Banner.Modulate = new Color(1, 1, 1, visual.Selected ? 1 : visual.Hovered ? 0.45f : 0);
+        visual.Label.AddThemeColorOverride("font_color",
+            visual.Hovered ? VanillaUi.Gold : visual.Selected ? VanillaUi.Cream : VanillaUi.HalfCream);
     }
 
     private static NRunModifierTickbox CreateAdvancedToggle(NCustomRunModifiersList list, VBoxContainer content)
@@ -488,9 +547,8 @@ internal static class ModifierGroupsUi
             section.Root.Visible = selected;
             section.Tab.Visible = section.Available;
             section.Tab.FocusMode = section.Available ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
-            if (!section.Tab.IsNodeReady()) continue;
-            if (selected) section.Tab.Select();
-            else section.Tab.Deselect();
+            section.Visual.Selected = selected;
+            PaintTab(section.Visual);
         }
     }
 
@@ -539,12 +597,12 @@ internal static class ModifierGroupsUi
     {
         foreach (var section in layout.Sections)
         {
-            if (!GodotObject.IsInstanceValid(section.Badge)) continue;
+            if (!GodotObject.IsInstanceValid(section.Visual.Badge)) continue;
             var count = section.Group is ModifierGroup.Randomizer or ModifierGroup.Disabled ? 0 :
                 section.ChildList.GetChildren().OfType<NRunModifierTickbox>().Count(row =>
                     row.IsTicked && row.Modifier != null && !ModifierVariantUi.IsHiddenVariant(row.Modifier));
-            section.Badge.Visible = count > 0;
-            section.BadgeLabel.Text = count.ToString();
+            section.Visual.Badge.Visible = count > 0;
+            section.Visual.BadgeLabel.Text = count.ToString();
         }
     }
 
@@ -621,6 +679,9 @@ internal static class ModifierGroupsUi
                     if ((control is NButton || control.HasMeta(RangeSlider.FocusMeta)) && control.FocusMode == Control.FocusModeEnum.All)
                         yield return control;
             foreach (var button in StartOrderUi.FocusableControls(child)) yield return button;
+            if (child.Name == DeckPickerUi.NodeName)
+                foreach (var card in child.FindChildren("*", "Control", true, false).OfType<NButton>())
+                    if (card.FocusMode == Control.FocusModeEnum.All) yield return card;
         }
     }
 }

@@ -197,5 +197,6 @@ internal static class ModifierValueUi
         text.Add("modifier_title", title);
         text.Add("modifier_description", modifier.Description.GetFormattedText());
         row.GetNode<MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel>("HBoxContainer/Description").Text = text.GetFormattedText();
+        CompactRowsUi.Update(row);
     }
 }
