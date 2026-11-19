@@ -646,7 +646,10 @@ internal static class ModifierGroupsUi
     private static void ResizeContent(VBoxContainer content)
     {
         if (!GodotObject.IsInstanceValid(content)) return;
-        content.Size = new Vector2(content.Size.X, content.GetCombinedMinimumSize().Y);
+        // The list was narrowed after the scene set the content width; follow the visible mask instead, so
+        // expanding rows (sliders, wrapped descriptions) end at the scrollbar rather than under it.
+        var width = content.GetParent() is Control mask ? mask.Size.X - Math.Max(0, content.Position.X) : content.Size.X;
+        content.Size = new Vector2(width, content.GetCombinedMinimumSize().Y);
         ReportOverflow(content);
     }
 

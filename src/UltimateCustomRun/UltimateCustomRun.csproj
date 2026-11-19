@@ -15,6 +15,9 @@
     <Reference Include="GodotSharp"><HintPath>$(GameDataPath)/GodotSharp.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="0Harmony"><HintPath>$(GameDataPath)/0Harmony.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Assets/*.png" LogicalName="UltimateCustomRun.Assets.%(Filename)%(Extension)" />
+  </ItemGroup>
   <Target Name="CheckGameReferences" BeforeTargets="ResolveReferences">
     <Error Condition="!Exists('$(GameDataPath)/sts2.dll')" Text="Game assembly not found. Pass -p:Sts2Path=PATH_TO_GAME." />
   </Target>

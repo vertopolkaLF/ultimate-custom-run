@@ -82,7 +82,7 @@ internal static class CustomRunParametersUi
         root.AddChild(new Control { CustomMinimumSize = new Vector2(52, 0), MouseFilter = Control.MouseFilterEnum.Ignore });
         var label = new Label
         {
-            Text = title, CustomMinimumSize = new Vector2(220, 0),
+            Text = title, CustomMinimumSize = new Vector2(170, 0),
             VerticalAlignment = VerticalAlignment.Center, SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin,
             MouseFilter = Control.MouseFilterEnum.Ignore
         };
@@ -97,7 +97,7 @@ internal static class CustomRunParametersUi
         slider.Step = 1;
         slider.Rounded = true;
         slider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        slider.CustomMinimumSize = new Vector2(150, 58);
+        slider.CustomMinimumSize = new Vector2(130, 58);
         slider.FocusMode = Control.FocusModeEnum.All;
         foreach (var child in slider.FindChildren("*", "Control", true, false).OfType<Control>())
             child.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -105,7 +105,7 @@ internal static class CustomRunParametersUi
 
         var value = new Label
         {
-            CustomMinimumSize = new Vector2(120, 0), VerticalAlignment = VerticalAlignment.Center,
+            CustomMinimumSize = new Vector2(90, 0), VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Right, MouseFilter = Control.MouseFilterEnum.Ignore
         };
         value.AddThemeFontOverride("font", ResourceLoader.Load<Font>("res://themes/kreon_regular_shared.tres"));

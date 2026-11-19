@@ -68,7 +68,7 @@ internal static class ModifierValueUi
         root.AddChild(new Control { CustomMinimumSize = new Vector2(52, 0), MouseFilter = Control.MouseFilterEnum.Ignore });
         var label = new Label
         {
-            CustomMinimumSize = new Vector2(190, 0), VerticalAlignment = VerticalAlignment.Center,
+            CustomMinimumSize = new Vector2(150, 0), VerticalAlignment = VerticalAlignment.Center,
             MouseFilter = Control.MouseFilterEnum.Ignore
         };
         label.AddThemeFontOverride("font", ResourceLoader.Load<Font>("res://themes/kreon_regular_shared.tres"));
@@ -83,7 +83,7 @@ internal static class ModifierValueUi
         slider.Step = 1;
         slider.Rounded = true;
         slider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        slider.CustomMinimumSize = new Vector2(160, 64);
+        slider.CustomMinimumSize = new Vector2(130, 64);
         slider.FocusMode = Control.FocusModeEnum.All;
         foreach (var child in slider.FindChildren("*", "Control", true, false).OfType<Control>())
             child.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -108,6 +108,27 @@ internal static class ModifierValueUi
             if (input.IsActionPressed(MegaInput.right)) { slider.Value++; slider.AcceptEvent(); }
         };
         return root;
+    }
+
+    // One step up or down from the deck picker's inline stepper.
+    internal static void Adjust(NCustomRunModifiersList list, ModifierModel modifier, bool pool, int direction)
+    {
+        if (!Editable(list) || !AdvancedMode.IsActive(list)) return;
+        var spec = pool ? ModifierValues.SealedPoolSpec : ModifierValues.For(modifier);
+        if (spec == null) return;
+        var current = pool ? ModifierValues.GetSealedPool(modifier) : ModifierValues.Get(modifier);
+        var next = Math.Clamp(current + direction * spec.Step, spec.Min, spec.Max);
+        if (next == current) return;
+        if (pool)
+        {
+            ModifierValues.SetSealedPool(modifier, next);
+            // A smaller pool can leave fewer cards to choose than the current pick count.
+            if (ModifierValues.For(modifier) is { } picks && ModifierValues.Get(modifier) > picks.Max)
+                SetFamilyValue(list, modifier, picks.Max);
+        }
+        else SetFamilyValue(list, modifier, next);
+        Refresh(list);
+        list.EmitSignal(NCustomRunModifiersList.SignalName.ModifiersChanged);
     }
 
     private static bool SameFamily(ModifierModel first, ModifierModel second) =>
@@ -149,9 +170,11 @@ internal static class ModifierValueUi
             row.Applying = true;
             try
             {
-                row.Root.Visible = row.Parent.IsTicked && advanced;
+                // Starting deck values are edited inside the deck picker's sentence instead.
+                var shown = row.Parent.IsTicked && advanced && !DeckPickerUi.IsDeckModifier(row.Parent.Modifier);
+                row.Root.Visible = shown;
                 if (row.Root.GetParent() is VBoxContainer group && (group.Name == "SealedDeckValues" || group.Name == "DillValues"))
-                    group.Visible = row.Parent.IsTicked && advanced;
+                    group.Visible = shown;
                 var editable = Editable(list) && !ModifierGroupsUi.IsLocked(list, row.Parent.Modifier);
                 row.Spec = SpecFor(row.Parent.Modifier, row.Kind)!;
                 editable &= row.Spec.Max > row.Spec.Min;
@@ -180,6 +203,7 @@ internal static class ModifierValueUi
         CoopHandicapUi.Refresh(list);
         StartOrderUi.Refresh(list);
         ModifierGroupsUi.Refresh(list);
+        DeckPickerUi.Refresh(list);
     }
 
     private static bool Editable(NCustomRunModifiersList list) =>

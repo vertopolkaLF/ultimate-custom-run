@@ -29,7 +29,7 @@ internal sealed class RangeSlider
         this.max = Math.Max(1, max);
         Root = new Control
         {
-            Name = name, CustomMinimumSize = new Vector2(220, 58), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            Name = name, CustomMinimumSize = new Vector2(160, 58), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
             FocusMode = Control.FocusModeEnum.All, MouseFilter = Control.MouseFilterEnum.Stop
         };
         Root.SetMeta(FocusMeta, true);

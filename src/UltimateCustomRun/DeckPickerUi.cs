@@ -1,51 +1,52 @@
 using System.Runtime.CompilerServices;
 using Godot;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Entities.UI;
-using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Modifiers;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
-using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Screens.CustomRun;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 
 namespace UltimateCustomRun;
 
-// The modifiers that replace or empty the starting deck read as one choice of cards. Their native rows stay
-// in the list (hidden) as the source of truth for saves, loadouts and co-op sync; the cards only tick them.
+// The modifiers that replace or empty the starting deck read as one choice: a two-column radio grid and one
+// sentence describing the chosen deck, with its numbers editable in place. The native rows stay in the list
+// (hidden) as the source of truth for saves, loadouts and co-op sync; the picker only ticks them.
 internal static class DeckPickerUi
 {
     internal const string NodeName = "StartingDeckPicker";
-    private const string StarterTitleKey = "ultimate_custom_run.deck.starter";
-    private const string StarterDescriptionKey = "ultimate_custom_run.deck.starter_description";
+    private const int TextSize = 20;
 
     private enum Choice { Starter, Draft, Sealed, Insanity, Empty }
     private static readonly Choice[] Choices = [Choice.Starter, Choice.Draft, Choice.Sealed, Choice.Insanity, Choice.Empty];
 
-    private sealed class Card
+    private sealed class Option
     {
         internal required NButton Button;
-        internal required NinePatchRect Background;
-        internal required Panel Frame;
-        internal required Label Title;
+        internal required TextureRect Radio;
+        internal required Label Name;
+        internal required Panel Highlight;
         internal bool Selected;
         internal bool Hovered;
-        internal Tween? Tween;
     }
 
     private sealed class State
     {
         internal readonly Dictionary<Choice, NRunModifierTickbox> Rows = [];
-        internal readonly Dictionary<Choice, Card> Cards = [];
+        internal readonly Dictionary<Choice, Option> Options = [];
+        internal required HFlowContainer Sentence;
+        // The numbers in the current sentence; changing a value updates them in place so focus stays put.
+        internal readonly List<(Label Label, bool Pool)> Numbers = [];
         internal bool Editable = true;
+        internal string Signature = "";
         internal Action? LayoutChanged;
     }
 
     private static readonly ConditionalWeakTable<NCustomRunModifiersList, State> States = new();
     private static readonly System.Reflection.MethodInfo AfterModifiersChanged =
         AccessTools.Method(typeof(NCustomRunModifiersList), "AfterModifiersChanged");
+    private static Texture2D? radioOn, radioOff;
 
     internal static bool IsDeckModifier(ModifierModel? modifier) => ChoiceOf(modifier) != null;
 
@@ -60,147 +61,181 @@ internal static class DeckPickerUi
 
     private static bool Russian => LocManager.Instance.CultureInfo.TwoLetterISOLanguageName == "ru";
 
-    private static string Summary(Choice choice) => (choice, Russian) switch
+    // {0} is the deck's main number and {1} the Sealed Deck pool; each becomes a value (or stepper).
+    private static string Template(Choice choice) => (choice, Russian) switch
     {
-        (Choice.Starter, false) => "Your character's normal deck.",
-        (Choice.Starter, true) => "Обычная колода персонажа.",
-        (Choice.Draft, false) => "Build it from card rewards.",
-        (Choice.Draft, true) => "Собрать из наград с картами.",
-        (Choice.Sealed, false) => "Pick cards from a fixed pool.",
-        (Choice.Sealed, true) => "Выбрать карты из пула.",
-        (Choice.Insanity, false) => "A deck of random cards.",
-        (Choice.Insanity, true) => "Колода из случайных карт.",
-        (_, false) => "No cards. Other effects add theirs.",
-        (_, true) => "Без карт. Их добавят другие эффекты."
+        (Choice.Starter, false) => "your character's normal starting deck.",
+        (Choice.Starter, true) => "обычная стартовая колода персонажа.",
+        (Choice.Draft, false) => "start with no cards and pick {0} card rewards to build your deck.",
+        (Choice.Draft, true) => "начать без карт и выбрать {0} наград с картами, чтобы собрать колоду.",
+        (Choice.Sealed, false) => "choose {0} cards for your deck from a fixed pool of {1} cards.",
+        (Choice.Sealed, true) => "выбрать {0} карт в колоду из пула в {1} карт.",
+        (Choice.Insanity, false) => "start with {0} random cards instead of your starting deck.",
+        (Choice.Insanity, true) => "начать с {0} случайными картами вместо стартовой колоды.",
+        (_, false) => "start with no cards. Other effects still add theirs.",
+        (_, true) => "начать без карт. Другие эффекты всё равно добавят свои."
+    };
+
+    private static string Title(Choice choice, State state) => choice switch
+    {
+        Choice.Starter => Russian ? "Обычная" : "Starter",
+        Choice.Empty => Russian ? "Пустая" : "Empty",
+        _ => System.Text.RegularExpressions.Regex.Replace(
+            state.Rows[choice].Modifier!.Title.GetFormattedText(), @"\[[^\]]*\]", "").Trim()
     };
 
     internal static void Create(NCustomRunModifiersList list, VBoxContainer childList, List<NRunModifierTickbox> rows,
         Dictionary<NRunModifierTickbox, List<Control>> attachments, Action layoutChanged)
     {
-        var state = new State { LayoutChanged = layoutChanged };
+        var rowsByChoice = new Dictionary<Choice, NRunModifierTickbox>();
         foreach (var row in rows)
-            if (ChoiceOf(row.Modifier) is { } choice && !state.Rows.ContainsKey(choice))
-                state.Rows[choice] = row;
+            if (ChoiceOf(row.Modifier) is { } choice && !rowsByChoice.ContainsKey(choice))
+                rowsByChoice[choice] = row;
         // Without a deck-replacing modifier there is nothing to choose between.
-        if (state.Rows.Count == 0) return;
-        States.AddOrUpdate(list, state);
-        RegisterStarterText();
+        if (rowsByChoice.Count == 0) return;
 
         var root = new VBoxContainer { Name = NodeName, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-        root.AddThemeConstantOverride("separation", 8);
+        root.AddThemeConstantOverride("separation", 6);
         var heading = VanillaUi.Label(Russian ? "Стартовая колода" : "Starting deck", 26, VanillaUi.Gold);
         heading.CustomMinimumSize = new Vector2(0, 40);
         VanillaUi.Shadow(heading);
         root.AddChild(heading);
 
-        var grid = new GridContainer { Columns = 3, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        var grid = new GridContainer { Columns = 2, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         grid.AddThemeConstantOverride("h_separation", 10);
-        grid.AddThemeConstantOverride("v_separation", 10);
+        grid.AddThemeConstantOverride("v_separation", 2);
         root.AddChild(grid);
-        foreach (var choice in Choices)
-        {
-            if (choice != Choice.Starter && !state.Rows.ContainsKey(choice)) continue;
-            var title = choice switch
-            {
-                Choice.Starter => new LocString("modifiers", StarterTitleKey).GetFormattedText(),
-                Choice.Empty => Russian ? "Пустая" : "Empty",
-                _ => state.Rows[choice].Modifier!.Title.GetFormattedText()
-            };
-            var card = CreateCard(title, Summary(choice));
-            grid.AddChild(card.Button);
-            state.Cards[choice] = card;
-            var picked = choice;
-            card.Button.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => Select(list, state, picked)));
-            card.Button.MouseEntered += () => ShowTooltip(card.Button, picked, state);
-            card.Button.MouseExited += () => NHoverTipSet.Remove(card.Button);
-        }
-        root.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4), MouseFilter = Control.MouseFilterEnum.Ignore });
 
-        // The picker leads the Start tab; the hidden deck rows and their value sliders follow it, so a
-        // selected Draft or Sealed Deck shows its settings right below the cards.
+        var detail = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        detail.AddChild(VanillaUi.Box(new Color(0, 0, 0, 0.35f)));
+        var padding = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        foreach (var side in new[] { "margin_left", "margin_right" }) padding.AddThemeConstantOverride(side, 14);
+        foreach (var side in new[] { "margin_top", "margin_bottom" }) padding.AddThemeConstantOverride(side, 8);
+        detail.AddChild(padding);
+        var sentence = new HFlowContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        sentence.AddThemeConstantOverride("h_separation", 6);
+        sentence.AddThemeConstantOverride("v_separation", 2);
+        padding.AddChild(sentence);
+        root.AddChild(detail);
+        root.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6), MouseFilter = Control.MouseFilterEnum.Ignore });
+
+        var state = new State { Sentence = sentence, LayoutChanged = layoutChanged };
+        foreach (var (choice, row) in rowsByChoice) state.Rows[choice] = row;
+        States.AddOrUpdate(list, state);
+
+        // Column-major order, so the list reads top to bottom like the mockup.
+        var shown = Choices.Where(choice => choice == Choice.Starter || state.Rows.ContainsKey(choice)).ToList();
+        var perColumn = (shown.Count + 1) / 2;
+        for (var i = 0; i < perColumn; i++)
+        for (var column = 0; column < 2; column++)
+        {
+            var index = column * perColumn + i;
+            if (index >= shown.Count)
+            {
+                grid.AddChild(new Control { MouseFilter = Control.MouseFilterEnum.Ignore });
+                continue;
+            }
+            var choice = shown[index];
+            var option = CreateOption(Title(choice, state));
+            grid.AddChild(option.Button);
+            state.Options[choice] = option;
+            option.Button.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => Select(list, state, choice)));
+        }
+
+        // The picker leads the Start tab. The hidden deck rows and their (now unused) value rows follow it.
         childList.AddChild(root);
         childList.MoveChild(root, 0);
-        var index = 1;
+        var position = 1;
         foreach (var choice in Choices)
         {
             if (!state.Rows.TryGetValue(choice, out var row)) continue;
             row.Visible = false;
             row.FocusMode = Control.FocusModeEnum.None;
-            childList.MoveChild(row, index++);
+            childList.MoveChild(row, position++);
             foreach (var attached in attachments.GetValueOrDefault(row) ?? [])
-                childList.MoveChild(attached, index++);
+                childList.MoveChild(attached, position++);
         }
     }
 
-    private static Card CreateCard(string title, string summary)
+    private static Texture2D? Radio(bool on)
+    {
+        if ((on ? radioOn : radioOff) is { } cached) return cached;
+        var name = on ? "radio_ticked.png" : "radio_unticked.png";
+        using var stream = typeof(DeckPickerUi).Assembly.GetManifestResourceStream("UltimateCustomRun.Assets." + name);
+        // Without the bundled radio art, fall back to the game's own checkbox.
+        if (stream == null)
+            return ResourceLoader.Load<Texture2D>(on ? "res://images/packed/common_ui/checkbox_ticked.png" : "res://images/packed/common_ui/checkbox_unticked.png");
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        var image = new Image();
+        if (image.LoadPngFromBuffer(buffer.ToArray()) != Error.Ok) return null;
+        var texture = ImageTexture.CreateFromImage(image);
+        if (on) radioOn = texture; else radioOff = texture;
+        return texture;
+    }
+
+    private static Option CreateOption(string title)
     {
         var button = new NButton
         {
-            Name = "DeckChoice", CustomMinimumSize = new Vector2(0, 96), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            Name = "DeckChoice", CustomMinimumSize = new Vector2(0, 40), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
             FocusMode = Control.FocusModeEnum.All, MouseFilter = Control.MouseFilterEnum.Stop
         };
-        button.Resized += () => button.PivotOffset = button.Size / 2;
-        var background = VanillaUi.Box(new Color(0, 0, 0, 0.35f));
-        button.AddChild(background);
-        background.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        var frame = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
-        frame.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        var highlight = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
+        highlight.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
-            BgColor = new Color(VanillaUi.Gold, 0.08f), BorderColor = VanillaUi.Gold,
-            BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2,
-            CornerRadiusTopLeft = 10, CornerRadiusTopRight = 10, CornerRadiusBottomLeft = 10, CornerRadiusBottomRight = 10
+            BgColor = new Color(VanillaUi.Gold, 0.08f),
+            CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6
         });
-        button.AddChild(frame);
-        frame.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        var margin = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        margin.AddThemeConstantOverride("margin_left", 14);
-        margin.AddThemeConstantOverride("margin_right", 12);
-        margin.AddThemeConstantOverride("margin_top", 8);
-        margin.AddThemeConstantOverride("margin_bottom", 8);
-        button.AddChild(margin);
-        margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        var column = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        column.AddThemeConstantOverride("separation", 0);
-        margin.AddChild(column);
-        var titleLabel = VanillaUi.Label(title, 24, VanillaUi.Cream);
-        VanillaUi.Outline(titleLabel, 8);
-        titleLabel.ClipText = true;
-        titleLabel.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
-        column.AddChild(titleLabel);
-        var summaryLabel = VanillaUi.Label(summary, 18, new Color(VanillaUi.Cream, 0.62f), bold: false);
-        summaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        summaryLabel.VerticalAlignment = VerticalAlignment.Top;
-        summaryLabel.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-        column.AddChild(summaryLabel);
+        button.AddChild(highlight);
+        highlight.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        line.AddThemeConstantOverride("separation", 10);
+        button.AddChild(line);
+        line.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        line.OffsetLeft = 6;
+        var radio = new TextureRect
+        {
+            Texture = Radio(false), CustomMinimumSize = new Vector2(32, 32), ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
+            MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+        line.AddChild(radio);
+        var name = VanillaUi.Label(title, 22, VanillaUi.Cream, bold: false);
+        name.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        name.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+        name.ClipText = true;
+        line.AddChild(name);
 
-        var card = new Card { Button = button, Background = background, Frame = frame, Title = titleLabel };
+        var option = new Option { Button = button, Radio = radio, Name = name, Highlight = highlight };
         var mouseInside = false;
         void Enter()
         {
-            if (card.Hovered) return;
-            card.Hovered = true;
-            Paint(card);
+            if (option.Hovered) return;
+            option.Hovered = true;
+            Paint(option);
         }
         void Exit()
         {
-            if (!card.Hovered || button.HasFocus() || mouseInside) return;
-            card.Hovered = false;
-            Paint(card);
+            if (!option.Hovered || button.HasFocus() || mouseInside) return;
+            option.Hovered = false;
+            Paint(option);
         }
         button.MouseEntered += () => { mouseInside = true; Enter(); };
         button.MouseExited += () => { mouseInside = false; Exit(); };
         button.FocusEntered += Enter;
         button.FocusExited += Exit;
-        Paint(card);
-        return card;
+        Paint(option);
+        return option;
     }
 
-    private static void Paint(Card card)
+    private static void Paint(Option option)
     {
-        if (!GodotObject.IsInstanceValid(card.Button)) return;
-        card.Frame.Visible = card.Selected;
-        card.Background.Modulate = new Color(0, 0, 0, card.Hovered ? 0.55f : 0.35f);
-        card.Title.AddThemeColorOverride("font_color", card.Selected || card.Hovered ? VanillaUi.Gold : VanillaUi.Cream);
+        if (!GodotObject.IsInstanceValid(option.Button)) return;
+        option.Highlight.Visible = option.Selected;
+        option.Radio.Texture = Radio(option.Selected);
+        option.Name.AddThemeColorOverride("font_color", option.Selected || option.Hovered ? VanillaUi.Gold : VanillaUi.Cream);
+        option.Name.AddThemeFontOverride("font", ResourceLoader.Load<Font>(option.Selected ? VanillaUi.BoldFont : VanillaUi.RegularFont));
     }
 
     internal static void Refresh(NCustomRunModifiersList list)
@@ -208,16 +243,107 @@ internal static class DeckPickerUi
         if (!GodotObject.IsInstanceValid(list) || !States.TryGetValue(list, out var state)) return;
         var current = Current(state);
         state.Editable = ModifierGroupsUi.IsEditable(list);
-        foreach (var (choice, card) in state.Cards)
+        foreach (var (choice, option) in state.Options)
         {
-            if (!GodotObject.IsInstanceValid(card.Button)) continue;
-            card.Selected = choice == current;
+            if (!GodotObject.IsInstanceValid(option.Button)) continue;
+            option.Selected = choice == current;
             // Clients see the host's deck but cannot change it.
-            card.Button.MouseFilter = state.Editable ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
-            card.Button.FocusMode = state.Editable ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
-            if (!state.Editable) NHoverTipSet.Remove(card.Button);
-            Paint(card);
+            option.Button.MouseFilter = state.Editable ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
+            option.Button.FocusMode = state.Editable ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
+            Paint(option);
         }
+        BuildSentence(list, state, current);
+    }
+
+    private static void BuildSentence(NCustomRunModifiersList list, State state, Choice choice)
+    {
+        if (!GodotObject.IsInstanceValid(state.Sentence)) return;
+        var modifier = state.Rows.GetValueOrDefault(choice)?.Modifier;
+        var adjustable = state.Editable && AdvancedMode.IsActive(list);
+        var values = new int[2];
+        if (modifier != null && ModifierValues.For(modifier) != null) values[0] = ModifierValues.Get(modifier);
+        if (modifier is SealedDeck) values[1] = ModifierValues.GetSealedPool(modifier);
+        var signature = $"{choice}|{adjustable}|{Russian}";
+        if (signature == state.Signature)
+        {
+            foreach (var (label, pool) in state.Numbers)
+                if (GodotObject.IsInstanceValid(label)) label.Text = values[pool ? 1 : 0].ToString();
+            return;
+        }
+        state.Signature = signature;
+        state.Numbers.Clear();
+
+        foreach (var child in state.Sentence.GetChildren()) child.QueueFree();
+        state.Sentence.AddChild(Word(Title(choice, state) + ":", VanillaUi.Gold, bold: true));
+        foreach (var token in Template(choice).Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(token, @"^\{(\d)\}(.*)$");
+            if (!match.Success || modifier == null)
+            {
+                state.Sentence.AddChild(Word(token, new Color(VanillaUi.Cream, 0.62f)));
+                continue;
+            }
+            var pool = match.Groups[1].Value == "1";
+            var value = values[pool ? 1 : 0];
+            var holder = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+            holder.AddThemeConstantOverride("separation", 0);
+            var number = Word(value.ToString(), VanillaUi.Blue, bold: true);
+            state.Numbers.Add((number, pool));
+            holder.AddChild(adjustable ? Stepper(number, step => ModifierValueUi.Adjust(list, modifier, pool, step)) : number);
+            if (match.Groups[2].Value.Length > 0) holder.AddChild(Word(match.Groups[2].Value, new Color(VanillaUi.Cream, 0.62f)));
+            state.Sentence.AddChild(holder);
+        }
+        Callable.From(() => state.LayoutChanged?.Invoke()).CallDeferred();
+    }
+
+    private static Label Word(string text, Color color, bool bold = false)
+    {
+        var label = VanillaUi.Label(text, TextSize, color, bold);
+        label.CustomMinimumSize = new Vector2(0, 34);
+        return label;
+    }
+
+    // ‹ value › with the value in the game's number blue; arrows brighten on hover.
+    private static Control Stepper(Label number, Action<int> step)
+    {
+        var box = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+        box.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = new Color(0, 0, 0, 0.45f), BorderColor = new Color(VanillaUi.Blue, 0.35f),
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+            CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6,
+            ContentMarginLeft = 2, ContentMarginRight = 2
+        });
+        var line = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        line.AddThemeConstantOverride("separation", 0);
+        box.AddChild(line);
+        line.AddChild(Arrow("‹", () => step(-1)));
+        number.HorizontalAlignment = HorizontalAlignment.Center;
+        number.CustomMinimumSize = new Vector2(30, 30);
+        line.AddChild(number);
+        line.AddChild(Arrow("›", () => step(1)));
+        return box;
+    }
+
+    private static NButton Arrow(string glyph, Action pressed)
+    {
+        var button = new NButton
+        {
+            Name = "Step", CustomMinimumSize = new Vector2(22, 30), FocusMode = Control.FocusModeEnum.All,
+            MouseFilter = Control.MouseFilterEnum.Stop
+        };
+        var label = VanillaUi.Label(glyph, 24, VanillaUi.Gold);
+        label.HorizontalAlignment = HorizontalAlignment.Center;
+        button.AddChild(label);
+        label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        label.OffsetBottom = -3;
+        void Light(bool on) => label.AddThemeColorOverride("font_color", on ? VanillaUi.Cream : VanillaUi.Gold);
+        button.MouseEntered += () => Light(true);
+        button.MouseExited += () => Light(false);
+        button.FocusEntered += () => Light(true);
+        button.FocusExited += () => Light(false);
+        button.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(_ => pressed()));
+        return button;
     }
 
     // Old loadouts may tick more than one deck modifier; the first replacement wins, as it does at Neow.
@@ -237,26 +363,5 @@ internal static class DeckPickerUi
         AfterModifiersChanged.Invoke(list, [source]);
         Refresh(list);
         state.LayoutChanged?.Invoke();
-    }
-
-    private static void ShowTooltip(Control owner, Choice choice, State state)
-    {
-        if (!state.Editable) return;
-        NHoverTipSet.Remove(owner);
-        var tip = choice == Choice.Starter
-            ? new HoverTip(new LocString("modifiers", StarterTitleKey), new LocString("modifiers", StarterDescriptionKey), null!)
-            : VanillaUi.Tip(state.Rows[choice].Modifier!.Title, state.Rows[choice].Modifier!.Description);
-        NHoverTipSet.CreateAndShow(owner, tip, HoverTipAlignment.Left);
-    }
-
-    private static void RegisterStarterText()
-    {
-        LocManager.Instance.GetTable("modifiers").MergeWith(new Dictionary<string, string>
-        {
-            [StarterTitleKey] = Russian ? "Обычная" : "Starter",
-            [StarterDescriptionKey] = Russian
-                ? "Начать с обычной стартовой колодой персонажа."
-                : "Start with your character's normal starting deck."
-        });
     }
 }
