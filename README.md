@@ -36,11 +36,11 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 **Named modifier presets and the Active modifiers panel**
 
-![Loadout list open over the Start tab, with twelve active modifiers listed on the left](previews/modifier-presets.jpg)
+![Loadout list open over the Start tab, with twelve active modifiers listed on the left](previews/loadouts.jpg)
 
 **Starting deck and variants**
 
-![Start tab with Super Draft, Neow!! and Specialized - Pick Any selected](previews/custom-run-modifiers.jpg)
+![Start tab with Super Draft, Neow!! and Specialized - Pick Any selected](previews/start-tab.jpg)
 
 **Run parameters**
 
@@ -48,11 +48,11 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 **Extra rewards and Double Trouble**
 
-![Modifiers tab with Hoarder, Flight, Vintage, Rich Loot, Card Swarm, Blitz Merchant and Double Trouble](previews/rewards-and-card-pools.jpg)
+![Modifiers tab with Hoarder, Flight, Vintage, Rich Loot, Card Swarm, Blitz Merchant and Double Trouble](previews/modifiers-tab.jpg)
 
 **Individual Ascension effects**
 
-![Independent Ascension effects selected at Ascension 0](previews/ascension-modifiers.jpg)
+![Independent Ascension effects selected at Ascension 0](previews/ascension-tab.jpg)
 
 **Randomize**
 
