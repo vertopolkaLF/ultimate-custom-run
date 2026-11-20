@@ -14,6 +14,7 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 - Modifier groups on tabs beside the list: **Randomize**, **Start**, **Parameters**, **Modifiers**, **Card Pool**, **Ascension**, **Negatives**, and **Co-op**, each with a count of its selected modifiers. Options unavailable in singleplayer appear under **Disabled**. A group with no available modifiers, such as Co-op in singleplayer, has no tab.
 - **Starting deck** choice at the top of the Start tab: Starter, Draft, Sealed Deck, Insanity, or Empty (No Starting Deck). The selected option's settings appear right below it.
 - **Active modifiers** panel in the left column lists every selected modifier (below the lobby players in co-op). Click an entry to open its tab.
+- **Custom Mode header**: the game mode select (Standard, Blitz, Dread when unlocked by every player) and a seed button sit next to the title. The seed button opens a popup to enter a seed; leave it empty for a random seed. A green dot marks a set seed, and hovering shows it. The loadout select and Save button sit at the right edge of the modifier panel. Both columns use the full screen height.
 - **Blitz** custom runs move modifiers that cannot affect Blitz to **Disabled** and drop them from the run: Flight, Deadly Events, Big Game Hunter, Midas, Blitz Merchant — Random, and the independent Swarming Elites, Poverty, Inflation, and Scarcity Ascension effects. Blitz has a fixed linear map, no gold, no normal Merchant, and fixed-rarity rewards. **Blitz Merchant** is shown enabled and locked in Blitz; its slider sets the native Blitz Merchant's picks (default 3). The Floors per act parameter is locked. Double Trouble (including 3 bosses and Campfires between bosses) and Neow!! work in Blitz. Switching to another mode restores the previous Blitz Merchant selection.
 - **Run Parameters** can set floors per act (vanilla or 8–30), base hand size (vanilla or 0–10, capped by the engine's 10-card hand limit), base energy (vanilla or 0–10), and enemy HP, enemy damage, and player HP multipliers (25–500%, step 25%).
 - **Co-op** modifiers:
@@ -33,21 +34,33 @@ Customize **Slay the Spire 2** custom runs with native value sliders, new modifi
 
 ## Screenshots
 
-**Named modifier presets**
+**Named modifier presets and the Active modifiers panel**
 
-![Custom Run modifier presets with a saved loadout selected](previews/modifier-presets.jpg)
+![Loadout list open over the Start tab, with twelve active modifiers listed on the left](previews/modifier-presets.jpg)
 
-**Starting decks and native value sliders**
+**Starting deck and variants**
 
-![Insanity set to 60 cards, All Star variants, and Friendship draft options](previews/custom-run-modifiers.jpg)
+![Start tab with Super Draft, Neow!! and Specialized - Pick Any selected](previews/custom-run-modifiers.jpg)
 
-**Extra rewards and card pools**
+**Run parameters**
 
-![Grouped modifiers including Rich Loot, Card Swarm, and Colorless Cards](previews/rewards-and-card-pools.jpg)
+![Custom Run Parameters sliders for floors per act, hand size, energy, enemy HP and damage, and player HP](previews/run-parameters.jpg)
+
+**Extra rewards and Double Trouble**
+
+![Modifiers tab with Hoarder, Flight, Vintage, Rich Loot, Card Swarm, Blitz Merchant and Double Trouble](previews/rewards-and-card-pools.jpg)
 
 **Individual Ascension effects**
 
-![Independent Ascension effects selected at Ascension 0, including Double Boss](previews/ascension-modifiers.jpg)
+![Independent Ascension effects selected at Ascension 0](previews/ascension-modifiers.jpg)
+
+**Randomize**
+
+![Randomize tab with per-group count ranges and the Roll and Chaos buttons](previews/randomize.jpg)
+
+**Seed popup**
+
+![Seed popup opened from the seed button next to the game mode select](previews/seed-popup.jpg)
 
 ## Adjustable values
 
