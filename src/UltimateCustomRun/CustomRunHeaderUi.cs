@@ -21,7 +21,7 @@ namespace UltimateCustomRun;
 internal static class CustomRunHeaderUi
 {
     // The screen's 1920x1080 design space. The left column spans these x values; the modifier panel starts right of it.
-    internal const float ColumnLeft = 170, ColumnRight = 866;
+    internal const float ColumnLeft = 110, ColumnRight = 866;
     internal const float HeaderTop = 40, HeaderHeight = 60;
     // First y below the header for column content.
     internal const float ContentTop = 118;
